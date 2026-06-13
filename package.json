@@ -1,0 +1,83 @@
+{
+  "name": "flow-ledger",
+  "version": "2.0.0",
+  "description": "Personal productivity tracker — Rize.io style, local-first",
+  "main": "electron/main.js",
+  "homepage": "./",
+  "scripts": {
+    "react-start": "react-scripts start",
+    "dev": "concurrently \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .\"",
+    "build": "react-scripts build && electron-builder",
+    "publish:win": "react-scripts build && electron-builder --win --publish always",
+    "publish:mac": "react-scripts build && electron-builder --mac --publish always",
+    "release:patch": "npm version patch && git push && git push --tags",
+    "release:minor": "npm version minor && git push && git push --tags",
+    "release:major": "npm version major && git push && git push --tags"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.4",
+    "bcryptjs": "^2.4.3",
+    "date-fns": "^3.6.0",
+    "electron-updater": "^6.8.9",
+    "lucide-react": "^0.383.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-scripts": "5.0.1",
+    "recharts": "^2.12.7",
+    "sql.js": "^1.12.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "extends": null,
+    "appId": "com.flowledger.app",
+    "productName": "Flow Ledger",
+    "files": [
+      "build/**/*",
+      "electron/**/*",
+      "src/assets/logo.png"
+    ],
+    "icon": "src/assets/logo.png",
+    "win": {
+      "target": "nsis",
+      "icon": "electron/icon.ico",
+      "publisherName": "Flow Ledger"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Soor2005",
+      "repo": "Flow-Ledger",
+      "releaseType": "release"
+    }
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
