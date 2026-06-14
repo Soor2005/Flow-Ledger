@@ -1,12 +1,13 @@
 const { app, BrowserWindow, ipcMain, powerMonitor, Notification, session: electronSession, screen } = require('electron');
 
-// ─── GPU workaround: relaunch with SwiftShader on first run ──────────────────
-// appendSwitch() is too late — the GPU process is spawned before JS executes.
-// Instead we relaunch once with --use-gl=swiftshader as a real CLI arg, which
-// Chromium reads before starting the GPU service. This only runs in packaged
-// builds (isDev = false) and only when the flag isn't already present.
-if (app.isPackaged && !app.commandLine.hasSwitch('use-gl')) {
-  app.relaunch({ args: process.argv.slice(1).concat(['--use-gl=swiftshader']) });
+// ─── GPU workaround: relaunch with sandbox disabled on first run ──────────────
+// On Windows + NVIDIA, Electron's GPU *sandbox process* crashes silently,
+// producing an invisible/black window. The GPU itself works fine — only the
+// sandbox wrapper fails. appendSwitch() is too late in packaged builds, so we
+// relaunch once with --disable-gpu-sandbox as a real CLI arg (Chromium reads
+// it before starting the GPU service). This keeps full hardware acceleration.
+if (app.isPackaged && !app.commandLine.hasSwitch('disable-gpu-sandbox')) {
+  app.relaunch({ args: process.argv.slice(1).concat(['--disable-gpu-sandbox']) });
   app.exit(0);
 }
 
