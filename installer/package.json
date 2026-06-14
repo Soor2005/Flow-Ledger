@@ -1,0 +1,44 @@
+{
+  "name": "flow-ledger-installer",
+  "version": "2.0.0",
+  "description": "Flow Ledger Setup",
+  "author": "Flow Ledger",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.flowledger.installer",
+    "productName": "Flow Ledger Setup",
+    "copyright": "Flow Ledger",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/win-unpacked",
+        "to": "app-bundle",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../src/assets/logo.png",
+        "to": "logo.png"
+      }
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "../electron/icon.ico",
+      "artifactName": "Flow-Ledger-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "Flow-Ledger-Setup-${version}.exe"
+    }
+  }
+}

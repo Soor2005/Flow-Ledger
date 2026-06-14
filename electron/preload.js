@@ -6,12 +6,24 @@ contextBridge.exposeInMainWorld('electron', {
   maximize: () => ipcRenderer.send('window-maximize'),
   close:    () => ipcRenderer.send('window-close'),
 
-  // Auth
+  // Auth — legacy local
   register:      (d) => ipcRenderer.invoke('auth:register', d),
   login:         (d) => ipcRenderer.invoke('auth:login', d),
   restoreSession:(d) => ipcRenderer.invoke('auth:restoreSession', d),
   updateTarget:  (d) => ipcRenderer.invoke('auth:updateTarget', d),
   updateProfile: (d) => ipcRenderer.invoke('user:updateProfile', d),
+
+  // Auth — Supabase
+  supabaseLogin:          (d) => ipcRenderer.invoke('auth:supabaseLogin', d),
+  supabaseLogout:         ()  => ipcRenderer.invoke('auth:supabaseLogout'),
+  validateActivationKey:  (d) => ipcRenderer.invoke('auth:validateActivationKey', d),
+
+  // Deep-link callback from Electron (e.g. flowledger://auth/callback)
+  onAuthDeepLink: (cb) => {
+    const handler = (_, url) => cb(url);
+    ipcRenderer.on('auth:deepLink', handler);
+    return () => ipcRenderer.removeListener('auth:deepLink', handler);
+  },
 
   // Manual sessions
   startSession:           (d) => ipcRenderer.invoke('sessions:start', d),

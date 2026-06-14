@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flow Ledger Setup</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #0c0d15;
+  --bg-card:      rgba(255,255,255,0.038);
+  --bg-input:     rgba(255,255,255,0.05);
+  --border:       rgba(255,255,255,0.082);
+  --border-focus: #7C6CF2;
+  --accent:       #7C6CF2;
+  --accent-l:     #a78bfa;
+  --accent-glow:  rgba(124,108,242,0.38);
+  --tx:           #ffffff;
+  --tx-2:         rgba(255,255,255,0.58);
+  --tx-3:         rgba(255,255,255,0.32);
+  --green:        #34d399;
+  --green-glow:   rgba(52,211,153,0.32);
+  --red:          #f87171;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: transparent;
+  color: var(--tx);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Shell with rounded corners + border glow */
+.shell {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.09);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.6),
+    0 40px 100px rgba(0,0,0,0.85),
+    0 0 80px rgba(124,108,242,0.06) inset;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ambient background mesh */
+.shell::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 15% 0%,  rgba(124,108,242,0.14) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 45% at 88% 95%, rgba(124,108,242,0.09) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Titlebar ─────────────────────────────────────────────────────────────── */
+.titlebar {
+  -webkit-app-region: drag;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+.titlebar-btns {
+  -webkit-app-region: no-drag;
+  display: flex;
+  gap: 6px;
+  margin-right: auto;
+}
+.tb-btn {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
+  opacity: 0.85;
+}
+.tb-btn:hover { opacity: 1; filter: brightness(1.15); }
+.tb-close    { background: #ff5f57; }
+.tb-min      { background: #febc2e; }
+.tb-max      { background: #28c840; opacity: 0.3; cursor: default; }
+.tb-logo {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  position: absolute; left: 50%; transform: translateX(-50%);
+}
+.tb-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ── Screens ─────────────────────────────────────────────────────────────── */
+.screen {
+  position: absolute;
+  inset: 42px 0 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(18px) scale(0.99);
+  transition: opacity 0.38s ease, transform 0.38s cubic-bezier(0.34,1.2,0.64,1);
+  z-index: 5;
+}
+.screen.active {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0) scale(1);
+}
+.screen.exit {
+  opacity: 0;
+  transform: translateY(-14px) scale(0.99);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCREEN 1 — Welcome / Path
+   ══════════════════════════════════════════════════════════════════════════ */
+#s-install {
+  align-items: center;
+  justify-content: flex-start;
+  padding: 20px 32px 28px;
+  gap: 0;
+}
+
+/* Logo cluster */
+.logo-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 30px;
+}
+.logo-ring {
+  width: 76px; height: 76px;
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(124,108,242,0.18), rgba(124,108,242,0.06));
+  border: 1.5px solid rgba(124,108,242,0.28);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow:
+    0 0 0 6px rgba(124,108,242,0.06),
+    0 0 50px rgba(124,108,242,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+  animation: logo-float 4s ease-in-out infinite;
+}
+@keyframes logo-float {
+  0%,100% { transform: translateY(0);    box-shadow: 0 0 0 6px rgba(124,108,242,0.06), 0 0 50px rgba(124,108,242,0.22), inset 0 1px 0 rgba(255,255,255,0.07); }
+  50%      { transform: translateY(-4px); box-shadow: 0 0 0 6px rgba(124,108,242,0.08), 0 0 65px rgba(124,108,242,0.3),  inset 0 1px 0 rgba(255,255,255,0.07); }
+}
+.logo-ring img { width: 48px; height: 48px; object-fit: contain; }
+.logo-fallback {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 48px; height: 48px;
+}
+.logo-text-group { text-align: center; }
+.app-name {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  background: linear-gradient(130deg, #fff 30%, var(--accent-l) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.1;
+}
+.app-desc {
+  font-size: 12.5px;
+  color: var(--tx-3);
+  margin-top: 5px;
+  letter-spacing: 0.01em;
+}
+
+/* Version pills */
+.version-pills {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: center;
+}
+.pill {
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--tx-3);
+}
+.pill.accent {
+  background: rgba(124,108,242,0.12);
+  border-color: rgba(124,108,242,0.22);
+  color: var(--accent-l);
+}
+
+/* Path card */
+.path-card {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px 16px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(24px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.045), 0 4px 24px rgba(0,0,0,0.2);
+  position: relative;
+  overflow: hidden;
+}
+.path-card::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,108,242,0.35), transparent);
+}
+.card-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  margin-bottom: 12px;
+}
+.path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.path-field {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 13px;
+  color: var(--tx);
+  font-size: 11.5px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.path-field:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(124,108,242,0.15);
+}
+.browse-btn {
+  background: rgba(124,108,242,0.1);
+  border: 1px solid rgba(124,108,242,0.22);
+  border-radius: 10px;
+  padding: 9px 15px;
+  color: var(--accent-l);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  letter-spacing: -0.1px;
+}
+.browse-btn:hover {
+  background: rgba(124,108,242,0.18);
+  border-color: rgba(124,108,242,0.38);
+}
+.browse-btn:active { transform: scale(0.97); }
+
+.path-meta {
+  display: flex;
+  gap: 18px;
+}
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--tx-2);
+}
+.meta-pip {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.pip-accent { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.pip-green  { background: var(--green);  box-shadow: 0 0 6px var(--green); }
+
+/* Install CTA */
+.install-btn {
+  width: 100%;
+  height: 52px;
+  background: linear-gradient(135deg, #7C6CF2 0%, #a78bfa 100%);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow:
+    0 0 0 1px rgba(124,108,242,0.35),
+    0 6px 28px rgba(124,108,242,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+  transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  margin-bottom: 0;
+  position: relative;
+  overflow: hidden;
+}
+.install-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+  border-radius: inherit;
+}
+.install-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgba(124,108,242,0.45),
+    0 12px 40px rgba(124,108,242,0.58),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+}
+.install-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+  box-shadow:
+    0 0 0 1px rgba(124,108,242,0.3),
+    0 4px 16px rgba(124,108,242,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.install-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-arrow {
+  transition: transform 0.2s;
+}
+.install-btn:hover:not(:disabled) .btn-arrow {
+  transform: translateX(3px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCREEN 2 — Progress
+   ══════════════════════════════════════════════════════════════════════════ */
+#s-progress {
+  align-items: center;
+  justify-content: center;
+  padding: 0 40px 48px;
+  gap: 38px;
+}
+
+.prog-header { text-align: center; }
+.prog-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 7px;
+}
+.prog-sub {
+  font-size: 12.5px;
+  color: var(--tx-3);
+}
+
+/* Animated spinner ring + percentage */
+.prog-ring-wrap {
+  position: relative;
+  width: 120px; height: 120px;
+  flex-shrink: 0;
+}
+.prog-ring-bg {
+  fill: none;
+  stroke: rgba(255,255,255,0.07);
+  stroke-width: 6;
+}
+.prog-ring-fill {
+  fill: none;
+  stroke: url(#ring-grad);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 326.73;
+  stroke-dashoffset: 326.73;
+  transition: stroke-dashoffset 0.65s cubic-bezier(0.34,1,0.64,1);
+  filter: drop-shadow(0 0 8px rgba(124,108,242,0.6));
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+.prog-pct-label {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+}
+.prog-pct-num {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, #fff, var(--accent-l));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.prog-pct-sign {
+  font-size: 14px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff, var(--accent-l));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-left: 1px;
+}
+
+/* Step bar */
+.step-bar-wrap { width: 100%; }
+.step-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 9px;
+}
+.step-label {
+  font-size: 12px;
+  color: var(--tx-2);
+  transition: color 0.3s;
+}
+.step-count {
+  font-size: 10.5px;
+  color: var(--tx-3);
+  font-variant-numeric: tabular-nums;
+}
+.step-track {
+  height: 4px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.step-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-l));
+  transition: width 0.65s cubic-bezier(0.34,1,0.64,1);
+  position: relative;
+  box-shadow: 0 0 10px rgba(124,108,242,0.5);
+}
+.step-fill::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-150%); }
+  100% { transform: translateX(250%); }
+}
+
+/* Step dots */
+.step-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+}
+.step-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  transition: background 0.3s, transform 0.3s;
+}
+.step-dot.done   { background: var(--accent); }
+.step-dot.active { background: var(--accent-l); transform: scale(1.3); box-shadow: 0 0 6px var(--accent); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCREEN 3 — Success
+   ══════════════════════════════════════════════════════════════════════════ */
+#s-success {
+  align-items: center;
+  justify-content: center;
+  padding: 0 40px 52px;
+  gap: 30px;
+}
+
+/* Checkmark */
+.check-wrap {
+  position: relative;
+  width: 90px; height: 90px;
+  flex-shrink: 0;
+}
+.check-glow {
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(52,211,153,0.28) 0%, transparent 70%);
+  opacity: 0;
+  animation: glow-in 0.7s ease 0.9s forwards;
+}
+@keyframes glow-in { to { opacity: 1; } }
+
+.check-circle {
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 2.5;
+  stroke-dasharray: 254;
+  stroke-dashoffset: 254;
+  animation: circle-draw 0.65s cubic-bezier(0.65,0,0.45,1) 0.15s forwards;
+}
+@keyframes circle-draw { to { stroke-dashoffset: 0; } }
+
+.check-tick {
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 52;
+  stroke-dashoffset: 52;
+  animation: tick-draw 0.4s ease-out 0.8s forwards;
+}
+@keyframes tick-draw { to { stroke-dashoffset: 0; } }
+
+.check-bg {
+  fill: rgba(52,211,153,0.08);
+  opacity: 0;
+  animation: bg-fade 0.4s ease 0.85s forwards;
+}
+@keyframes bg-fade { to { opacity: 1; } }
+
+/* Text */
+.success-text { text-align: center; }
+.success-title {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 9px;
+}
+.success-sub {
+  font-size: 12.5px;
+  color: var(--tx-2);
+  line-height: 1.65;
+}
+
+/* Installed path badge */
+.install-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 9px 14px;
+  max-width: 100%;
+}
+.badge-icon { flex-shrink: 0; color: var(--tx-3); }
+.badge-path {
+  font-size: 11px;
+  color: var(--tx-3);
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Action buttons */
+.success-actions { width: 100%; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.launch-btn {
+  width: 100%;
+  height: 52px;
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow:
+    0 0 0 1px rgba(52,211,153,0.35),
+    0 6px 28px rgba(52,211,153,0.38),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  position: relative;
+  overflow: hidden;
+}
+.launch-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 60%);
+}
+.launch-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgba(52,211,153,0.45),
+    0 12px 40px rgba(52,211,153,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.24);
+}
+.launch-btn:active { transform: translateY(0) scale(0.99); }
+.close-quietly {
+  font-size: 11.5px;
+  color: var(--tx-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s;
+  padding: 2px 8px;
+}
+.close-quietly:hover { color: var(--tx-2); }
+
+/* Trust footer */
+.trust-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.trust-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--tx-3);
+  letter-spacing: 0.01em;
+}
+.trust-sep {
+  color: var(--tx-3);
+  opacity: 0.4;
+  font-size: 10px;
+}
+
+/* ── Utility ─────────────────────────────────────────────────────────────── */
+svg { display: block; }
+button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ─── Titlebar ─────────────────────────────────────────────────────────── -->
+  <div class="titlebar">
+    <div class="titlebar-btns">
+      <button class="tb-btn tb-close" onclick="close_()" title="Close"></button>
+      <button class="tb-btn tb-min"   onclick="min_()"   title="Minimize"></button>
+      <button class="tb-btn tb-max"   title="Maximize (disabled)"></button>
+    </div>
+    <div class="tb-logo">
+      <img src="" id="tb-logo-img" alt="">
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       SCREEN 1 — Welcome / Install path
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="screen active" id="s-install">
+
+    <div class="logo-cluster">
+      <div class="logo-ring">
+        <img id="logo-img" src="" alt="Flow Ledger" onerror="onLogoError()">
+        <div class="logo-fallback" id="logo-fallback">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <rect width="48" height="48" rx="12" fill="rgba(124,108,242,0.2)"/>
+            <text x="24" y="33" text-anchor="middle" font-size="22" font-weight="900"
+              fill="#a78bfa" font-family="system-ui,sans-serif">FL</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="logo-text-group">
+        <div class="app-name">Flow Ledger</div>
+        <div class="app-desc">Track everything. Lose nothing.</div>
+        <div class="version-pills" style="margin-top:10px">
+          <span class="pill accent">v2.0.0</span>
+          <span class="pill">145 MB</span>
+          <span class="pill">Windows</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Path selection card -->
+    <div class="path-card">
+      <div class="card-label">Installation Location</div>
+      <div class="path-row">
+        <input type="text" class="path-field" id="path-field" readonly spellcheck="false">
+        <button class="browse-btn" onclick="browse()">Browse</button>
+      </div>
+      <div class="path-meta">
+        <div class="meta-item">
+          <div class="meta-pip pip-accent"></div>
+          <span>145 MB required</span>
+        </div>
+        <div class="meta-item">
+          <div class="meta-pip pip-green"></div>
+          <span id="disk-label">Checking…</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="error-msg" style="
+      display:none; margin: 0 0 10px;
+      background: rgba(248,113,113,0.10); border: 1px solid rgba(248,113,113,0.35);
+      border-radius: 8px; padding: 9px 13px;
+      font-size: 11.5px; color: #f87171; line-height: 1.45;
+      word-break: break-word;
+    "></div>
+
+    <button class="install-btn" id="install-btn" onclick="startInstall()">
+      Install Flow Ledger
+      <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </button>
+
+    <!-- Trust footer -->
+    <div class="trust-footer">
+      <div class="trust-item">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        No account required
+      </div>
+      <div class="trust-sep">·</div>
+      <div class="trust-item">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M3 12h4m10 0h4M12 3v4m0 10v4"/>
+        </svg>
+        Works offline
+      </div>
+      <div class="trust-sep">·</div>
+      <div class="trust-item">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Local-first · Private
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       SCREEN 2 — Progress
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="screen" id="s-progress">
+
+    <div class="prog-header">
+      <div class="prog-title">Installing Flow Ledger</div>
+      <div class="prog-sub">This will only take a moment…</div>
+    </div>
+
+    <!-- Circular ring progress -->
+    <div class="prog-ring-wrap">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stop-color="#7C6CF2"/>
+            <stop offset="100%" stop-color="#a78bfa"/>
+          </linearGradient>
+        </defs>
+        <circle class="prog-ring-bg"   cx="60" cy="60" r="52"/>
+        <circle class="prog-ring-fill" cx="60" cy="60" r="52" id="ring-fill"/>
+      </svg>
+      <div class="prog-pct-label">
+        <span>
+          <span class="prog-pct-num" id="pct-num">0</span><span class="prog-pct-sign">%</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Step label + linear bar -->
+    <div class="step-bar-wrap">
+      <div class="step-bar-header">
+        <span class="step-label" id="step-label">Preparing…</span>
+        <span class="step-count" id="step-count">1 / 7</span>
+      </div>
+      <div class="step-track">
+        <div class="step-fill" id="step-fill" style="width:0%"></div>
+      </div>
+      <div class="step-dots" id="step-dots"></div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       SCREEN 3 — Success
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="screen" id="s-success">
+
+    <div class="check-wrap">
+      <div class="check-glow"></div>
+      <svg width="90" height="90" viewBox="0 0 90 90">
+        <circle class="check-bg" cx="45" cy="45" r="40"/>
+        <circle class="check-circle" cx="45" cy="45" r="40"
+          style="transform:rotate(-90deg);transform-origin:center"/>
+        <polyline class="check-tick" points="27,46 39,57 63,33"/>
+      </svg>
+    </div>
+
+    <div class="success-text">
+      <div class="success-title">Flow Ledger is ready</div>
+      <div class="success-sub">
+        Successfully installed to your computer.<br>
+        Start tracking your work instantly.
+      </div>
+    </div>
+
+    <div class="install-badge">
+      <svg class="badge-icon" width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span class="badge-path" id="installed-path">—</span>
+    </div>
+
+    <div class="success-actions">
+      <button class="launch-btn" onclick="launch()">
+        Launch Flow Ledger
+        <svg width="18" height="18" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <button class="close-quietly" onclick="close_()">Close installer</button>
+    </div>
+
+  </div>
+
+</div><!-- .shell -->
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const TOTAL_STEPS = 7;
+const CIRCUMFERENCE = 2 * Math.PI * 52; // 326.73
+
+let installDir   = '';
+let currentStep  = 0;
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+(function init() {
+  // Try to load logo from resources (packaged) or dev fallback
+  const logoEl = document.getElementById('logo-img');
+  const tbLogo = document.getElementById('tb-logo-img');
+  // electron provides __dirname-like path via resourcesPath in preload if needed;
+  // we try common relative paths in sequence
+  const logoCandidates = [
+    '../resources/logo.png',    // packaged: resourcesPath/logo.png
+    '../src/assets/logo.png',   // dev
+    'logo.png',
+  ];
+  let idx = 0;
+  function tryNext() {
+    if (idx >= logoCandidates.length) {
+      // All paths failed — show the SVG fallback
+      logoEl.style.display = 'none';
+      document.getElementById('logo-fallback').style.display = 'flex';
+      return;
+    }
+    const src = logoCandidates[idx++];
+    logoEl.onerror = () => { tryNext(); };
+    logoEl.src = src;
+    tbLogo.src = src;
+  }
+  tryNext();
+
+  // Default install path — fetched from main process to use actual home dir
+  (async () => {
+    installDir = window.installer
+      ? await window.installer.getDefaultDir()
+      : 'C:\\Users\\Public\\Flow Ledger';
+    document.getElementById('path-field').value = installDir;
+    refreshDisk(installDir);
+  })();
+
+  // Build step dots
+  const dots = document.getElementById('step-dots');
+  for (let i = 0; i < TOTAL_STEPS; i++) {
+    const d = document.createElement('div');
+    d.className = 'step-dot' + (i === 0 ? ' active' : '');
+    d.id = 'dot-' + i;
+    dots.appendChild(d);
+  }
+
+  // Subscribe to progress events
+  if (window.installer?.onProgress) {
+    window.installer.onProgress(onProgress);
+  }
+})();
+
+function onLogoError() {
+  document.getElementById('logo-img').style.display    = 'none';
+  document.getElementById('logo-fallback').style.display = 'flex';
+}
+
+// ─── Disk info ────────────────────────────────────────────────────────────────
+async function refreshDisk(p) {
+  const el = document.getElementById('disk-label');
+  if (!window.installer) { el.textContent = '— GB available'; return; }
+  const info = await window.installer.diskInfo(p);
+  el.textContent = info.freeGB + ' GB available';
+}
+
+// ─── Browse ───────────────────────────────────────────────────────────────────
+async function browse() {
+  if (!window.installer) return;
+  const chosen = await window.installer.browse();
+  if (chosen) {
+    installDir = chosen;
+    document.getElementById('path-field').value = chosen;
+    refreshDisk(chosen);
+  }
+}
+
+// ─── Screen transitions ───────────────────────────────────────────────────────
+function goTo(id) {
+  const active = document.querySelector('.screen.active');
+  if (active) {
+    active.classList.add('exit');
+    setTimeout(() => active.classList.remove('active', 'exit'), 320);
+  }
+  setTimeout(() => {
+    document.getElementById(id).classList.add('active');
+  }, 180);
+}
+
+// ─── Install ──────────────────────────────────────────────────────────────────
+async function startInstall() {
+  document.getElementById('install-btn').disabled = true;
+  document.getElementById('error-msg').style.display = 'none';
+  goTo('s-progress');
+
+  const result = await window.installer?.install({ installDir }) ?? { success: false, error: 'No installer bridge' };
+
+  if (result.success) {
+    document.getElementById('installed-path').textContent = result.installDir || installDir;
+    setTimeout(() => goTo('s-success'), 700);
+  } else {
+    const msg = result.error || 'Installation failed. Please try again.';
+    setTimeout(() => {
+      document.getElementById('install-btn').disabled = false;
+      goTo('s-install');
+      const errEl = document.getElementById('error-msg');
+      errEl.textContent = '⚠ ' + msg;
+      errEl.style.display = 'block';
+      setTimeout(() => { errEl.style.display = 'none'; }, 8000);
+    }, 400);
+  }
+}
+
+// ─── Progress handler ─────────────────────────────────────────────────────────
+function onProgress({ label, progress }) {
+  // Ring
+  const offset = CIRCUMFERENCE - (progress / 100) * CIRCUMFERENCE;
+  document.getElementById('ring-fill').style.strokeDashoffset = offset;
+
+  // Percentage number
+  animatePct(progress);
+
+  // Bar
+  document.getElementById('step-fill').style.width = progress + '%';
+
+  // Label
+  document.getElementById('step-label').textContent = label;
+
+  // Step count + dots
+  const stepIdx = Math.min(
+    TOTAL_STEPS - 1,
+    Math.floor((progress / 100) * TOTAL_STEPS)
+  );
+  document.getElementById('step-count').textContent = (stepIdx + 1) + ' / ' + TOTAL_STEPS;
+  for (let i = 0; i < TOTAL_STEPS; i++) {
+    const d = document.getElementById('dot-' + i);
+    d.className = 'step-dot' + (i < stepIdx ? ' done' : i === stepIdx ? ' active' : '');
+  }
+}
+
+let _pctRaf, _pctCurrent = 0;
+function animatePct(target) {
+  cancelAnimationFrame(_pctRaf);
+  const start = _pctCurrent;
+  const delta = target - start;
+  const dur   = 600;
+  const t0    = performance.now();
+  const el    = document.getElementById('pct-num');
+  function tick(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const ease = 1 - Math.pow(1 - p, 3);
+    _pctCurrent = Math.round(start + delta * ease);
+    el.textContent = _pctCurrent;
+    if (p < 1) _pctRaf = requestAnimationFrame(tick);
+  }
+  _pctRaf = requestAnimationFrame(tick);
+}
+
+// ─── Launch / Close ───────────────────────────────────────────────────────────
+function launch()  { window.installer?.launch(installDir); }
+function close_()  { window.installer?.close(); }
+function min_()    { window.installer?.minimize(); }
+</script>
+</body>
+</html>

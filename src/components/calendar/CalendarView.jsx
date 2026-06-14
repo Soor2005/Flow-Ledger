@@ -434,27 +434,8 @@ const ICAL_INSTRUCTIONS = {
 
 // Google OAuth sub-flow: either prompt for credentials setup or launch OAuth
 function GoogleConnectStep({ userId, onSuccess, onCancel }) {
-  // 'checking' | 'setup' | 'ready' | 'connecting' | 'waiting'
-  const [phase,       setPhase]      = useState('checking');
-  const [clientId,    setClientId]   = useState('');
-  const [clientSecret,setClientSecret] = useState('');
-  const [error,       setError]      = useState('');
-  const [setupOpen,   setSetupOpen]  = useState(false);
-
-  useEffect(() => {
-    api.calendarGoogleHasCredentials?.()
-      .then(r => setPhase(r?.configured ? 'ready' : 'setup'))
-      .catch(() => setPhase('setup'));
-  }, []);
-
-  const saveCredentials = async () => {
-    if (!clientId.trim() || !clientSecret.trim()) { setError('Both fields are required.'); return; }
-    setError('');
-    try {
-      await api.calendarGoogleSetCredentials?.({ clientId, clientSecret });
-      setPhase('ready'); setSetupOpen(false);
-    } catch (e) { setError(e?.message || 'Failed to save credentials.'); }
-  };
+  const [phase, setPhase] = useState('ready');
+  const [error, setError] = useState('');
 
   const launchOAuth = async () => {
     setPhase('connecting'); setError('');
@@ -463,21 +444,10 @@ function GoogleConnectStep({ userId, onSuccess, onCancel }) {
       if (result?.success) onSuccess(result);
       else throw new Error('Auth did not complete');
     } catch (e) {
-      const msg = e?.message || '';
-      if (msg === 'CREDENTIALS_NOT_CONFIGURED') { setPhase('setup'); return; }
-      setError(msg || 'Authentication failed. Please try again.');
+      setError(e?.message || 'Authentication failed. Please try again.');
       setPhase('ready');
     }
   };
-
-  if (phase === 'checking') {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 0', gap: 10, color: '#6B7280', fontSize: 13 }}>
-        <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-        Checking credentials…
-      </div>
-    );
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -489,82 +459,23 @@ function GoogleConnectStep({ userId, onSuccess, onCancel }) {
         <div style={{ textAlign: 'center' }}>
           <p style={{ fontSize: 14, fontWeight: 700, color: '#EAEAF0', marginBottom: 4 }}>Google Calendar</p>
           <p style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>
-            {phase === 'setup' || setupOpen
-              ? 'Enter your Google OAuth credentials to enable native sync.'
-              : 'Connect your Google account to automatically sync all your calendars.'}
+            Connect your Google account to automatically sync all your calendars.
           </p>
         </div>
       </div>
 
-      {/* Credentials setup panel */}
-      {(phase === 'setup' || setupOpen) && (
-        <div style={{ background: '#111419', border: '1px solid #1E2230', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.18)', borderRadius: 8, padding: '10px 12px' }}>
-            <AlertCircle size={13} style={{ color: '#FBBF24', flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <p style={{ fontSize: 11, color: '#D4A820', fontWeight: 600, marginBottom: 3 }}>One-time setup required</p>
-              <p style={{ fontSize: 10.5, color: '#9B8C5A', lineHeight: 1.6 }}>
-                Create a free Google Cloud project, enable the Calendar API, and add an OAuth 2.0 Desktop app credential.
-                {' '}<span style={{ color: '#FBBF24', cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={() => api.openExternal?.('https://console.cloud.google.com/apis/credentials')}>
-                  Open Cloud Console →
-                </span>
-              </p>
-            </div>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#4B5263', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Client ID</label>
-            <input value={clientId} onChange={e => setClientId(e.target.value)}
-              placeholder="000000000000-xxxxxxxx.apps.googleusercontent.com"
-              style={{ width: '100%', background: '#0D0F16', border: '1px solid #252932', borderRadius: 8, padding: '8px 10px', color: '#E2E4EF', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#4B5263', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Client Secret</label>
-            <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
-              placeholder="GOCSPX-…"
-              style={{ width: '100%', background: '#0D0F16', border: '1px solid #252932', borderRadius: 8, padding: '8px 10px', color: '#E2E4EF', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' }} />
-          </div>
-          {error && (
-            <div style={{ display: 'flex', gap: 7, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.22)', borderRadius: 8, padding: '9px 11px' }}>
-              <AlertCircle size={12} style={{ color: '#F87171', flexShrink: 0, marginTop: 1 }} />
-              <p style={{ fontSize: 11, color: '#FCA5A5' }}>{error}</p>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            {phase === 'ready' && (
-              <button onClick={() => { setSetupOpen(false); setError(''); }}
-                style={{ flex: 1, padding: '9px 0', borderRadius: 9, background: 'transparent', border: '1px solid #252932', color: '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                Cancel
-              </button>
-            )}
-            <button onClick={saveCredentials}
-              style={{ flex: 1, padding: '9px 0', borderRadius: 9, background: 'rgba(66,133,244,0.18)', border: '1px solid rgba(66,133,244,0.35)', color: '#60a5fa', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-              Save Credentials
-            </button>
-          </div>
-        </div>
-      )}
+      <button onClick={launchOAuth} disabled={phase === 'connecting'}
+        style={{ width: '100%', padding: '12px 0', borderRadius: 11, background: phase === 'connecting' ? 'rgba(66,133,244,0.1)' : 'rgba(66,133,244,0.18)', border: '1px solid rgba(66,133,244,0.35)', color: '#60a5fa', fontSize: 13, fontWeight: 700, cursor: phase === 'connecting' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, transition: 'all 0.15s', opacity: phase === 'connecting' ? 0.8 : 1 }}>
+        {phase === 'connecting'
+          ? <><RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> Opening Google sign-in…</>
+          : <><Calendar size={13} /> Connect with Google</>}
+      </button>
 
-      {/* Main connect button */}
-      {phase !== 'setup' && !setupOpen && (
-        <>
-          <button onClick={launchOAuth} disabled={phase === 'connecting'}
-            style={{ width: '100%', padding: '12px 0', borderRadius: 11, background: phase === 'connecting' ? 'rgba(66,133,244,0.1)' : 'rgba(66,133,244,0.18)', border: '1px solid rgba(66,133,244,0.35)', color: '#60a5fa', fontSize: 13, fontWeight: 700, cursor: phase === 'connecting' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, transition: 'all 0.15s', opacity: phase === 'connecting' ? 0.8 : 1 }}>
-            {phase === 'connecting'
-              ? <><RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> Opening Google sign-in…</>
-              : <><Calendar size={13} /> Connect with Google</>}
-          </button>
-          {error && (
-            <div style={{ display: 'flex', gap: 7, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.22)', borderRadius: 8, padding: '9px 11px' }}>
-              <AlertCircle size={12} style={{ color: '#F87171', flexShrink: 0, marginTop: 1 }} />
-              <p style={{ fontSize: 11, color: '#FCA5A5' }}>{error}</p>
-            </div>
-          )}
-          <button onClick={() => { setSetupOpen(true); setError(''); }}
-            style={{ background: 'none', border: 'none', color: '#4B5263', fontSize: 11, cursor: 'pointer', textAlign: 'center', textDecoration: 'underline' }}>
-            Use different credentials
-          </button>
-        </>
+      {error && (
+        <div style={{ display: 'flex', gap: 7, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.22)', borderRadius: 8, padding: '9px 11px' }}>
+          <AlertCircle size={12} style={{ color: '#F87171', flexShrink: 0, marginTop: 1 }} />
+          <p style={{ fontSize: 11, color: '#FCA5A5' }}>{error}</p>
+        </div>
       )}
 
       <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>

@@ -6,8 +6,9 @@
   "homepage": "./",
   "scripts": {
     "react-start": "react-scripts start",
-    "dev": "concurrently \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .\"",
+    "dev": "taskkill /f /im electron.exe 2>nul & concurrently \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .\"",
     "build": "react-scripts build && electron-builder",
+    "build:installer": "react-scripts build && electron-builder --dir && cd installer && npm install && npm run build",
     "publish:win": "react-scripts build && electron-builder --win --publish always",
     "publish:mac": "react-scripts build && electron-builder --mac --publish always",
     "release:patch": "npm version patch && git push && git push --tags",

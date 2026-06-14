@@ -1126,73 +1126,83 @@ function BlockDetail({ blk, blocks, totalSecs, isLive, liveElapsed, onClose, onA
 
         {/* ── Day Split ── */}
         {dayBreakdown.length > 0 && (
-          <div className="px-4 py-4 act-section-div">
-            <div className="flex items-center justify-between mb-3">
+          <div className="px-5 pt-5 pb-6 act-section-div">
+            <div className="flex items-center justify-between mb-5">
               <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-tx-faint">Day Split</p>
               <span className="text-[10px] font-semibold text-tx-secondary tabular-nums">{fmt(totalSecs)}</span>
             </div>
-            {/* Side-by-side: donut left, legend right */}
-            <div className="flex items-center gap-4">
-              {/* Scaled-down donut with proportional center text */}
-              <div className="relative shrink-0" style={{ width: 108, height: 108 }}>
-                {(() => {
-                  const sz = 108, thick = 12;
-                  const r = (sz - thick) / 2;
-                  const circ = 2 * Math.PI * r;
-                  const total = dayBreakdown.reduce((a, s) => a + s.value, 0) || 1;
-                  let offset = 0;
-                  return (
-                    <svg width={sz} height={sz} viewBox={`0 0 ${sz} ${sz}`} style={{ transform: 'rotate(-90deg)' }}>
+
+            {/* Donut — centered, fills available width */}
+            <div className="flex justify-center mb-5">
+              {(() => {
+                // Canvas size + inset padding so stroke + glow never touch the SVG edge
+                const canvas = 176, inset = 8;
+                const sz = canvas - inset * 2; // drawable diameter = 160
+                const thick = 16;
+                // r shrunk by half-thick so outer stroke edge stays inside canvas
+                const r = sz / 2 - thick / 2;
+                const cx = canvas / 2, cy = canvas / 2;
+                const circ = 2 * Math.PI * r;
+                const total = dayBreakdown.reduce((a, s) => a + s.value, 0) || 1;
+                let offset = 0;
+                return (
+                  <div className="relative" style={{ width: canvas, height: canvas }}>
+                    <svg
+                      width={canvas} height={canvas}
+                      viewBox={`0 0 ${canvas} ${canvas}`}
+                      style={{ transform: 'rotate(-90deg)', overflow: 'visible', display: 'block' }}
+                    >
                       <defs>
-                        <filter id="splitGlow" x="-50%" y="-50%" width="200%" height="200%">
-                          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                        <filter id="splitGlow" x="-30%" y="-30%" width="160%" height="160%">
+                          <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
                           <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
                         </filter>
                       </defs>
-                      <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke="rgba(148,163,184,0.14)" strokeWidth={thick}/>
+                      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(148,163,184,0.12)" strokeWidth={thick}/>
                       {dayBreakdown.map((seg, i) => {
                         const dash = (seg.value / total) * circ;
                         const gap  = circ - dash;
                         const node = (
-                          <circle key={i} cx={sz/2} cy={sz/2} r={r} fill="none"
+                          <circle key={i} cx={cx} cy={cy} r={r} fill="none"
                             stroke={seg.color} strokeWidth={thick}
                             strokeDasharray={`${dash} ${gap}`} strokeDashoffset={-offset}
                             strokeLinecap="round" filter="url(#splitGlow)"
-                            style={{ opacity: 0.95, transition: 'stroke-dasharray 600ms ease' }}/>
+                            style={{ opacity: 0.95, transition: 'stroke-dasharray 600ms ease, stroke-dashoffset 600ms ease' }}/>
                         );
                         offset += dash;
                         return node;
                       })}
                     </svg>
-                  );
-                })()}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-accent" style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', lineHeight: 1, opacity: 0.8 }}>Total</span>
-                  <span className="text-tx-primary" style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.1, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt(totalSecs)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Legend — label + time + percentage pill */}
-              <div className="flex-1 min-w-0 space-y-2">
-                {dayBreakdown.map((seg, i) => {
-                  const pct = totalSecs > 0 ? Math.round(seg.value / totalSecs * 100) : 0;
-                  return (
-                    <div key={i} className="flex items-center gap-2 min-w-0">
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: seg.color }}/>
-                      <span className="text-[11px] text-tx-secondary flex-1 truncate min-w-0 leading-tight">
-                        {seg.label}
-                      </span>
-                      <span className="text-[10px] font-mono text-tx-faint shrink-0 tabular-nums">{fmt(seg.value)}</span>
-                      <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold leading-none tabular-nums"
-                        style={{ color: seg.color, background: `${seg.color}18` }}>
-                        {pct}%
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-0.5">
+                      <span className="text-accent" style={{ fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.75, lineHeight: 1 }}>Total</span>
+                      <span className="text-tx-primary" style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+                        {fmt(totalSecs)}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Legend — two columns for 4+ items, single column otherwise */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: dayBreakdown.length >= 4 ? '1fr 1fr' : '1fr',
+              gap: '8px 12px',
+            }}>
+              {dayBreakdown.map((seg, i) => {
+                const pct = totalSecs > 0 ? Math.round(seg.value / totalSecs * 100) : 0;
+                return (
+                  <div key={i} className="flex items-center gap-2 min-w-0">
+                    <div className="shrink-0 rounded-full" style={{ width: 8, height: 8, background: seg.color, boxShadow: `0 0 5px ${seg.color}80` }}/>
+                    <span className="text-[11px] text-tx-secondary truncate flex-1 min-w-0 leading-tight">{seg.label}</span>
+                    <span className="shrink-0 text-[10px] font-bold tabular-nums rounded-md px-1.5 py-0.5 leading-none"
+                      style={{ color: seg.color, background: `${seg.color}1a` }}>
+                      {pct}%
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

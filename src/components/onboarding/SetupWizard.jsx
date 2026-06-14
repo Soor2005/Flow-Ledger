@@ -3,8 +3,90 @@ import {
   ChevronRight, ChevronLeft, Check, ArrowRight, Globe,
   HardDrive, Zap, BarChart2, Building2, Users, Briefcase,
   Monitor, Camera, Activity, FolderOpen, Sparkles, Clock,
-  Shield, Database, CheckCircle, Timer, Target,
+  Shield, Database, CheckCircle, Timer, Target, ChevronDown,
 } from 'lucide-react';
+
+// ─── CUSTOM SELECT ────────────────────────────────────────────────────────────
+function CustomSelect({ value, onChange, options, placeholder, isLight }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selected = options.find(o => o === value);
+
+  const triggerStyle = {
+    width: '100%', boxSizing: 'border-box',
+    padding: '10px 36px 10px 14px', borderRadius: 10,
+    background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',
+    border: `1px solid ${open ? '#7C6CF2' : isLight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.10)'}`,
+    color: value ? (isLight ? '#111827' : '#ffffff') : (isLight ? '#9CA3AF' : '#4B5563'),
+    fontSize: 13.5, outline: 'none', fontFamily: 'inherit',
+    cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center',
+    justifyContent: 'space-between', transition: 'border-color 0.2s',
+    position: 'relative',
+  };
+
+  const menuStyle = {
+    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 99999,
+    background: isLight ? '#ffffff' : '#1a1d28',
+    border: `1px solid ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.10)'}`,
+    borderRadius: 10,
+    boxShadow: isLight
+      ? '0 8px 32px rgba(0,0,0,0.14)'
+      : '0 8px 32px rgba(0,0,0,0.6)',
+    overflow: 'hidden', maxHeight: 220, overflowY: 'auto',
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" style={triggerStyle} onClick={() => setOpen(o => !o)}>
+        <span>{value || placeholder}</span>
+        <ChevronDown size={14} style={{
+          color: isLight ? '#6B7280' : '#6B7280',
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.2s', flexShrink: 0,
+        }}/>
+      </button>
+      {open && (
+        <div style={menuStyle}>
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt); setOpen(false); }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '9px 14px', border: 'none', cursor: 'pointer',
+                fontSize: 13.5, fontFamily: 'inherit',
+                background: opt === value
+                  ? isLight ? 'rgba(124,108,242,0.10)' : 'rgba(124,108,242,0.15)'
+                  : 'transparent',
+                color: opt === value
+                  ? '#a78bfa'
+                  : isLight ? '#111827' : '#E5E7EB',
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={e => {
+                if (opt !== value) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)';
+              }}
+              onMouseLeave={e => {
+                if (opt !== value) e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              {opt === value && <Check size={12} style={{ marginRight: 8, verticalAlign: 'middle', color: '#a78bfa' }}/>}
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 import { useAuth } from '../../App';
 import logoSrc from '../../assets/logo.png';
 
@@ -560,20 +642,13 @@ function StepWorkspace({ draft, setDraft, isLight }) {
         {/* Industry */}
         <div>
           <label style={labelStyle}>Industry</label>
-          <select value={draft.industry} onChange={e => field('industry', e.target.value)}
-            style={{
-              ...inputStyle,
-              appearance: 'none',
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 7L11 1' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 36,
-              cursor: 'pointer',
-            }}
-            onFocus={e  => e.target.style.borderColor = '#7C6CF2'}
-            onBlur={e   => e.target.style.borderColor = isLight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.10)'}
-          >
-            <option value="">Select your industry…</option>
-            {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-          </select>
+          <CustomSelect
+            value={draft.industry}
+            onChange={v => field('industry', v)}
+            options={INDUSTRIES}
+            placeholder="Select your industry…"
+            isLight={isLight}
+          />
         </div>
 
         {/* Team size */}
