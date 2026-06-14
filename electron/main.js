@@ -4425,7 +4425,7 @@ ipcMain.handle('calendar:list', (_, { userId, from, to }) => {
      LEFT JOIN projects p  ON ce.project_id = p.id
      LEFT JOIN clients  cl ON ce.client_id  = cl.id
      WHERE ce.user_id=? AND ce.start_time<=? AND ce.end_time>=? AND ce.status != 'cancelled'
-     ORDER BY ce.start_time`,
+     ORDER BY ce.start_time, ce.id`,
     [userId, to || now + 86400, from || now - 86400]
   );
 });

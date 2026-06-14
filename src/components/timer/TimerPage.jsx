@@ -1894,7 +1894,9 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
   // ── Calendar awareness ─────────────────────────────────────────────────────
   const [activeCalEvent,   setActiveCalEvent]   = useState(null);
   const [calCountdown,     setCalCountdown]     = useState(0);
-  const calPrevEventIdRef  = useRef(null);
+  // Track active event by start_time (not id) so duplicate calendar connections
+  // with the same event at different IDs don't trigger spurious pause/resume cycles.
+  const calPrevEventIdRef  = useRef(null); // kept for compat — stores start_time now
   const trackingModeRef    = useRef(trackingMode);   // stable ref — avoids recreating intervals
   const activeSessionRef   = useRef(activeSession);  // stable ref for calendar callback
   const scheduledPauseRef  = useRef(null);            // event id with a precision setTimeout queued
@@ -2121,9 +2123,13 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
       setActiveCalEvent(active);
 
       if (active) {
-        if (active.id !== calPrevEventIdRef.current) {
+        // Use start_time as the event key — if there are duplicate calendar connections
+        // the same event appears with two different IDs but the same start_time.
+        // Comparing by start_time prevents spurious pause/resume when SQL ordering flips.
+        const activeKey = active.start_time;
+        if (activeKey !== calPrevEventIdRef.current) {
           // New event became active
-          calPrevEventIdRef.current = active.id;
+          calPrevEventIdRef.current = activeKey;
           if (trackingModeRef.current === 'auto') {
             // Pause the AF machine so it won't start new sessions during the event
             await api.pauseAutoSession?.().catch(() => {});
@@ -2148,8 +2154,8 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
       // focused check exactly when it starts so we react instantly instead
       // of waiting up to 15 s for the next poll cycle.
       const upcoming = (events || []).find(e => e.start_time > now && e.start_time <= now + 60);
-      if (upcoming && scheduledPauseRef.current !== upcoming.id) {
-        scheduledPauseRef.current = upcoming.id;
+      if (upcoming && scheduledPauseRef.current !== upcoming.start_time) {
+        scheduledPauseRef.current = upcoming.start_time;
         const delayMs = (upcoming.start_time - now) * 1000;
         setTimeout(() => {
           scheduledPauseRef.current = null;
