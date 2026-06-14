@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, Notification, session: electronSession } = require('electron');
 const path   = require('path');
 const fs     = require('fs');
 const http   = require('http');
@@ -9,6 +9,41 @@ const { AutoTracker }     = require('./tracker');
 const { createTray, destroyTray } = require('./tray');
 const { FlowLedgerAI, WORKFLOW_NAMES } = require('./ai-engine');
 const { setupUpdater }    = require('./updater');
+const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
+
+// ─── Load .env for main process ───────────────────────────────────────────────
+// CRA only loads REACT_APP_* vars for the renderer bundle; we parse .env here
+// so the main process can read SUPABASE_SERVICE_ROLE without exposing it to the
+// renderer (never put the service-role key in a REACT_APP_ variable).
+try {
+  const envPath = path.join(__dirname, '..', '.env');
+  if (fs.existsSync(envPath)) {
+    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) return;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+      if (key && !process.env[key]) process.env[key] = val;
+    });
+  }
+} catch {}
+
+// ─── Supabase admin client (service-role, main process only) ─────────────────
+let supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    const url = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL || '';
+    const key = process.env.SUPABASE_SERVICE_ROLE || '';
+    if (url && key) {
+      supabaseAdmin = createSupabaseClient(url, key, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+    }
+  }
+  return supabaseAdmin;
+}
 
 // ─── Global error safety net ──────────────────────────────────────────────────
 // Catches any uncaught exception in the main process that would otherwise
@@ -1419,9 +1454,84 @@ function createWindow() {
   });
 }
 
+// Suppress the harmless "Autofill.enable wasn't found" CDP warning that Chrome
+// DevTools emits in Electron — the feature simply doesn't exist in this build.
+app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication');
+
+// ─── Custom protocol for email deep-links (flowledger://auth/callback) ────────
+// On Windows in dev mode the executable is electron.exe running a script, so we
+// must pass the script path explicitly — otherwise the OS can't map the protocol
+// back to the correct command line.
+if (process.platform === 'win32') {
+  app.setAsDefaultProtocolClient('flowledger', process.execPath, [
+    path.resolve(process.argv[1]),
+  ]);
+} else {
+  app.setAsDefaultProtocolClient('flowledger');
+}
+
+// Single-instance lock + second-instance deep-link handler.
+// Only enforced in production — in dev mode (ELECTRON_START_URL set) lingering
+// processes from hot-reloads would hold the lock and kill the new instance.
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find(a => a.startsWith('flowledger://'));
+  if (url && mainWindow) {
+    mainWindow.webContents.send('auth:deepLink', url);
+    mainWindow.show();
+    mainWindow.focus();
+  } else if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
+if (!isDev) {
+  const gotSingleLock = app.requestSingleInstanceLock();
+  if (!gotSingleLock) app.quit();
+}
+
+// macOS: deep-link comes in via 'open-url' event
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (url.startsWith('flowledger://') && mainWindow) {
+    mainWindow.webContents.send('auth:deepLink', url);
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
 app.whenReady().then(async () => {
+  // Allow the renderer to fetch Supabase APIs and WebSocket realtime channels.
+  // Without this, Electron blocks cross-origin requests from file:// and localhost.
+  electronSession.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;" +
+          " connect-src 'self' https://*.supabase.co wss://*.supabase.co https://supabase.io;" +
+          " script-src 'self' 'unsafe-inline' 'unsafe-eval';" +
+          " style-src 'self' 'unsafe-inline';" +
+          " img-src 'self' data: blob: https:;" +
+          " font-src 'self' data:;",
+        ],
+      },
+    });
+  });
+
   await initDatabase();
   createWindow();
+
+  // Forward any startup deep-link (app launched via protocol click while closed)
+  const startUrl = process.argv.find(a => a.startsWith('flowledger://'));
+  if (startUrl) {
+    // Window isn't ready yet — wait for it to load then send
+    mainWindow.webContents.once('did-finish-load', () => {
+      mainWindow.webContents.send('auth:deepLink', startUrl);
+    });
+  }
+
   setupUpdater(mainWindow);
   startHttpServer();
 
@@ -1972,6 +2082,184 @@ ipcMain.handle('auth:restoreSession', (_, { userId }) => {
 ipcMain.handle('auth:updateTarget', (_, { userId, hours }) => {
   run('UPDATE users SET daily_target_hours=? WHERE id=?', [hours, userId]);
   return { success: true };
+});
+
+// ─── Supabase-backed auth ─────────────────────────────────────────────────────
+
+// Called after a successful Supabase login to sync (or create) the local SQLite
+// user record. Uses the Supabase UUID as the local user ID so all existing
+// foreign-key references stay consistent.
+ipcMain.handle('auth:supabaseLogin', async (_, { supabaseUser }) => {
+  try {
+    const { id, email, user_metadata } = supabaseUser || {};
+    if (!id) return { success: false, error: 'Invalid Supabase user' };
+
+    const fullName  = (user_metadata?.full_name || '').trim();
+    const nameParts = fullName.split(' ');
+    const firstName = nameParts[0] || null;
+    const lastName  = nameParts.slice(1).join(' ') || null;
+
+    let user = get('SELECT * FROM users WHERE id=?', [id]);
+
+    if (!user) {
+      // Derive a unique username from the email prefix
+      const baseUsername = (email || id).split('@')[0].replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+      let username = baseUsername;
+      let suffix   = 1;
+      while (get('SELECT id FROM users WHERE username=?', [username])) {
+        username = `${baseUsername}${suffix++}`;
+      }
+
+      run(
+        'INSERT OR IGNORE INTO users (id, username, email, first_name, last_name, password_hash) VALUES (?,?,?,?,?,?)',
+        [id, username, (email || '').toLowerCase(), firstName, lastName, 'supabase_auth']
+      );
+
+      // Seed default categories for new users
+      const existingCats = all('SELECT name FROM categories WHERE user_id=?', [id]);
+      if (existingCats.length === 0) {
+        [
+          { name:'Coding',   color:'#6366f1', icon:'code',      type:'focus'   },
+          { name:'Design',   color:'#8b5cf6', icon:'pen-tool',  type:'focus'   },
+          { name:'Meetings', color:'#f59e0b', icon:'users',     type:'meeting' },
+          { name:'Writing',  color:'#10b981', icon:'pen',       type:'focus'   },
+          { name:'Research', color:'#3b82f6', icon:'search',    type:'focus'   },
+          { name:'Admin',    color:'#ef4444', icon:'folder',    type:'other'   },
+          { name:'Break',    color:'#6b7280', icon:'coffee',    type:'break'   },
+          { name:'Learning', color:'#14b8a6', icon:'book-open', type:'focus'   },
+        ].forEach(c =>
+          run('INSERT INTO categories (id,user_id,name,color,icon,session_type) VALUES (?,?,?,?,?,?)',
+            [uuidv4(), id, c.name, c.color, c.icon, c.type])
+        );
+        run('INSERT OR IGNORE INTO break_settings (id,user_id) VALUES (?,?)',    [uuidv4(), id]);
+        run('INSERT OR IGNORE INTO tracking_settings (id,user_id,start_on_login) VALUES (?,?,?)', [uuidv4(), id, 1]);
+      }
+
+      user = get('SELECT * FROM users WHERE id=?', [id]);
+    }
+
+    run('UPDATE users SET last_login=? WHERE id=?', [Math.floor(Date.now() / 1000), id]);
+    recoverOpenSessions(id);
+    startUserServices(id);
+
+    return { success: true, user: toPublicUser(user) };
+  } catch (err) {
+    console.error('[auth:supabaseLogin]', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('auth:supabaseLogout', () => {
+  try {
+    if (currentUserId) {
+      // Close any open sessions so the timer stops cleanly
+      const open = get('SELECT id,started_at FROM sessions WHERE user_id=? AND ended_at IS NULL', [currentUserId]);
+      if (open) {
+        const now = Math.floor(Date.now() / 1000);
+        run('UPDATE sessions SET ended_at=?,duration_seconds=? WHERE id=?',
+          [now, now - open.started_at, open.id]);
+      }
+    }
+    currentUserId = null;
+    currentSessionId = null;
+    afReset();
+  } catch {}
+  return { success: true };
+});
+
+// Validates an activation key entirely in the main process using the service-role
+// key — the renderer never sees the service-role key and cannot bypass this check.
+ipcMain.handle('auth:validateActivationKey', async (_, { key, userId }) => {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    return { success: false, error: 'service_down' };
+  }
+
+  try {
+    const normalised = (key || '').replace(/[\s-]/g, '').toUpperCase();
+    if (!normalised) return { success: false, error: 'invalid_key' };
+
+    // Build all plausible stored formats so the lookup works regardless of
+    // whether the key was inserted with dashes (XXXX-XXXX) or without (XXXXXXXX).
+    const candidates = [
+      normalised,
+      // 4-char groups: FLOW-2024-TEST-0001
+      normalised.match(/.{1,4}/g)?.join('-') ?? normalised,
+    ];
+
+    let keyRow = null;
+    for (const candidate of candidates) {
+      const { data, error } = await admin
+        .from('activation_keys')
+        .select('*')
+        .eq('activation_key', candidate)
+        .maybeSingle();
+      if (!error && data) { keyRow = data; break; }
+    }
+
+    if (!keyRow) return { success: false, error: 'invalid_key' };
+
+    // Status guards
+    if (keyRow.status === 'Used')     return { success: false, error: 'already_used' };
+    if (keyRow.status === 'Disabled') return { success: false, error: 'disabled_key' };
+    if (keyRow.status === 'Expired')  return { success: false, error: 'expired_key' };
+    if (keyRow.status !== 'Available') return { success: false, error: 'invalid_key' };
+
+    // Expiry date guard
+    if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
+      await admin.from('activation_keys').update({ status: 'Expired' }).eq('id', keyRow.id);
+      return { success: false, error: 'expired_key' };
+    }
+
+    // Check this user hasn't already activated with a different key
+    if (keyRow.redeemed_by && keyRow.redeemed_by !== userId) {
+      return { success: false, error: 'already_used' };
+    }
+
+    const now = new Date().toISOString();
+
+    // Atomically mark key as used — extra .eq('status','Available') guard means
+    // this only matches if another request hasn't already redeemed the key.
+    const { data: updatedRows, error: updateKeyErr } = await admin
+      .from('activation_keys')
+      .update({ status: 'Used', redeemed_by: userId, redeemed_at: now })
+      .eq('id', keyRow.id)
+      .eq('status', 'Available')
+      .select('id');
+
+    if (updateKeyErr) {
+      console.error('[validateActivationKey] key update error:', updateKeyErr.message);
+      return { success: false, error: 'activation_failed' };
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      // Row was already updated by a concurrent request
+      return { success: false, error: 'already_used' };
+    }
+
+    // Update profile to active
+    const { error: profileErr } = await admin
+      .from('profiles')
+      .update({
+        account_status:    'active',
+        activation_key_id: keyRow.id,
+        activated_at:      now,
+      })
+      .eq('user_id', userId);
+
+    if (profileErr) {
+      console.error('[validateActivationKey] profile update error:', profileErr.message);
+      // Rollback key to Available so user can retry
+      await admin.from('activation_keys')
+        .update({ status: 'Available', redeemed_by: null, redeemed_at: null })
+        .eq('id', keyRow.id);
+      return { success: false, error: 'activation_failed' };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('[validateActivationKey] unexpected error:', err.message);
+    return { success: false, error: 'activation_failed' };
+  }
 });
 
 ipcMain.handle('user:updateProfile', (_, { userId, firstName, lastName, email, company, industry, teamSize, workType, workspaceName }) => {
@@ -3516,9 +3804,19 @@ const GOOGLE_SCOPES       = [
 
 let _googleOAuthServer = null;
 
+// ── Embedded OAuth credentials (not visible to end users) ─────────────────────
+const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID     || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function googleCreds() {
-  return get('SELECT client_id, client_secret FROM google_oauth_creds WHERE id=1') || null;
+  // Prefer DB (so existing saved creds still work), fall back to embedded constants
+  const row = get('SELECT client_id, client_secret FROM google_oauth_creds WHERE id=1');
+  if (row?.client_id && row?.client_secret) return row;
+  if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+    return { client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET };
+  }
+  return null;
 }
 
 function httpsPost(url, body) {
