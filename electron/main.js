@@ -2883,9 +2883,14 @@ ipcMain.handle('tracking:pauseAutoSession', () => {
 
 // User-triggered resume — transitions back to 'watching' so heartbeats can
 // drive the AF machine again.
+// Guard: only transition from user_paused. If a session is already tracking,
+// calling resume (e.g. from the renderer's calendar-event-end handler) must
+// not clobber the running session by setting afState = 'watching'.
 ipcMain.handle('tracking:resumeAutoTracking', () => {
-  afState = 'watching';
-  afBroadcast('user_resumed');
+  if (afState === 'user_paused') {
+    afState = 'watching';
+    afBroadcast('user_resumed');
+  }
   return { success: true };
 });
 
