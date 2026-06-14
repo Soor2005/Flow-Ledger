@@ -1,4 +1,15 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, Notification, session: electronSession } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, Notification, session: electronSession, screen } = require('electron');
+
+// ─── GPU workaround: relaunch with SwiftShader on first run ──────────────────
+// appendSwitch() is too late — the GPU process is spawned before JS executes.
+// Instead we relaunch once with --use-gl=swiftshader as a real CLI arg, which
+// Chromium reads before starting the GPU service. This only runs in packaged
+// builds (isDev = false) and only when the flag isn't already present.
+if (app.isPackaged && !app.commandLine.hasSwitch('use-gl')) {
+  app.relaunch({ args: process.argv.slice(1).concat(['--use-gl=swiftshader']) });
+  app.exit(0);
+}
+
 const path   = require('path');
 const fs     = require('fs');
 const http   = require('http');
@@ -1427,6 +1438,25 @@ function scheduleBreakReminder(userId) {
 
 // ─── WINDOW ───────────────────────────────────────────────────────────────────
 
+// Module-level show helper — used by createWindow AND second-instance handler.
+// Clamps to visible screen area, restores from minimised state, then shows+focuses.
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  // Clamp position so the window never appears on a disconnected monitor.
+  const bounds   = mainWindow.getBounds();
+  const displays = screen.getAllDisplays();
+  const onScreen = displays.some(d => {
+    const wa = d.workArea;
+    return bounds.x < wa.x + wa.width  && bounds.x + bounds.width  > wa.x
+        && bounds.y < wa.y + wa.height && bounds.y + bounds.height > wa.y;
+  });
+  if (!onScreen) mainWindow.center();
+  // restore() unminimises; show() makes it visible; focus() brings it to front.
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1024, minHeight: 650,
@@ -1442,7 +1472,27 @@ function createWindow() {
   const url = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '../build/index.html')}`;
   mainWindow.loadURL(url);
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  // Primary trigger: show once the renderer has painted its first frame.
+  mainWindow.once('ready-to-show', showMainWindow);
+
+  // Secondary trigger: did-finish-load fires after JS executes — catches cases
+  // where ready-to-show fires too early or is skipped on Windows.
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      showMainWindow();
+    }
+  });
+
+  // Final fallback: force-show after 8 s. Does NOT check isVisible() because
+  // ready-to-show can fire with a blank/transparent frame (software renderer not
+  // yet composited), leaving the window "shown" but invisible to the user.
+  // Calling show()+focus() a second time forces a repaint.
+  const showFallback = setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      showMainWindow();
+    }
+  }, 8000);
+
   if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Hide to tray instead of quitting when user closes
@@ -1454,9 +1504,23 @@ function createWindow() {
   });
 }
 
+// Disable GPU hardware acceleration. Electron's GPU compositor crashes silently
+// on some NVIDIA driver + Windows configurations, causing the renderer to never
+// paint (black window, ready-to-show never fires). Software rendering is fast
+// enough for this UI and avoids the GPU process entirely.
+// (SwiftShader is applied via relaunch at the top of this file — see the
+// app.isPackaged / hasSwitch('use-gl') block above.)
+
 // Suppress the harmless "Autofill.enable wasn't found" CDP warning that Chrome
 // DevTools emits in Electron — the feature simply doesn't exist in this build.
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication');
+
+// Prevent Chromium from throttling setInterval/setTimeout in the renderer when
+// the window is not focused. Without this, the focus session dock timer stops
+// updating after 3-5 minutes in production (dev mode is unaffected because
+// DevTools being open suppresses the same throttling).
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
 // ─── Custom protocol for email deep-links (flowledger://auth/callback) ────────
 // On Windows in dev mode the executable is electron.exe running a script, so we
@@ -1477,13 +1541,9 @@ app.on('second-instance', (_event, argv) => {
   const url = argv.find(a => a.startsWith('flowledger://'));
   if (url && mainWindow) {
     mainWindow.webContents.send('auth:deepLink', url);
-    mainWindow.show();
-    mainWindow.focus();
-  } else if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
   }
+  // Always bring the window forward regardless of deep-link presence.
+  showMainWindow();
 });
 
 if (!isDev) {
@@ -1561,7 +1621,7 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    else mainWindow?.show();
+    else showMainWindow();
   });
 });
 
