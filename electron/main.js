@@ -143,7 +143,7 @@ function loadTrackingExclusions(userId) {
 // HMR reloads. The React TimerPage subscribes for display only — it never drives
 // the machine.
 const AF_THRESHOLD_SECS = 60;      // sustained productive activity before session is created
-const AF_IDLE_STOP_SECS = 5 * 60;  // unbroken idle before the running session is closed
+const AF_IDLE_STOP_SECS = 15 * 60; // unbroken idle before the running session is closed
 let afState       = 'watching';     // 'watching' | 'buffering' | 'tracking' | 'paused'
 let afSession     = null;           // { id, title, category, started_at } | null
 let afBufferStart = null;           // Date.now() ms when buffering started
