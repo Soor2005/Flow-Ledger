@@ -1,0 +1,26 @@
+[14260:0614/204432.836:VERBOSE1:device_event_log_impl.cc(198)] [20:44:32.836] Display: EVENT: screen_win.cc:836 Displays updated, count: 1
+[14260:0614/204432.836:VERBOSE1:device_event_log_impl.cc(198)] [20:44:32.840] Display: EVENT: screen_win.cc:838 Display[157109048] bounds=[0,0 1920x1080], workarea=[0,0 1920x1032], scale=1, rotation=0, panel_rotation=0 external detected
+[14260:0614/204432.836:VERBOSE1:pref_proxy_config_tracker_impl.cc(191)] 00006CB800060580: set chrome proxy config service to 00006CB80010D860
+[14260:0614/204432.850:VERBOSE1:media_stream_manager.cc(1527)] MSM::InitializeMaybeAsync([this=00006CB8000C2E00])
+[14260:0614/204432.850:VERBOSE1:media_stream_manager.cc(1527)] MDM::MediaDevicesManager()
+[14260:0614/204432.850:VERBOSE1:media_stream_manager.cc(1527)] MSM::MediaStreamManager([this=00006CB8000C2E00]))
+[14260:0614/204432.873:VERBOSE1:pref_proxy_config_tracker_impl.cc(191)] 00006CB8000623C0: set chrome proxy config service to 00006CB80010F400
+[14260:0614/204432.877:VERBOSE1:device_event_log_impl.cc(198)] [20:44:32.875] Bluetooth: EVENT: bluetooth_api.cc:82 BluetoothAPI: 00006CB800088F20
+[14260:0614/204432.892:VERBOSE1:first_party_sets_handler_impl_instance.cc(277)] Empty path. Failed initializing First-Party Sets database.
+[14260:0614/204433.751:VERBOSE1:device_event_log_impl.cc(198)] [20:44:33.751] Display: EVENT: screen_win.cc:836 Displays updated, count: 1
+[14260:0614/204433.751:VERBOSE1:device_event_log_impl.cc(198)] [20:44:33.751] Display: EVENT: screen_win.cc:838 Display[157109048] bounds=[0,0 1920x1080], workarea=[0,0 1920x1032], scale=1, rotation=0, panel_rotation=0 external detected
+[14260:0614/204433.811:INFO:CONSOLE(1)] "Refused to load the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap' because it violates the following Content Security Policy directive: "style-src 'self' 'unsafe-inline'". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback.
+", source: file:///C:/Users/surya/AppData/Local/Programs/Flow%20Ledger/resources/app.asar/build/index.html (1)
+[14260:0614/204433.820:INFO:CONSOLE(0)] "Refused to load the stylesheet 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' because it violates the following Content Security Policy directive: "style-src 'self' 'unsafe-inline'". Note that 'style-src-elem' was not explicitly set, so 'style-src' is used as a fallback.
+", source: file:///C:/Users/surya/AppData/Local/Programs/Flow%20Ledger/resources/app.asar/build/index.html (0)
+[14260:0614/204433.961:VERBOSE1:device_event_log_impl.cc(198)] [20:44:33.960] Display: EVENT: screen_win.cc:836 Displays updated, count: 1
+[14260:0614/204433.961:VERBOSE1:device_event_log_impl.cc(198)] [20:44:33.960] Display: EVENT: screen_win.cc:838 Display[157109048] bounds=[0,0 1920x1080], workarea=[0,0 1920x1032], scale=1, rotation=0, panel_rotation=0 external detected
+[14260:0614/204441.144:VERBOSE1:pref_proxy_config_tracker_impl.cc(191)] 00006CB800066040: set chrome proxy config service to 00006CB807106560
+[14260:0614/204755.884:VERBOSE1:device_event_log_impl.cc(198)] [20:47:55.884] Display: EVENT: screen_win.cc:836 Displays updated, count: 1
+[14260:0614/204755.884:VERBOSE1:device_event_log_impl.cc(198)] [20:47:55.884] Display: EVENT: screen_win.cc:838 Display[157109048] bounds=[0,0 1920x1080], workarea=[0,0 1920x1032], scale=1, rotation=0, panel_rotation=0 external detected
+[14260:0614/205049.325:VERBOSE1:device_event_log_impl.cc(198)] [20:50:49.325] Display: EVENT: screen_win.cc:836 Displays updated, count: 1
+[14260:0614/205049.325:VERBOSE1:device_event_log_impl.cc(198)] [20:50:49.325] Display: EVENT: screen_win.cc:838 Display[157109048] bounds=[0,0 1920x1080], workarea=[0,0 1920x1032], scale=1, rotation=0, panel_rotation=0 external detected
+[14260:0614/205218.821:ERROR:network_service_instance_impl.cc(600)] Network service crashed, restarting service.
+[14260:0614/205218.923:ERROR:gpu_process_host.cc(1002)] GPU process exited unexpectedly: exit_code=-1
+[14260:0614/205218.927:WARNING:gpu_process_host.cc(1436)] The GPU process has crashed 1 time(s)
+[14260:0614/205219.405:WARNING:gpu_process_host.cc(1024)] Reinitialized the GPU process after a crash. The reported initialization time was 376 ms

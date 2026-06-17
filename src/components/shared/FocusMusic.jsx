@@ -220,6 +220,17 @@ function useIsLight() {
   return v;
 }
 
+function describeMediaError(mediaError) {
+  if (!mediaError) return 'Unknown media error';
+  switch (mediaError.code) {
+    case 1: return 'Playback aborted';
+    case 2: return 'Network request failed';
+    case 3: return 'Audio decoding failed';
+    case 4: return 'Stream format is not supported';
+    default: return mediaError.message || 'Unknown media error';
+  }
+}
+
 // ─── ARTWORK ──────────────────────────────────────────────────────────────────
 
 function StationArt({ station, size = 44, playing = false, loading = false }) {
@@ -687,10 +698,23 @@ export default function FocusMusic({ show = true, onClose }) {
     const audio = new Audio();
     audio.preload  = 'none';
     audio.volume   = 0.65;
+    audio.crossOrigin = 'anonymous';
     audioRef.current = audio;
     const onWaiting = () => setLoading(true);
     const onPlaying = () => { setLoading(false); setError(''); };
-    const onError   = () => { setLoading(false); setError('Stream unavailable — try another station'); setPlaying(false); };
+    const onError   = () => {
+      const reason = describeMediaError(audio.error);
+      console.error('[FocusMusic] stream error', {
+        stationId: selected,
+        src: audio.currentSrc || audio.src,
+        mediaError: audio.error ? { code: audio.error.code, message: audio.error.message || '' } : null,
+        networkState: audio.networkState,
+        readyState: audio.readyState,
+      });
+      setLoading(false);
+      setError(reason || 'Stream unavailable — try another station');
+      setPlaying(false);
+    };
     audio.addEventListener('waiting', onWaiting);
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('error',   onError);
@@ -710,7 +734,20 @@ export default function FocusMusic({ show = true, onClose }) {
     if (audio.src !== station.stream) {
       audio.pause(); audio.src = station.stream; audio.volume = muted ? 0 : volume;
     }
-    audio.play().catch(() => { setError('Could not start stream'); setLoading(false); setPlaying(false); });
+    audio.play().catch((err) => {
+      const reason = err?.message || describeMediaError(audio.error) || 'Could not start stream';
+      console.error('[FocusMusic] play() rejected', {
+        stationId: station.id,
+        stream: station.stream,
+        error: err ? { name: err.name, message: err.message, stack: err.stack } : null,
+        mediaError: audio.error ? { code: audio.error.code, message: audio.error.message || '' } : null,
+        networkState: audio.networkState,
+        readyState: audio.readyState,
+      });
+      setError(reason);
+      setLoading(false);
+      setPlaying(false);
+    });
     setPlaying(true); setSelected(station.id);
   }, [muted, volume]);
 

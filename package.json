@@ -47,6 +47,12 @@
       "electron/**/*",
       "src/assets/logo.png"
     ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": "config/.env"
+      }
+    ],
     "icon": "src/assets/logo.png",
     "win": {
       "target": "nsis",

@@ -28,16 +28,9 @@ const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 // so the main process can read SUPABASE_SERVICE_ROLE without exposing it to the
 // renderer (never put the service-role key in a REACT_APP_ variable).
 try {
-  const envCandidates = [
-    path.join(__dirname, '..', '.env'),
-    path.join(process.resourcesPath || '', 'config', '.env'),
-    path.join(process.resourcesPath || '', '.env'),
-    path.join(path.dirname(process.execPath || ''), '.env'),
-  ].filter(Boolean);
-
-  const loadedEnvPath = envCandidates.find(candidate => fs.existsSync(candidate));
-  if (loadedEnvPath) {
-    fs.readFileSync(loadedEnvPath, 'utf8').split('\n').forEach(line => {
+  const envPath = path.join(__dirname, '..', '.env');
+  if (fs.existsSync(envPath)) {
+    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) return;
       const eqIdx = trimmed.indexOf('=');
@@ -46,13 +39,8 @@ try {
       const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
       if (key && !process.env[key]) process.env[key] = val;
     });
-    console.log('[env] Loaded main-process env from:', loadedEnvPath);
-  } else {
-    console.warn('[env] No .env file found for main process. Checked:', envCandidates);
   }
-} catch (err) {
-  console.error('[env] Failed to load main-process env:', err);
-}
+} catch {}
 
 // ─── Supabase admin client (service-role, main process only) ─────────────────
 let supabaseAdmin = null;
@@ -93,145 +81,6 @@ process.on('unhandledRejection', (reason) => {
 
 const isDev   = !!process.env.ELECTRON_START_URL;
 const DB_PATH = path.join(app.getPath('userData'), 'flow-ledger-v4.db');
-const LOGS_DIR = path.join(app.getPath('userData'), 'logs');
-const ACTIVATION_LOG_PATH = path.join(LOGS_DIR, 'activation.log');
-
-function ensureActivationLogDir() {
-  try {
-    fs.mkdirSync(LOGS_DIR, { recursive: true });
-  } catch (err) {
-    console.error('[activation] Failed to create logs directory:', err);
-  }
-}
-
-function serializeActivationLogValue(value) {
-  if (value instanceof Error) {
-    return {
-      name: value.name,
-      message: value.message,
-      stack: value.stack,
-      code: value.code,
-      status: value.status,
-    };
-  }
-  if (Array.isArray(value)) {
-    return value.map(serializeActivationLogValue);
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, nestedValue]) => [key, serializeActivationLogValue(nestedValue)])
-    );
-  }
-  return value;
-}
-
-function writeActivationLog(level, step, details = {}) {
-  const payload = {
-    timestamp: new Date().toISOString(),
-    level,
-    step,
-    details: serializeActivationLogValue(details),
-  };
-  const line = `[activation] ${JSON.stringify(payload)}`;
-  const consoleMethod = typeof console[level] === 'function' ? console[level] : console.log;
-  consoleMethod(line);
-  try {
-    ensureActivationLogDir();
-    fs.appendFileSync(ACTIVATION_LOG_PATH, `${line}\n`, 'utf8');
-  } catch (err) {
-    console.error('[activation] Failed to write activation log file:', err);
-  }
-}
-
-function maskActivationKey(rawKey) {
-  const normalised = String(rawKey || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-  if (!normalised) return '';
-  if (normalised.length <= 4) return normalised;
-  return `${'*'.repeat(Math.max(normalised.length - 4, 0))}${normalised.slice(-4)}`;
-}
-
-function createActivationDebugState(userId) {
-  return {
-    currentUserId: userId || null,
-    supabaseConnectionStatus: 'not_checked',
-    activationKeyLookupStatus: 'not_started',
-    exactActivationError: '',
-    logFile: ACTIVATION_LOG_PATH,
-  };
-}
-
-function activationFailure(code, message, debug = {}) {
-  return {
-    success: false,
-    error: code,
-    message,
-    debug: {
-      ...debug,
-      exactActivationError: message,
-    },
-  };
-}
-
-function classifySupabaseError(error, fallbackCode = 'activation_failed', fallbackMessage = 'Activation failed') {
-  const rawMessage = String(
-    error?.message ||
-    error?.error_description ||
-    error?.details ||
-    error?.hint ||
-    error ||
-    fallbackMessage
-  );
-  const lower = rawMessage.toLowerCase();
-  const status = error?.status;
-  const code = String(error?.code || '').toLowerCase();
-
-  if (lower.includes('supabase_service_role')) {
-    return { code: 'missing_supabase_service_role', message: 'Missing SUPABASE_SERVICE_ROLE' };
-  }
-  if (lower.includes('supabase_url')) {
-    return { code: 'missing_supabase_url', message: 'Missing SUPABASE_URL' };
-  }
-  if (
-    lower.includes('invalid api key') ||
-    lower.includes('apikey is invalid') ||
-    lower.includes('no api key found') ||
-    lower.includes('invalid jwt') ||
-    status === 401
-  ) {
-    return { code: 'invalid_api_key', message: 'Invalid API Key' };
-  }
-  if (
-    lower.includes('row level security') ||
-    lower.includes('row-level security') ||
-    lower.includes('permission denied') ||
-    code === '42501'
-  ) {
-    return { code: 'rls_access_denied', message: 'RLS policy denied access' };
-  }
-  if (
-    lower.includes('network request failed') ||
-    lower.includes('fetch failed') ||
-    lower.includes('failed to fetch') ||
-    lower.includes('getaddrinfo') ||
-    lower.includes('econnrefused') ||
-    lower.includes('enotfound')
-  ) {
-    return { code: 'network_request_failed', message: 'Network request failed' };
-  }
-  if (
-    lower.includes('failed to connect') ||
-    lower.includes('connection refused') ||
-    lower.includes('connection terminated') ||
-    status === 503
-  ) {
-    return { code: 'failed_to_connect_supabase', message: 'Failed to connect to Supabase' };
-  }
-  if (fallbackCode === 'profile_update_failed') {
-    return { code: 'profile_update_failed', message: 'Profile update failed' };
-  }
-
-  return { code: fallbackCode, message: rawMessage || fallbackMessage };
-}
 
 function getAppIconPath() {
   // Prefer .ico on Windows — better integration with Action Center
@@ -1722,11 +1571,10 @@ app.whenReady().then(async () => {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;" +
-          " connect-src 'self' https://*.supabase.co wss://*.supabase.co https://supabase.io https://*.somafm.com https://somafm.com;" +
+          " connect-src 'self' https://*.supabase.co wss://*.supabase.co https://supabase.io;" +
           " script-src 'self' 'unsafe-inline' 'unsafe-eval';" +
           " style-src 'self' 'unsafe-inline';" +
           " img-src 'self' data: blob: https:;" +
-          " media-src 'self' data: blob: https: http:;" +
           " font-src 'self' data:;",
         ],
       },
@@ -2383,187 +2231,53 @@ ipcMain.handle('auth:supabaseLogout', () => {
 // Validates an activation key entirely in the main process using the service-role
 // key — the renderer never sees the service-role key and cannot bypass this check.
 ipcMain.handle('auth:validateActivationKey', async (_, { key, userId }) => {
-  const debug = createActivationDebugState(userId);
-  const safeKey = maskActivationKey(key);
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL || '';
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE || '';
-
-  writeActivationLog('log', 'validate-start', {
-    userId: userId || null,
-    key: safeKey,
-  });
-  writeActivationLog('log', 'env-check', {
-    hasSupabaseUrl: Boolean(supabaseUrl),
-    hasSupabaseServiceRole: Boolean(serviceRole),
-  });
-
-  if (!supabaseUrl) {
-    debug.supabaseConnectionStatus = 'missing_url';
-    writeActivationLog('error', 'env-missing-url', { userId: userId || null });
-    return activationFailure('missing_supabase_url', 'Missing SUPABASE_URL', debug);
-  }
-  if (!serviceRole) {
-    debug.supabaseConnectionStatus = 'missing_service_role';
-    writeActivationLog('error', 'env-missing-service-role', { userId: userId || null });
-    return activationFailure('missing_supabase_service_role', 'Missing SUPABASE_SERVICE_ROLE', debug);
-  }
-
   const admin = getSupabaseAdmin();
   if (!admin) {
-    debug.supabaseConnectionStatus = 'client_init_failed';
-    writeActivationLog('error', 'supabase-client-init-failed', { userId: userId || null });
-    return activationFailure('failed_to_connect_supabase', 'Failed to connect to Supabase', debug);
+    return { success: false, error: 'service_down' };
   }
 
   try {
     const normalised = (key || '').replace(/[\s-]/g, '').toUpperCase();
-    writeActivationLog('log', 'key-normalized', {
-      userId: userId || null,
-      key: maskActivationKey(normalised),
-      length: normalised.length,
-    });
-    if (!normalised) {
-      debug.activationKeyLookupStatus = 'invalid_input';
-      return activationFailure('activation_key_not_found', 'Activation key not found', debug);
-    }
-
-    debug.supabaseConnectionStatus = 'checking';
-    writeActivationLog('log', 'supabase-connection-check-start', { userId: userId || null });
-    const { count: connectionCount, error: connectionError } = await admin
-      .from('activation_keys')
-      .select('id', { head: true, count: 'exact' });
-
-    if (connectionError) {
-      const classified = classifySupabaseError(connectionError, 'failed_to_connect_supabase', 'Failed to connect to Supabase');
-      debug.supabaseConnectionStatus = classified.code;
-      writeActivationLog('error', 'supabase-connection-check-failed', {
-        userId: userId || null,
-        error: connectionError,
-        classified,
-      });
-      return activationFailure(classified.code, classified.message, debug);
-    }
-
-    debug.supabaseConnectionStatus = 'connected';
-    writeActivationLog('log', 'supabase-connection-check-success', {
-      userId: userId || null,
-      rowCountVisible: connectionCount,
-    });
+    if (!normalised) return { success: false, error: 'invalid_key' };
 
     // Build all plausible stored formats so the lookup works regardless of
     // whether the key was inserted with dashes (XXXX-XXXX) or without (XXXXXXXX).
     const candidates = [
       normalised,
+      // 4-char groups: FLOW-2024-TEST-0001
       normalised.match(/.{1,4}/g)?.join('-') ?? normalised,
     ];
 
     let keyRow = null;
     for (const candidate of candidates) {
-      debug.activationKeyLookupStatus = 'querying';
-      writeActivationLog('log', 'activation-key-lookup-attempt', {
-        userId: userId || null,
-        candidate: maskActivationKey(candidate),
-      });
       const { data, error } = await admin
         .from('activation_keys')
         .select('*')
         .eq('activation_key', candidate)
         .maybeSingle();
-
-      if (error) {
-        const classified = classifySupabaseError(error, 'activation_lookup_failed', 'Activation key lookup failed');
-        debug.activationKeyLookupStatus = classified.code;
-        writeActivationLog('error', 'activation-key-lookup-error', {
-          userId: userId || null,
-          candidate: maskActivationKey(candidate),
-          error,
-          classified,
-        });
-        return activationFailure(classified.code, classified.message, debug);
-      }
-
-      writeActivationLog('log', 'activation-key-lookup-result', {
-        userId: userId || null,
-        candidate: maskActivationKey(candidate),
-        found: Boolean(data),
-        keyId: data?.id || null,
-        status: data?.status || null,
-        redeemedBy: data?.redeemed_by || null,
-      });
-
-      if (data) {
-        keyRow = data;
-        break;
-      }
+      if (!error && data) { keyRow = data; break; }
     }
 
-    if (!keyRow) {
-      debug.activationKeyLookupStatus = 'not_found';
-      writeActivationLog('warn', 'activation-key-not-found', {
-        userId: userId || null,
-        candidates: candidates.map(maskActivationKey),
-      });
-      return activationFailure('activation_key_not_found', 'Activation key not found', debug);
-    }
+    if (!keyRow) return { success: false, error: 'invalid_key' };
 
-    debug.activationKeyLookupStatus = `found:${keyRow.status}`;
-    writeActivationLog('log', 'activation-key-row-loaded', {
-      userId: userId || null,
-      keyId: keyRow.id,
-      status: keyRow.status,
-      redeemedBy: keyRow.redeemed_by || null,
-      expiresAt: keyRow.expires_at || null,
-    });
-
-    if (keyRow.status === 'Used') {
-      writeActivationLog('warn', 'activation-key-already-used', { userId: userId || null, keyId: keyRow.id });
-      return activationFailure('activation_key_already_used', 'Activation key already used', debug);
-    }
-    if (keyRow.status === 'Disabled') {
-      writeActivationLog('warn', 'activation-key-disabled', { userId: userId || null, keyId: keyRow.id });
-      return activationFailure('disabled_key', 'Activation key is disabled', debug);
-    }
-    if (keyRow.status === 'Expired') {
-      writeActivationLog('warn', 'activation-key-expired', { userId: userId || null, keyId: keyRow.id });
-      return activationFailure('expired_key', 'Activation key has expired', debug);
-    }
-    if (keyRow.status !== 'Available') {
-      writeActivationLog('warn', 'activation-key-invalid-status', {
-        userId: userId || null,
-        keyId: keyRow.id,
-        status: keyRow.status,
-      });
-      return activationFailure('activation_key_not_found', 'Activation key not found', debug);
-    }
+    // Status guards
+    if (keyRow.status === 'Used')     return { success: false, error: 'already_used' };
+    if (keyRow.status === 'Disabled') return { success: false, error: 'disabled_key' };
+    if (keyRow.status === 'Expired')  return { success: false, error: 'expired_key' };
+    if (keyRow.status !== 'Available') return { success: false, error: 'invalid_key' };
 
     // Expiry date guard
     if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
-      const { error: expireErr } = await admin.from('activation_keys').update({ status: 'Expired' }).eq('id', keyRow.id);
-      writeActivationLog(expireErr ? 'error' : 'log', 'activation-key-expiry-sync', {
-        userId: userId || null,
-        keyId: keyRow.id,
-        updated: !expireErr,
-        error: expireErr || null,
-      });
-      return activationFailure('expired_key', 'Activation key has expired', debug);
+      await admin.from('activation_keys').update({ status: 'Expired' }).eq('id', keyRow.id);
+      return { success: false, error: 'expired_key' };
     }
 
     // Check this user hasn't already activated with a different key
     if (keyRow.redeemed_by && keyRow.redeemed_by !== userId) {
-      writeActivationLog('warn', 'activation-key-redeemed-by-other-user', {
-        userId: userId || null,
-        keyId: keyRow.id,
-        redeemedBy: keyRow.redeemed_by,
-      });
-      return activationFailure('activation_key_already_used', 'Activation key already used', debug);
+      return { success: false, error: 'already_used' };
     }
 
     const now = new Date().toISOString();
-    writeActivationLog('log', 'activation-key-update-start', {
-      userId: userId || null,
-      keyId: keyRow.id,
-      redeemedAt: now,
-    });
 
     // Atomically mark key as used — extra .eq('status','Available') guard means
     // this only matches if another request hasn't already redeemed the key.
@@ -2575,28 +2289,13 @@ ipcMain.handle('auth:validateActivationKey', async (_, { key, userId }) => {
       .select('id');
 
     if (updateKeyErr) {
-      const classified = classifySupabaseError(updateKeyErr, 'activation_update_failed', 'Activation key update failed');
-      writeActivationLog('error', 'activation-key-update-error', {
-        userId: userId || null,
-        keyId: keyRow.id,
-        error: updateKeyErr,
-        classified,
-      });
-      return activationFailure(classified.code, classified.message, debug);
+      console.error('[validateActivationKey] key update error:', updateKeyErr.message);
+      return { success: false, error: 'activation_failed' };
     }
     if (!updatedRows || updatedRows.length === 0) {
-      writeActivationLog('warn', 'activation-key-update-no-rows', {
-        userId: userId || null,
-        keyId: keyRow.id,
-      });
-      return activationFailure('activation_key_already_used', 'Activation key already used', debug);
+      // Row was already updated by a concurrent request
+      return { success: false, error: 'already_used' };
     }
-
-    writeActivationLog('log', 'activation-key-update-success', {
-      userId: userId || null,
-      keyId: keyRow.id,
-      updatedRows: updatedRows.length,
-    });
 
     // Update profile to active
     const { error: profileErr } = await admin
@@ -2609,52 +2308,18 @@ ipcMain.handle('auth:validateActivationKey', async (_, { key, userId }) => {
       .eq('user_id', userId);
 
     if (profileErr) {
-      const classified = classifySupabaseError(profileErr, 'profile_update_failed', 'Profile update failed');
-      writeActivationLog('error', 'profile-update-error', {
-        userId: userId || null,
-        keyId: keyRow.id,
-        error: profileErr,
-        classified,
-      });
-      const { error: rollbackErr } = await admin.from('activation_keys')
+      console.error('[validateActivationKey] profile update error:', profileErr.message);
+      // Rollback key to Available so user can retry
+      await admin.from('activation_keys')
         .update({ status: 'Available', redeemed_by: null, redeemed_at: null })
         .eq('id', keyRow.id);
-      writeActivationLog(rollbackErr ? 'error' : 'log', 'activation-key-rollback-result', {
-        userId: userId || null,
-        keyId: keyRow.id,
-        rolledBack: !rollbackErr,
-        error: rollbackErr || null,
-      });
-      return activationFailure(classified.code, classified.message, debug);
+      return { success: false, error: 'activation_failed' };
     }
 
-    writeActivationLog('log', 'profile-update-success', {
-      userId: userId || null,
-      keyId: keyRow.id,
-      accountStatus: 'active',
-    });
-    writeActivationLog('log', 'validate-success', {
-      userId: userId || null,
-      keyId: keyRow.id,
-    });
-
-    return {
-      success: true,
-      message: 'Activation succeeded',
-      debug: {
-        ...debug,
-        activationKeyLookupStatus: 'activated',
-      },
-    };
+    return { success: true };
   } catch (err) {
-    const classified = classifySupabaseError(err, 'activation_failed', 'Activation failed');
-    writeActivationLog('error', 'validate-exception', {
-      userId: userId || null,
-      key: safeKey,
-      error: err,
-      classified,
-    });
-    return activationFailure(classified.code, classified.message, debug);
+    console.error('[validateActivationKey] unexpected error:', err.message);
+    return { success: false, error: 'activation_failed' };
   }
 });
 
@@ -4760,7 +4425,7 @@ ipcMain.handle('calendar:list', (_, { userId, from, to }) => {
      LEFT JOIN projects p  ON ce.project_id = p.id
      LEFT JOIN clients  cl ON ce.client_id  = cl.id
      WHERE ce.user_id=? AND ce.start_time<=? AND ce.end_time>=? AND ce.status != 'cancelled'
-     ORDER BY ce.start_time, ce.id`,
+     ORDER BY ce.start_time`,
     [userId, to || now + 86400, from || now - 86400]
   );
 });

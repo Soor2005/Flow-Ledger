@@ -13,12 +13,21 @@ import {
 import logoSrc from '../../assets/logo.png';
 
 const ERROR_MESSAGES = {
-  invalid_key:       { icon: ShieldAlert, title: 'Invalid Key',         body: 'This activation key does not exist. Check for typos and try again.' },
-  already_used:      { icon: ShieldAlert, title: 'Already Redeemed',    body: 'This key has already been used by another account.' },
-  expired_key:       { icon: Clock,       title: 'Key Expired',         body: 'This activation key has expired. Please contact support for a new key.' },
-  disabled_key:      { icon: ShieldAlert, title: 'Key Disabled',        body: 'This activation key has been disabled. Please contact support.' },
-  activation_failed: { icon: AlertCircle, title: 'Activation Failed',   body: 'Something went wrong. Please try again or contact support.' },
-  service_down:      { icon: AlertCircle, title: 'Service Unavailable', body: 'Activation service is temporarily unavailable. Please try again shortly.' },
+  invalid_key:                    { icon: ShieldAlert, title: 'Invalid Key',                body: 'This activation key does not exist. Check for typos and try again.' },
+  already_used:                   { icon: ShieldAlert, title: 'Already Redeemed',           body: 'This key has already been used by another account.' },
+  expired_key:                    { icon: Clock,       title: 'Key Expired',                body: 'This activation key has expired. Please contact support for a new key.' },
+  disabled_key:                   { icon: ShieldAlert, title: 'Key Disabled',               body: 'This activation key has been disabled. Please contact support.' },
+  activation_failed:              { icon: AlertCircle, title: 'Activation Failed',          body: 'Something went wrong. Please try again or contact support.' },
+  service_down:                   { icon: AlertCircle, title: 'Activation Request Failed',  body: 'Network request failed' },
+  missing_supabase_service_role:  { icon: AlertCircle, title: 'Configuration Error',        body: 'Missing SUPABASE_SERVICE_ROLE' },
+  missing_supabase_url:           { icon: AlertCircle, title: 'Configuration Error',        body: 'Missing SUPABASE_URL' },
+  invalid_api_key:                { icon: AlertCircle, title: 'Invalid API Key',            body: 'Invalid API Key' },
+  failed_to_connect_supabase:     { icon: AlertCircle, title: 'Connection Failed',          body: 'Failed to connect to Supabase' },
+  activation_key_not_found:       { icon: ShieldAlert, title: 'Key Not Found',              body: 'Activation key not found' },
+  activation_key_already_used:    { icon: ShieldAlert, title: 'Already Redeemed',           body: 'Activation key already used' },
+  rls_access_denied:              { icon: AlertCircle, title: 'Access Denied',              body: 'RLS policy denied access' },
+  profile_update_failed:          { icon: AlertCircle, title: 'Profile Update Failed',      body: 'Profile update failed' },
+  network_request_failed:         { icon: AlertCircle, title: 'Network Request Failed',     body: 'Network request failed' },
 };
 
 function formatKey(raw) {
@@ -31,14 +40,29 @@ export default function ActivationPage({ supabaseUser, onActivated, onLogout }) 
   const [loading,  setLoading]  = useState(false);
   const [success,  setSuccess]  = useState(false);
   const [errorKey, setErrorKey] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [debugInfo, setDebugInfo] = useState({
+    supabaseConnectionStatus: 'not_checked',
+    currentUserId: supabaseUser?.id || 'Unavailable',
+    activationKeyLookupStatus: 'not_started',
+    exactActivationError: '',
+    logFile: '',
+  });
   const inputRef = useRef(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    setDebugInfo((current) => ({
+      ...current,
+      currentUserId: supabaseUser?.id || 'Unavailable',
+    }));
+  }, [supabaseUser?.id]);
 
   const handleKeyChange = (e) => {
     const formatted = formatKey(e.target.value);
     setKey(formatted);
     setErrorKey('');
+    setErrorMessage('');
   };
 
   const handlePaste = (e) => {
@@ -46,15 +70,33 @@ export default function ActivationPage({ supabaseUser, onActivated, onLogout }) 
     const pasted = e.clipboardData.getData('text');
     setKey(formatKey(pasted));
     setErrorKey('');
+    setErrorMessage('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const rawKey = key.replace(/-/g, '').toUpperCase();
-    if (rawKey.length < 4) { setErrorKey('invalid_key'); return; }
+    if (rawKey.length < 4) {
+      setErrorKey('activation_key_not_found');
+      setErrorMessage('Activation key not found');
+      setDebugInfo((current) => ({
+        ...current,
+        activationKeyLookupStatus: 'invalid_input',
+        exactActivationError: 'Activation key not found',
+      }));
+      return;
+    }
 
     setLoading(true);
     setErrorKey('');
+    setErrorMessage('');
+    setDebugInfo((current) => ({
+      ...current,
+      currentUserId: supabaseUser?.id || 'Unavailable',
+      supabaseConnectionStatus: 'checking',
+      activationKeyLookupStatus: 'starting',
+      exactActivationError: '',
+    }));
     try {
       const res = await window.electron?.validateActivationKey?.({
         key:    rawKey,
@@ -62,13 +104,34 @@ export default function ActivationPage({ supabaseUser, onActivated, onLogout }) 
       });
 
       if (res?.success) {
+        setDebugInfo((current) => ({
+          ...current,
+          ...res?.debug,
+          currentUserId: supabaseUser?.id || current.currentUserId,
+          exactActivationError: '',
+        }));
         setSuccess(true);
         setTimeout(() => onActivated?.(), 1800);
       } else {
         setErrorKey(res?.error || 'activation_failed');
+        setErrorMessage(res?.message || '');
+        setDebugInfo((current) => ({
+          ...current,
+          ...res?.debug,
+          currentUserId: supabaseUser?.id || current.currentUserId,
+          exactActivationError: res?.message || res?.debug?.exactActivationError || 'Activation failed',
+        }));
       }
-    } catch {
-      setErrorKey('service_down');
+    } catch (err) {
+      const message = err?.message || 'Network request failed';
+      setErrorKey('network_request_failed');
+      setErrorMessage(message);
+      setDebugInfo((current) => ({
+        ...current,
+        supabaseConnectionStatus: 'renderer_request_failed',
+        activationKeyLookupStatus: 'request_failed',
+        exactActivationError: message,
+      }));
     } finally {
       setLoading(false);
     }
@@ -76,6 +139,7 @@ export default function ActivationPage({ supabaseUser, onActivated, onLogout }) 
 
   const errorInfo = errorKey ? (ERROR_MESSAGES[errorKey] ?? ERROR_MESSAGES.activation_failed) : null;
   const ErrorIcon = errorInfo?.icon;
+  const resolvedErrorBody = errorMessage || errorInfo?.body;
 
   return (
     <div className="fl-auth-page flex h-full flex-col overflow-hidden">
@@ -168,10 +232,24 @@ export default function ActivationPage({ supabaseUser, onActivated, onLogout }) 
                       <ErrorIcon size={18} className="mt-0.5 shrink-0 text-status-red" />
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-status-red">{errorInfo.title}</p>
-                        <p className="mt-0.5 text-xs leading-relaxed text-tx-secondary">{errorInfo.body}</p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-tx-secondary">{resolvedErrorBody}</p>
                       </div>
                     </div>
                   )}
+
+                  <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/6 px-4 py-3 text-xs text-cyan-100">
+                    <div className="mb-2 flex items-center gap-2">
+                      <AlertCircle size={14} className="shrink-0 text-cyan-300" />
+                      <p className="font-bold uppercase tracking-[0.2em] text-cyan-300">Developer Debug Panel</p>
+                    </div>
+                    <div className="space-y-1.5 font-mono leading-relaxed">
+                      <p>Supabase connection: {debugInfo.supabaseConnectionStatus || 'not_checked'}</p>
+                      <p>Current user id: {debugInfo.currentUserId || 'Unavailable'}</p>
+                      <p>Activation lookup: {debugInfo.activationKeyLookupStatus || 'not_started'}</p>
+                      <p>Exact activation error: {debugInfo.exactActivationError || 'None'}</p>
+                      <p>Activation log file: {debugInfo.logFile || 'Pending first activation attempt'}</p>
+                    </div>
+                  </div>
 
                   <button
                     type="submit"

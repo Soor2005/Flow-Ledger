@@ -1,0 +1,38 @@
+[16500:0614/204433.029:VERBOSE1:configured_proxy_resolution_service.cc(1162)] Failed configuring with PAC script, falling-back to manual proxy servers.
+[16500:0614/204433.035:VERBOSE1:configured_proxy_resolution_service.cc(1162)] Failed configuring with PAC script, falling-back to manual proxy servers.
+[16500:0614/204434.024:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://vbukazyoifwugevuhavs.supabase.co/auth/v1/token?grant_type=refresh_token
+[16500:0614/204434.131:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204434.148:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204434.149:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204434.153:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204434.153:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204434.157:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204434.157:VERBOSE1:tls_client_handshaker.cc(523)] Client: handshake finished
+[16500:0614/204434.943:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://vbukazyoifwugevuhavs.supabase.co/rest/v1/profiles?select=*&user_id=eq.08251325-9f0e-4015-a9db-47b71abc9e45
+[16500:0614/204434.943:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://vbukazyoifwugevuhavs.supabase.co/rest/v1/profiles?select=*&user_id=eq.08251325-9f0e-4015-a9db-47b71abc9e45
+[16500:0614/204434.943:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://vbukazyoifwugevuhavs.supabase.co/rest/v1/profiles?select=*&user_id=eq.08251325-9f0e-4015-a9db-47b71abc9e45
+[16500:0614/204438.019:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://dns.google/dns-query?dns=AAABAAABAAAAAAABA3d3dwdnc3RhdGljA2NvbQAAAQABAAApEAAAAAAAAFQADABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[16500:0614/204438.019:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://dns.google/dns-query?dns=AAABAAABAAAAAAABA3d3dwdnc3RhdGljA2NvbQAAAQABAAApEAAAAAAAAFQADABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[16500:0614/204438.019:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204438.034:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204438.063:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204438.063:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204438.063:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204438.063:VERBOSE1:tls_client_handshaker.cc(523)] Client: handshake finished
+[16500:0614/204441.144:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://dns.google/dns-query?dns=AAABAAABAAAAAAABA3d3dwdnc3RhdGljA2NvbQAAAQABAAApEAAAAAAAAFQADABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[16500:0614/204441.144:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://github.com/Soor2005/Flow-Ledger/releases.atom
+[16500:0614/204441.155:VERBOSE1:configured_proxy_resolution_service.cc(1162)] Failed configuring with PAC script, falling-back to manual proxy servers.
+[16500:0614/204441.567:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://github.com/Soor2005/Flow-Ledger/releases/latest
+[16500:0614/204441.567:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://dns.google/dns-query?dns=AAABAAABAAAAAAABBmdpdGh1YgNjb20AAAEAAQAAKRAAAAAAAABZAAwAVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[16500:0614/204441.569:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://dns.google/dns-query?dns=AAABAAABAAAAAAABBmdpdGh1YgNjb20AAEEAAQAAKRAAAAAAAABZAAwAVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[16500:0614/204441.569:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204441.582:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204441.607:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204441.607:VERBOSE1:tls_handshaker.cc(100)] TlsClient: Continuing handshake
+[16500:0614/204441.607:VERBOSE1:tls_client_handshaker.cc(523)] Client: handshake finished
+[16500:0614/204441.849:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://github.com/Soor2005/Flow-Ledger/releases/tag/v2.0.0
+[16500:0614/204442.197:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://github.com/Soor2005/Flow-Ledger/releases/download/v2.0.0/latest.yml
+[16500:0614/204442.556:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://release-assets.githubusercontent.com/github-production-release-asset/1268605632/7d2d4216-6237-41e1-8301-e78805cb719d?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-06-14T16%3A05%3A34Z&rscd=attachment%3B+filename%3Dlatest.yml&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-06-14T15%3A04%3A55Z&ske=2026-06-14T16%3A05%3A34Z&sks=b&skv=2018-11-09&sig=YhkeT3bVZOy%2FU7pWfmL7KkCUFL1iuxMNylBJC3v6IRE%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc4MTQ1MDM4OSwibmJmIjoxNzgxNDUwMDg5LCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.oQTNBOmlnmWsIMfIY8kxRPrUaL1_vSzPWB-ZZfAnt-o&response-content-disposition=attachment%3B%20filename%3Dlatest.yml&response-content-type=application%2Foctet-stream
+[16500:0614/204442.556:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://dns.google/dns-query?dns=AAABAAABAAAAAAABDnJlbGVhc2UtYXNzZXRzEWdpdGh1YnVzZXJjb250ZW50A2NvbQAAAQABAAApEAAAAAAAAD8ADAA7AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[16500:0614/204442.556:VERBOSE1:network_delegate.cc(35)] NetworkDelegate::NotifyBeforeURLRequest: https://dns.google/dns-query?dns=AAABAAABAAAAAAABDnJlbGVhc2UtYXNzZXRzEWdpdGh1YnVzZXJjb250ZW50A2NvbQAAQQABAAApEAAAAAAAAD8ADAA7AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[16500:0614/204442.808:VERBOSE1:url_loader.cc(1854)] Will sniff content for mime type: https://release-assets.githubusercontent.com/github-production-release-asset/1268605632/7d2d4216-6237-41e1-8301-e78805cb719d?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-06-14T16%3A05%3A34Z&rscd=attachment%3B+filename%3Dlatest.yml&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-06-14T15%3A04%3A55Z&ske=2026-06-14T16%3A05%3A34Z&sks=b&skv=2018-11-09&sig=YhkeT3bVZOy%2FU7pWfmL7KkCUFL1iuxMNylBJC3v6IRE%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc4MTQ1MDM4OSwibmJmIjoxNzgxNDUwMDg5LCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.oQTNBOmlnmWsIMfIY8kxRPrUaL1_vSzPWB-ZZfAnt-o&response-content-disposition=attachment%3B%20filename%3Dlatest.yml&response-content-type=application%2Foctet-stream
