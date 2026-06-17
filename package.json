@@ -1,6 +1,6 @@
 {
   "name": "flow-ledger",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Personal productivity tracker — Rize.io style, local-first",
   "main": "electron/main.js",
   "homepage": "./",
