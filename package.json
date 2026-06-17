@@ -56,8 +56,7 @@
     "icon": "src/assets/logo.png",
     "win": {
       "target": "nsis",
-      "icon": "electron/icon.ico",
-      "publisherName": "Flow Ledger"
+      "icon": "electron/icon.ico"
     },
     "mac": {
       "target": "dmg",
