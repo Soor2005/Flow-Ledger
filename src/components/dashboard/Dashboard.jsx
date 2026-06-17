@@ -585,17 +585,17 @@ export default function Dashboard() {
         </div>
 
         {/* RIGHT — flex-1 justify-end: utility icons + profile */}
-        <div className="no-drag flex flex-1 items-center justify-end gap-0 pr-3">
+        <div className="no-drag fl-topnav-right-rail">
 
           {/* ── Utility icon row ── */}
-          <div className="flex items-center gap-0.5">
+          <div className="fl-topnav-utility-row">
             {utilityButtons.map((btn, i) => (
               <button
                 key={i}
                 onClick={btn.action}
                 title={btn.label}
                 aria-label={btn.label}
-                className={`relative flex h-[30px] w-[30px] items-center justify-center rounded-[8px] transition-all duration-150 ${
+                className={`fl-topnav-icon-btn relative flex h-[30px] w-[30px] items-center justify-center rounded-[8px] transition-all duration-150 ${
                   btn.active
                     ? 'text-accent bg-accent/[0.12]'
                     : 'text-[#7a8aaa] hover:text-white hover:bg-white/[0.07]'
@@ -619,7 +619,7 @@ export default function Dashboard() {
           <div className="fl-nav-sep mx-2 h-[18px] w-px shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
           {/* ── Profile pill ── */}
-          <div className="relative" ref={profileRef}>
+          <div className="fl-topnav-profile-wrap relative" ref={profileRef}>
             <button
               onClick={() => setProfileOpen(o => !o)}
               className={`fl-profile-pill flex items-center gap-[7px] rounded-[9px] px-2 py-[5px] transition-all duration-150 ${profileOpen ? '' : 'hover:bg-white/[0.07]'}`}

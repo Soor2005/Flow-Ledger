@@ -7040,6 +7040,37 @@
   color: #7A74A4 !important;
 }
 
+.fl-topnav-right-rail {
+  width: 284px;
+  min-width: 284px;
+  max-width: 284px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  padding-right: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.fl-topnav-utility-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.fl-topnav-profile-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.fl-topnav-icon-btn {
+  flex-shrink: 0;
+}
+
 /* Tasks split panel — subtask row delete button reveal on hover */
 .fl-subtask-row:hover .fl-subtask-del {
   opacity: 1 !important;
@@ -7055,9 +7086,11 @@
   color: #1E1B2E !important;
 }
 /* Utility icon buttons in light mode */
+.theme-light .fl-topnav .fl-topnav-icon-btn,
 .theme-light .fl-topnav button:not(.fl-profile-pill) {
   color: #5a5880 !important;
 }
+.theme-light .fl-topnav .fl-topnav-icon-btn:hover,
 .theme-light .fl-topnav button:not(.fl-profile-pill):hover {
   color: #1E1B2E !important;
   background: rgba(124,108,242,0.08) !important;
