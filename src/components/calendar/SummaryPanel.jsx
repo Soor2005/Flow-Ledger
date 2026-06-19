@@ -2833,7 +2833,7 @@ export default function SummaryPanel({
 
   return (
     <div className="fl-calendar-summary" style={{
-      width: 284, flexShrink: 0, height: '100%', minHeight: 0,
+      width: 284, minWidth: 284, maxWidth: 284, flexBasis: 284, flexShrink: 0, alignSelf: 'stretch', height: '100%', minHeight: 0,
       borderLeft: '1px solid rgba(255,255,255,0.052)',
       background: 'linear-gradient(170deg, rgba(11,13,21,0.97) 0%, rgba(8,10,17,0.99) 100%)',
       backdropFilter: 'blur(8px)',

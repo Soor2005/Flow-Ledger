@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 // recharts PieChart removed — replaced by CategoryDonut SVG component below
 import AppIcon from '../shared/AppIcon';
+import { pushToast } from '../shared/NotificationCentre';
 import { classifyActivityApp, classifyActivitySession, SMART_CATEGORY_DEFS } from '../../utils/activityCategories';
 import { getDashboardBehavioralKPIs } from '../../ai/adaptive/behaviorAnalyticsBridge.js';
 import { generateAdaptiveRecommendations } from '../../ai/adaptive/adaptiveBehaviorEngine.js';
@@ -558,6 +559,15 @@ export default function HomePage({ user, onNavigate }) {
     return () => clearInterval(t);
   }, [isToday, load]);
 
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    await load(true);
+    pushToast('info', 'Home refreshed', 'Latest dashboard data loaded.', {
+      duration: 1800,
+      relatedPage: 'home',
+    });
+  }, [load, refreshing]);
+
   // ── Derived ────────────────────────────────────────────────────────────────────
   const active      = useMemo(() => autoSessions.filter(s => !s.is_idle && (s.duration_seconds || 0) > 0), [autoSessions]);
   const prevActive  = useMemo(() => prevAuto.filter(s => !s.is_idle && (s.duration_seconds || 0) > 0), [prevAuto]);
@@ -760,7 +770,7 @@ export default function HomePage({ user, onNavigate }) {
           </div>
 
           <div className="no-drag flex items-center gap-2">
-            <button onClick={() => load(true)} disabled={refreshing}
+            <button onClick={handleRefresh} disabled={refreshing}
               className="flex h-7 w-7 items-center justify-center rounded-[8px] text-tx-faint transition hover:bg-white/[0.07] hover:text-tx-primary disabled:opacity-40"
               style={{ border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.025)' }}
               title="Refresh">
