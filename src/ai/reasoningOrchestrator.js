@@ -9,14 +9,14 @@
  * Pipeline:
  *   raw telemetry
  *   ↓ telemetrySanitizer          — strip noise, normalize app names
- *   ↓ workflowSegmentationEngine  — group into coherent workflow blocks [NEW]
+ *   ↓ WorkflowManager             — manages workflow state and continuity [NEW]
  *   ↓ contextCompressionEngine    — compress to weighted workflow signals
  *   ↓ signalRankingEngine         — score and prioritize semantic signals
  *   ↓ behaviorInferenceEngine     — infer work mode and energy state
  *   ↓ featureGraphEngine          — identify active product features
  *   ↓ workflowStateEngine         — resolve workflow state
- *   ↓ sessionContinuityEngine     — detect ongoing objectives
- *   ↓ workblockFusionEngine       — fuse fragments into semantic workblock [NEW]
+
+ *   ↓ workblockFusionEngine       — fuse fragments into semantic workblock (now operates on WorkflowManager segments) [MODIFIED]
  *   ↓ intentInferenceEngine       — infer WHY (not just what)
  *   ↓ humanizationEngine          — convert to natural workflow language
  *   ↓ narrativeSynthesisEngine    — semantic narrative synthesis
@@ -26,7 +26,7 @@
  */
 
 import { sanitizeSessions }                  from './engines/telemetrySanitizer.js';
-import { segmentWorkflow }                   from './engines/workflowSegmentationEngine.js';
+
 import { rankSignals, getTopPhrases, getMeaningfulTools } from './engines/signalRankingEngine.js';
 import { compressContext }                   from './engines/contextCompressionEngine.js';
 import { inferBehavior }                     from './engines/behaviorInferenceEngine.js';
@@ -35,7 +35,8 @@ import { resolveWorkflowState }              from './engines/workflowStateEngine
 import { inferIntent }                       from './engines/intentInferenceEngine.js';
 import { humanize }                          from './engines/humanizationEngine.js';
 import { synthesize }                        from './engines/narrativeSynthesisEngine.js';
-import { analyzeContinuity }                 from './engines/sessionContinuityEngine.js';
+
+import { workflowManager }                     from './core/WorkflowManager.js';
 import { fuseWorkblock }                     from './engines/workblockFusionEngine.js';
 import { contextFingerprint }                from './engines/contextCompressionEngine.js';
 import { determineOwnership, buildDurationQualifier } from './engines/workflowOwnershipEngine.js';
@@ -69,18 +70,24 @@ function runCorePipeline(autoSessions, project, client, sessionDurationMins) {
   // ── Stage 1: Sanitize ──────────────────────────────────────────────────────
   const { sessions: cleanSessions, stats: sanitizeStats } = sanitizeSessions(autoSessions);
 
-  // ── Stage 2: Workflow segmentation ────────────────────────────────────────
-  // Groups fragmented telemetry into coherent workflow blocks before compression.
-  const { segments, stats: segmentStats } = segmentWorkflow(cleanSessions);
+  // ── Stage 2: Process activities with WorkflowManager ──────────────────────
+  // This replaces the traditional segmentation and handles workflow continuity.
+  let currentWorkflow = null;
+  let isNewWorkflow = false;
+  let workflowBreakReason = null;
 
-  // ── Stage 3: Compress ─────────────────────────────────────────────────────
-  // IMPORTANT: Pass the segmented sessions (not raw cleanSessions) so that the
-  // compression engine operates on workflow-grouped input rather than raw telemetry.
-  // This connects the segmentation output that was previously disconnected.
-  const segmentedSessions = segments?.length
-    ? segments.flatMap(seg => seg.sessions || [])
-    : cleanSessions;
-  const compressed = compressContext(segmentedSessions, { project, client });
+  for (const session of cleanSessions) {
+    const { workflow, isNew, breakReason } = workflowManager.processActivity(session, project);
+    currentWorkflow = workflow;
+    if (isNew) {
+      isNewWorkflow = true;
+      workflowBreakReason = breakReason;
+    }
+  }
+
+  // If no active workflow after processing, use cleanSessions as a fallback for compression.
+  const workflowActivities = currentWorkflow ? currentWorkflow.activities : cleanSessions;
+  const compressed = compressContext(workflowActivities, { project, client });
 
   // ── Stage 4: Rank signals ─────────────────────────────────────────────────
   const ranking = rankSignals(compressed);
@@ -97,10 +104,12 @@ function runCorePipeline(autoSessions, project, client, sessionDurationMins) {
   // ── Stage 7b: Workflow ownership ──────────────────────────────────────────
   // Single source of truth for what the user was actually working on.
   // All downstream narrative engines must use this as primary context.
-  const ownership = determineOwnership(cleanSessions, compressed, {
+  const ownership = determineOwnership(currentWorkflow ? currentWorkflow.activities : cleanSessions, compressed, {
     project,
     client,
     behaviorProfile,
+    workflowConfidence: currentWorkflow?.confidence ?? currentWorkflow?.ownershipScore ?? 0,
+    activeWorkflow: currentWorkflow,
   });
 
   // Per-call verb usage tracker — prevents module-level state across sessions
@@ -126,6 +135,17 @@ function runCorePipeline(autoSessions, project, client, sessionDurationMins) {
     client,
     _usedVerbs,
   };
+
+  // Original segmentation is now handled by WorkflowManager.processActivity
+  const segments = currentWorkflow ? [{
+    sessions: currentWorkflow.activities,
+    semanticLabel: currentWorkflow.name,
+    workflowId: currentWorkflow.id,
+    locked: currentWorkflow.locked,
+    confidence: currentWorkflow.confidence,
+    supportingTools: currentWorkflow.supportingTools,
+  }] : [];
+  const segmentStats = { input: cleanSessions.length, segments: segments.length, totalMins: currentWorkflow ? (currentWorkflow.lastActivityTime - currentWorkflow.startTime) / (1000 * 60) : 0 };
 
   // ── Stage 9: Workblock fusion [NEW] ───────────────────────────────────────
   // Fuses multiple segments into a unified semantic understanding.

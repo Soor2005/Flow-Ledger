@@ -9,6 +9,7 @@
 
 import { semanticMemory } from './semanticMemoryEngine.js';
 import { FEATURE_ONTOLOGY } from './productivityOntologyEngine.js';
+import { workflowManager } from '../core/WorkflowManager.js';
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -303,6 +304,19 @@ export function analyzeContinuity(currentCompressed, currentBehavior, currentTit
 
   // Build and store current session record
   const currentRecord = buildSessionRecord(currentCompressed, currentBehavior, currentTitle, timestamp);
+
+  // Enrich with WorkflowManager historical continuity (Phase 1)
+  const wfContext = workflowManager.getWorkflowContextForAI();
+  const wfHistory = workflowManager.getWorkflowHistory();
+  if (wfContext?.name) {
+    currentRecord.dominantWorkflowLabel = currentRecord.dominantWorkflowLabel || wfContext.name;
+    currentRecord.workflowId = wfContext.id;
+    currentRecord.workflowLocked = wfContext.locked;
+    currentRecord.workflowConfidence = wfContext.confidence;
+  }
+  if (wfHistory.length) {
+    currentRecord.priorWorkflowCount = wfHistory.length;
+  }
 
   // Store in semantic memory
   semanticMemory.remember(currentRecord);

@@ -371,7 +371,32 @@ export function segmentWorkflow(sanitizedSessions = []) {
     return { segments: [], stats: { input: 0, segments: 0 } };
   }
 
-  // Sort chronologically
+  // Phase 1: when tracker tagged all segments with workflow_id, group by ownership
+  // instead of app-centric fingerprint boundaries.
+  const workflowTagged = sanitizedSessions.filter(s => s.workflow_id);
+  if (workflowTagged.length >= Math.ceil(sanitizedSessions.length * 0.5)) {
+    const groups = new Map();
+    const sorted = [...sanitizedSessions].sort((a, b) => sessionStart(a) - sessionStart(b));
+    for (const s of sorted) {
+      const key = s.workflow_id || `legacy_${sessionStart(s)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(s);
+    }
+    const segments = [...groups.values()].map((sessions, index) => buildSegment(sessions, index));
+    const filtered = segments.filter(s => s.durationMins >= (MIN_SEGMENT_SECS / 60));
+    const totalMins = filtered.reduce((sum, seg) => sum + seg.durationMins, 0);
+    return {
+      segments: filtered,
+      stats: {
+        input: sanitizedSessions.length,
+        segments: filtered.length,
+        totalMins,
+        viaWorkflowManager: true,
+      },
+    };
+  }
+
+  // Legacy app-ecosystem segmentation (fallback for untagged historical data)
   const sorted = [...sanitizedSessions].sort((a, b) => sessionStart(a) - sessionStart(b));
 
   const rawSegments = [];

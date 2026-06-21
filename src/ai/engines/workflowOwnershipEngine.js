@@ -28,6 +28,7 @@
  */
 
 import { isGenericSubject, scoreSubjectSpecificity, filterGenericKeywords } from './genericKeywordFilter.js';
+import { workflowManager } from '../core/WorkflowManager.js';
 
 // ─── Signal Tier Weights ──────────────────────────────────────────────────────
 // Each tier has a base confidence ceiling. Signals from lower tiers can never
@@ -499,6 +500,27 @@ export function determineOwnership(rawSessions = [], compressed = {}, options = 
   const durationMins = compressed.totalActiveMins || 0;
   const workMode     = behaviorProfile?.workMode?.primary || 'deep_implementation';
   const isDeepWork   = behaviorProfile?.isDeepWork || false;
+
+  // Phase 1: WorkflowManager is the authority for active workflow ownership
+  const activeWorkflow = workflowManager.getActiveWorkflow();
+  const workflowContext = workflowManager.getWorkflowContextForAI();
+  if (activeWorkflow?.locked && activeWorkflow.name) {
+    return {
+      subject: activeWorkflow.objective || activeWorkflow.name,
+      confidence: Math.max(activeWorkflow.confidence || 0.85, 0.85),
+      attributionSource: 'workflow_manager_lock',
+      supportingTools: activeWorkflow.supportingTools || [],
+      workflowId: activeWorkflow.id,
+      isReliable: true,
+      durationMins,
+      workMode,
+      isDeepWork,
+    };
+  }
+  if (workflowContext?.name && (workflowContext.confidence || 0) >= 0.5) {
+    // Boost continuity when WorkflowManager has established ownership
+    options.workflowConfidence = Math.max(options.workflowConfidence || 0, workflowContext.confidence);
+  }
 
   // ── Try each tier in priority order ──────────────────────────────────────
 

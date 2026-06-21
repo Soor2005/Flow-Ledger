@@ -155,7 +155,7 @@ function selectVerb(context, position = 0) {
 function extractSubject(context) {
   const {
     windowTitlePhrases = [], bestWindowTitle, project, primaryCategory,
-    apps, websites, primarySiteTopic, fallbackKeywords = [], workSubtype,
+    apps = [], websites, primarySiteTopic, fallbackKeywords = [], workSubtype,
   } = context;
 
   // ── 1. Best window title phrase ──────────────────────────────────────────
@@ -761,8 +761,8 @@ export function writeEventContentWithReasoning(autoSessions = [], existing = {},
       overallConfidence:        result.overallConfidence,
     };
   } catch {
-    // Fall back to legacy context-based generation
-    const context = { primaryCategory: 'development', isDeepWork: false };
+    // Fall back to legacy context-based generation with full analyzed context
+    const context = analyzeContext({ autoSessions, project, client });
     return writeEventContent(context, existing);
   }
 }

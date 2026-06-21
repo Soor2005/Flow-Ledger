@@ -14,6 +14,7 @@ import { useCalendarAI } from '../../hooks/useCalendarAI';
 import { useAdaptiveIntelligence } from '../../hooks/useAdaptiveIntelligence';
 import { RescheduleModal, RescheduleToast, BlockContextMenu } from './RescheduleModal';
 import { pushToast } from '../shared/NotificationCentre';
+import { mergeWorkflowSessions } from '../../utils/workflowSessionMerge';
 
 const api = window.electron || {};
 
@@ -293,7 +294,7 @@ function blockDisplayTitle(block) {
   if (!block) return '';
   if (block._type === 'calendar') return block.title || 'Calendar event';
   if (block._type === 'session') return block.title || block.category || 'Session';
-  return block.app_name || block.window_title || 'Activity';
+  return block.ai_recommended_title || block.ai_workflow_name || block.ai_label || block.app_name || block.window_title || 'Activity';
 }
 
 function getUsageLabel(row = {}) {
@@ -2499,13 +2500,18 @@ export default function CalendarView({ user, categories, activeSession, setActiv
   // loadData()'s optimistic-preserve merge checks this before resurrecting sessions.
   const deletedIdsRef = useRef(new Set());
 
+  const workflowAutoSessions = useMemo(
+    () => mergeWorkflowSessions(autoSessions, { trace: true }),
+    [autoSessions]
+  );
+
   // ─── AI Intelligence Engine ───────────────────────────────────────────────
   const calendarAI = useCalendarAI({
     userId: user.id,
     date: selectedDate,
     sessions,
     calEvents,
-    autoSessions,
+    autoSessions: workflowAutoSessions,
     projects,
     clients,
     enabled: true,
@@ -2515,7 +2521,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
   // Learns continuously from sessions and provides personalized insights.
   const adaptiveAI = useAdaptiveIntelligence({
     sessions,
-    autoSessions,
+    autoSessions: workflowAutoSessions,
     calendarInsights:    calendarAI.insights,
     productivityAnalysis: calendarAI.productivity,
     liveSession: activeSession ? {
@@ -2548,21 +2554,21 @@ export default function CalendarView({ user, categories, activeSession, setActiv
       }
     }
     setAiTitleMap(map);
-  }, [sessions.length, autoSessions.length]);
+  }, [sessions.length, workflowAutoSessions.length]);
 
   // Update live suggestions when active session or auto-sessions change
   useEffect(() => {
     if (!activeSession) { setAiLiveSuggestions([]); return; }
     const nowTs = Math.floor(Date.now() / 1000);
     const sessionStart = activeSession.started_at || nowTs - 60;
-    const recentAuto = autoSessions.filter(a =>
+    const recentAuto = workflowAutoSessions.filter(a =>
       !a.is_idle && a.started_at >= sessionStart - 300
     );
     const project = projects.find(p => p.id === activeSession.project_id) || null;
     const client  = clients.find(c => c.id === activeSession.client_id)   || null;
     const suggestions = calendarAI.getLiveTitleSuggestions(recentAuto, project, client);
     setAiLiveSuggestions(suggestions);
-  }, [activeSession?.id, autoSessions.length]);
+  }, [activeSession?.id, workflowAutoSessions.length]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 7 * PX_PER_HOUR;
@@ -3099,7 +3105,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
 
   const sessionsForDay  = d => forDay(d, sessions, 'started_at', null);
   const calEventsForDay = d => forDay(d, calEvents, 'start_time', 'end_time');
-  const autoForDay      = d => forDay(d, autoSessions, 'started_at', null);
+  const autoForDay      = d => forDay(d, workflowAutoSessions, 'started_at', null);
 
   // ── Derived data for tab views ─────────────────────────────────────────
   const sessionsByDate = useMemo(() => {
@@ -3133,7 +3139,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
   }, [sessions]);
 
   const selectedDaySessions = useMemo(() => sessionsForDay(selectedDate), [sessions, selectedDate]);
-  const selectedDayAuto = useMemo(() => autoForDay(selectedDate), [autoSessions, selectedDate]);
+  const selectedDayAuto = useMemo(() => autoForDay(selectedDate), [workflowAutoSessions, selectedDate]);
   const selectedDayChains = useMemo(() => buildFocusChains(selectedDaySessions), [selectedDaySessions]);
   const selectedDayInterruptions = useMemo(() => buildInterruptionMarkers(selectedDaySessions), [selectedDaySessions]);
 
@@ -3141,7 +3147,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
     if (!selectedBlock) return null;
     const { start, end } = getBlockWindow(selectedBlock);
     if (!start || !end) return null;
-    const relatedAuto = autoSessions.filter(a =>
+    const relatedAuto = workflowAutoSessions.filter(a =>
       !a.is_idle &&
       (a.duration_seconds || 0) > 0 &&
       overlaps(start, end, a.started_at, a.ended_at || (a.started_at + (a.duration_seconds || 0)))
@@ -3191,7 +3197,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
       recovery,
       narrative,
     };
-  }, [selectedBlock, autoSessions, selectedDaySessions]);
+  }, [selectedBlock, workflowAutoSessions, selectedDaySessions]);
 
   const dayBehavior = useMemo(() => {
     const activeAuto = selectedDayAuto.filter(a => !a.is_idle && (a.duration_seconds || 0) > 0);
@@ -3231,7 +3237,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
     const start    = b._type === 'calendar' ? b.start_time : b.started_at;
     const end      = b._type === 'calendar' ? b.end_time   : b.ended_at;
     const desc     = b.description || b.notes || null;
-    const hoverAuto = autoSessions.filter(a =>
+    const hoverAuto = workflowAutoSessions.filter(a =>
       !a.is_idle &&
       (a.duration_seconds || 0) > 0 &&
       start &&
@@ -3811,7 +3817,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
         selectedDate={selectedDate} activeSession={activeSession}
         onStopSession={stopSession} sessions={sessions}
         calEvents={calEvents} sources={sources}
-        autoSessions={autoSessions}
+        autoSessions={workflowAutoSessions}
         selectedBlock={selectedBlock}
         selectedBehavior={selectedBehavior}
         dayBehavior={dayBehavior}

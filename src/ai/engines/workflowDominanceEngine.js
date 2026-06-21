@@ -166,7 +166,7 @@ function sharedKeywords(kws1 = [], kws2 = []) {
  *
  * Returns: { label, keywords, category }
  */
-function extractWorkflowIdentity(session) {
+export function extractWorkflowIdentity(session) {
   const app   = normApp(session.app_name || '');
   const title = (session.window_title || '').trim();
   const url   = (session.url || '').trim();

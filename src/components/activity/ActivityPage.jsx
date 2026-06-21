@@ -15,6 +15,7 @@ import {
   ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { mergeWorkflowSessions } from '../../utils/workflowSessionMerge';
 
 const api = window.electron || {};
 
@@ -2262,7 +2263,7 @@ function ActivityDashboard({ user }) {
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const activeData = useMemo(
-    () => autoData.filter(s => !s.is_idle && (s.duration_seconds || 0) > 0),
+    () => mergeWorkflowSessions(autoData, { trace: true }).filter(s => !s.is_idle && (s.duration_seconds || 0) > 0),
     [autoData]
   );
   const totalSecs = activeData.reduce((a, s) => a + (s.duration_seconds || 0), 0);

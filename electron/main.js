@@ -18,6 +18,11 @@ const { exec } = require('child_process');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { AutoTracker }     = require('./tracker');
+const {
+  trackingWorkflowManager,
+  WORKFLOW_EVENTS,
+  normalizeToolName,
+} = require('./workflow/workflowEngine');
 const { createTray, destroyTray } = require('./tray');
 const { FlowLedgerAI, WORKFLOW_NAMES } = require('./ai-engine');
 const { setupUpdater }    = require('./updater');
@@ -300,20 +305,109 @@ let afSession     = null;           // { id, title, category, started_at } | nul
 let afBufferStart = null;           // Date.now() ms when buffering started
 let afBufferTick  = null;           // setInterval handle for buffer progress
 let afIdleTimer   = null;           // setTimeout handle for idle-stop
+let afLastExtendLogAt = 0;          // throttles active-session heartbeat logs
+
+function getAfWorkflowId() {
+  try {
+    return afSession?.workflowId || trackingWorkflowManager.getActiveWorkflow()?.id || null;
+  } catch {
+    return afSession?.workflowId || null;
+  }
+}
+
+function logAF(event, reason, extra = {}) {
+  console.debug('[AF]', event, {
+    timestamp: new Date().toISOString(),
+    afState,
+    sessionId: afSession?.id || null,
+    workflowId: getAfWorkflowId(),
+    reason: reason || null,
+    ...extra,
+  });
+}
+
+function setAfState(nextState, reason) {
+  if (afState === nextState) return;
+  const previousState = afState;
+  afState = nextState;
+  logAF('AF_STATE_CHANGE', reason, { previousState, nextState });
+}
+
+function clearAfBuffer(reason) {
+  const hadBuffer = !!(afBufferTick || afBufferStart);
+  if (afBufferTick) {
+    clearInterval(afBufferTick);
+    afBufferTick = null;
+  }
+  afBufferStart = null;
+  if (reason && hadBuffer) logAF('AF_INVALID_STATE_RESET', reason);
+}
+
+function hasActiveAfSession() {
+  return !!afSession;
+}
+
+function ensureActiveAfTracking(reason) {
+  if (!hasActiveAfSession()) return false;
+  if (afState !== 'tracking') {
+    clearAfBuffer(reason || 'active_session_state_repair');
+    setAfState('tracking', reason || 'active_session_state_repair');
+    logAF('AF_INVALID_STATE_RESET', reason || 'active_session_state_repair');
+  }
+  return true;
+}
+
+function hydrateActiveAfSessionFromDb(reason) {
+  if (afSession || !db || !currentUserId) return false;
+  try {
+    const active = get(
+      `SELECT id, title, category, started_at
+         FROM sessions
+        WHERE user_id=? AND ended_at IS NULL AND title LIKE 'Auto:%'
+        ORDER BY started_at DESC LIMIT 1`,
+      [currentUserId]
+    );
+    if (!active?.id) return false;
+    afSession = {
+      id: active.id,
+      title: active.title || 'Auto: Focus',
+      category: active.category || 'Focus',
+      started_at: active.started_at,
+      appName: (active.title || '').replace(/^Auto:\s*/i, '') || 'Focus',
+      workflowId: getAfWorkflowId(),
+    };
+    setAfState('tracking', reason || 'hydrate_active_session');
+    clearAfBuffer(reason || 'hydrate_active_session');
+    logAF('AF_SESSION_REUSED', reason || 'hydrate_active_session');
+    return true;
+  } catch (e) {
+    console.error('[AF] Active session hydrate failed:', e.message);
+    return false;
+  }
+}
 
 function afReset() {
-  afState = 'watching'; afSession = null; afBufferStart = null;
+  const previousSessionId = afSession?.id || null;
+  afSession = null; afBufferStart = null;
+  setAfState('watching', 'reset');
+  afLastExtendLogAt = 0;
   clearInterval(afBufferTick); afBufferTick = null;
   clearTimeout(afIdleTimer);  afIdleTimer  = null;
+  logAF('AF_INVALID_STATE_RESET', 'reset', { previousSessionId });
 }
 
 function afBroadcast(reason) {
   if (!mainWindow) return;
-  const bufferPct = (afState === 'buffering' && afBufferStart)
+  if (ensureActiveAfTracking(reason || 'broadcast_active_session_guard')) {
+    clearAfBuffer(reason || 'broadcast_active_session_guard');
+  }
+  const broadcastState = hasActiveAfSession() ? 'tracking' : afState;
+  const bufferPct = (broadcastState === 'buffering' && afBufferStart)
     ? Math.min(100, Math.round(((Date.now() - afBufferStart) / 1000 / AF_THRESHOLD_SECS) * 100))
     : 0;
+  logAF('AF_BROADCAST_STATE', reason, { broadcastState, bufferPct });
   mainWindow.webContents.send('tracker:afState', {
-    state: afState, session: afSession, bufferPct, reason: reason || null,
+    state: broadcastState, session: afSession, bufferPct, reason: reason || null,
   });
 }
 
@@ -333,7 +427,15 @@ function runAutoFocusMachine(appName, liveAI) {
   if (afIdleTimer) { clearTimeout(afIdleTimer); afIdleTimer = null; }
 
   // Session already running — keep it alive across all app switches
-  if (afState === 'tracking') return;
+  hydrateActiveAfSessionFromDb('heartbeat_db_active_session');
+  if (ensureActiveAfTracking('active_session_heartbeat')) {
+    const now = Date.now();
+    if (now - afLastExtendLogAt >= 30000) {
+      afLastExtendLogAt = now;
+      logAF('AF_SESSION_EXTENDED', 'active_session_heartbeat', { appName });
+    }
+    return;
+  }
 
   const appLower      = (appName || '').toLowerCase();
   const isProductive  = !!(liveAI?.deepWork
@@ -346,9 +448,10 @@ function runAutoFocusMachine(appName, liveAI) {
   if (afState === 'watching' || afState === 'paused') {
     if (isProductive && !isDistraction) {
       if (!afBufferStart) afBufferStart = Date.now();
-      afState = 'buffering';
+      setAfState('buffering', 'productive_activity_buffering');
       if (!afBufferTick) {
         afBufferTick = setInterval(() => {
+          if (ensureActiveAfTracking('buffer_tick_active_session_guard')) return;
           const elapsed = Math.floor((Date.now() - (afBufferStart || Date.now())) / 1000);
           afBroadcast();
           if (elapsed >= AF_THRESHOLD_SECS) {
@@ -363,8 +466,8 @@ function runAutoFocusMachine(appName, liveAI) {
   }
 
   if (afState === 'buffering' && isDistraction) {
-    clearInterval(afBufferTick); afBufferTick = null;
-    afBufferStart = null; afState = 'watching';
+    clearAfBuffer('distraction_during_buffer');
+    setAfState('watching', 'distraction_during_buffer');
     afBroadcast();
   }
 }
@@ -372,6 +475,13 @@ function runAutoFocusMachine(appName, liveAI) {
 // Creates a focus session in the DB and transitions to 'tracking'.
 function launchAutoFocusSession(appName, liveAI) {
   if (!db || !currentUserId) return;
+  hydrateActiveAfSessionFromDb('launch_db_active_session');
+  if (ensureActiveAfTracking('launch_guard_existing_session')) {
+    logAF('AF_SESSION_CREATION_BLOCKED', 'active_session_exists', { appName });
+    logAF('AF_SESSION_REUSED', 'active_session_exists', { appName });
+    afBroadcast('active_session_reused');
+    return;
+  }
   try {
     const cats = all('SELECT name FROM categories WHERE user_id=? ORDER BY rowid', [currentUserId]);
     // Prefer AI-matched category; fall back to first user category
@@ -397,12 +507,16 @@ function launchAutoFocusSession(appName, liveAI) {
     run('INSERT INTO sessions (id,user_id,category,title,started_at,is_deep_work,session_type) VALUES (?,?,?,?,?,?,?)',
       [id, currentUserId, categoryName, title, now, deep, 'focus']);
 
-    afSession = { id, title, category: categoryName, started_at: now, appName: appName || 'Focus' };
-    afState   = 'tracking';
+    let workflowId = null;
+    try { workflowId = trackingWorkflowManager.getActiveWorkflow()?.id || null; } catch {}
+    afSession = { id, title, category: categoryName, started_at: now, appName: appName || 'Focus', workflowId };
+    setAfState('tracking', 'session_created');
+    afLastExtendLogAt = Date.now();
+    logAF('AF_SESSION_CREATED', 'session_created', { appName, title });
     afBroadcast('started');
   } catch (e) {
     console.error('[AF] Session create failed:', e.message);
-    afState = 'watching';
+    setAfState('watching', 'session_create_failed');
     afBroadcast();
   }
 }
@@ -413,8 +527,10 @@ function closeAutoFocusSession(reason) {
   const sessStart = afSession?.started_at;
   const rawApp    = afSession?.appName || 'Focus';
   const category  = afSession?.category || 'Focus';
+  const workflowId = getAfWorkflowId();
   afSession = null;
-  afState   = 'watching';
+  setAfState('watching', reason || 'session_closed');
+  afLastExtendLogAt = 0;
 
   let aiTitle = null;
   let durSecs = 0;
@@ -495,6 +611,7 @@ function closeAutoFocusSession(reason) {
   }
 
   afBroadcast(reason || null);
+  logAF('AF_SESSION_CLOSED', reason || 'session_closed', { sessionId: sessId || null, workflowId, durationSeconds: durSecs });
 }
 
 // ─── STARTUP SESSION RECOVERY ────────────────────────────────────────────────
@@ -919,6 +1036,10 @@ function createSchema() {
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_confidence REAL DEFAULT 0');
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_is_deep_work INTEGER DEFAULT 0');
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_workflow_name TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN workflow_id TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN supporting_tools TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_recommended_title TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_recommended_description TEXT');
 
   save();
 }
@@ -964,6 +1085,83 @@ function matchProjectClient(userId, appName, title, url) {
 // ─── APP NAME ALIAS MAP ───────────────────────────────────────────────────────
 // Maps user-friendly app names to their actual OS process names (Windows-first).
 // Keys are lowercase; values are pipe-separated regex alternatives.
+function logWorkflowPersistence(event, payload = {}) {
+  console.debug('[WORKFLOW]', event, { ts: Date.now(), event, ...payload });
+}
+
+function parseSupportingTools(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return String(raw).split(',').map(s => s.trim()).filter(Boolean);
+  }
+}
+
+function mergeSupportingTools(existingRaw, activeWorkflow, appName) {
+  const tools = new Set(parseSupportingTools(existingRaw).map(normalizeToolName).filter(Boolean));
+  for (const tool of activeWorkflow?.supportingTools || []) {
+    const normalized = normalizeToolName(tool);
+    if (normalized) tools.add(normalized);
+  }
+  const current = normalizeToolName(appName);
+  if (current) tools.add(current);
+  return JSON.stringify([...tools]);
+}
+
+function findWorkflowSessionToExtend(userId, workflowId) {
+  if (!workflowId) return null;
+  return get(
+    `SELECT id, started_at, ended_at, duration_seconds, project_id, client_id, supporting_tools
+       FROM auto_sessions
+      WHERE user_id=? AND workflow_id=?
+      ORDER BY ended_at DESC
+      LIMIT 1`,
+    [userId, workflowId]
+  );
+}
+
+function shouldInsertWorkflowSession({ ownership, existingWorkflowSession, workflowSplit, flushReason }) {
+  if (existingWorkflowSession) return false;
+  if (workflowSplit) return true;
+  if (ownership?.extendSession) return true; // first persisted segment for this workflow
+  if (ownership?.createNewSession) return true;
+  return ownership?.reason === 'no_active_workflow' && !flushReason;
+}
+
+function getProjectClientNames(projectId, clientId) {
+  let projectName = null;
+  let clientName = null;
+  try {
+    if (projectId) projectName = get('SELECT name FROM projects WHERE id=?', [projectId])?.name || null;
+    if (clientId) clientName = get('SELECT name FROM clients WHERE id=?', [clientId])?.name || null;
+  } catch (_) {}
+  return { projectName, clientName };
+}
+
+function buildAutoSessionNarrative(rows = [], { projectId = null, clientId = null, fallbackTitle = null } = {}) {
+  if (!aiEngine || !rows.length) return { title: fallbackTitle || null, description: null };
+  try {
+    const mapped = rows
+      .filter(Boolean)
+      .map(row => ({
+        ...row,
+        category_key: row.category_key || row.ai_category || row.ai_session_type || 'focus',
+        duration: row.duration || row.duration_seconds || 0,
+      }));
+    const { projectName, clientName } = getProjectClientNames(projectId, clientId);
+    const summary = aiEngine.summarizeSession(mapped, projectName, clientName);
+    return {
+      title: summary?.name || summary?.workflowName || fallbackTitle || null,
+      description: summary?.description || null,
+    };
+  } catch (e) {
+    console.error('[AI] Auto-session narrative failed:', e.message);
+    return { title: fallbackTitle || null, description: null };
+  }
+}
+
 const APP_NAME_ALIASES = {
   // Microsoft Office — Office apps use internal codenames as process names
   'powerpoint':     'powerpnt|powerpoint',
@@ -1078,7 +1276,11 @@ function all(sql, params = []) {
 // ─── AUTO-TRACKER SETUP ──────────────────────────────────────────────────────
 function startAutoTracker(userId) {
   if (tracker) { tracker.stop(); tracker = null; }
-  afReset();              // always start the AF machine fresh
+  if (afSession) {
+    ensureActiveAfTracking('tracker_restart_active_session');
+  } else {
+    afReset();
+  }
   currentUserId = userId;
 
   tracker = new AutoTracker({
@@ -1116,7 +1318,7 @@ function startAutoTracker(userId) {
       });
     },
 
-    onActivity: ({ appName, title, url, duration, flush }) => {
+    onActivity: ({ appName, title, url, duration, flush, workflowId, workflowName, workflowSplit, flushReason }) => {
       if (!userId) return;
       const now     = Math.floor(Date.now() / 1000);
       // Use session START time for date bucketing — prevents late-night sessions
@@ -1169,10 +1371,10 @@ function startAutoTracker(userId) {
         // ── Persistent auto-focus state machine ──────────────────────────────
         // Suppress buffering/tracking while a confirmed calendar event is live.
         if (activeCalEvent) {
-          if (afState === 'tracking' && afSession) closeAutoFocusSession('cal_event');
+          if (afSession) closeAutoFocusSession('cal_event');
           else if (afState === 'buffering') {
-            clearInterval(afBufferTick); afBufferTick = null;
-            afBufferStart = null; afState = 'watching';
+            clearAfBuffer('cal_event');
+            setAfState('watching', 'cal_event');
             afBroadcast();
           }
         } else {
@@ -1197,7 +1399,8 @@ function startAutoTracker(userId) {
         );
         if (overlappingEvent) {
           // Drop this auto-session — it falls inside a scheduled calendar event.
-          // App-usage aggregates are also skipped to keep metrics clean.
+          // End active workflow — calendar interruption is a hard workflow split.
+          trackingWorkflowManager.endActiveWorkflow('calendar_interruption');
           if (mainWindow) {
             mainWindow.webContents.send('tracker:activity', { appName, title, url, duration, dateKey, skipped: true });
           }
@@ -1236,8 +1439,11 @@ function startAutoTracker(userId) {
 
         // ── AI classification ──────────────────────────────────────────────
         let aiLabel = null, aiCategory = null, aiSessionType = null;
-        let aiConfidence = 0, aiIsDeepWork = 0, aiWorkflowName = null;
+        let aiConfidence = 0, aiIsDeepWork = 0;
         let aiSignals = null;
+        const activeWorkflow = trackingWorkflowManager.getActiveWorkflow();
+        const resolvedWorkflowId = workflowId || activeWorkflow?.id || null;
+        const aiWorkflowName = workflowName || activeWorkflow?.name || null;
 
         if (aiEngine) {
           try {
@@ -1270,17 +1476,136 @@ function startAutoTracker(userId) {
           }
         }
 
-        const id = uuidv4();
-        run(
-          `INSERT INTO auto_sessions
-             (id,user_id,app_name,window_title,url,started_at,ended_at,duration_seconds,
-              date_key,project_id,client_id,
-              ai_label,ai_category,ai_session_type,ai_confidence,ai_is_deep_work,ai_workflow_name)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [id, userId, appName, title || '', url || null, now - duration, now, duration,
-           dateKey, finalProjectId, finalClientId,
-           aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName]
+        const ownership = trackingWorkflowManager.resolveSessionOwnership(
+          {
+            appName,
+            title,
+            url: url || '',
+            timestamp: now * 1000,
+            duration_seconds: duration,
+          },
+          finalProjectId ? { id: finalProjectId } : null,
+          {
+            workflowId: resolvedWorkflowId,
+            workflowSplit: !!workflowSplit,
+            workflowMerged: /WORKFLOW_MERGED/i.test(String(flushReason || '')),
+            flushReason: flushReason || null,
+          }
         );
+        const existingWorkflowSession = resolvedWorkflowId && !workflowSplit
+          ? findWorkflowSessionToExtend(userId, resolvedWorkflowId)
+          : null;
+        const shouldInsertSession = shouldInsertWorkflowSession({
+          ownership,
+          existingWorkflowSession,
+          workflowSplit: !!workflowSplit,
+          flushReason,
+        });
+
+        let id = existingWorkflowSession?.id || uuidv4();
+        if (existingWorkflowSession) {
+          const supportingTools = mergeSupportingTools(existingWorkflowSession.supporting_tools, activeWorkflow, appName);
+          const narrativeRows = all('SELECT * FROM auto_sessions WHERE id=?', [id]).concat({
+            app_name: appName,
+            window_title: title || '',
+            url: url || null,
+            duration_seconds: duration,
+            ai_category: aiCategory,
+            ai_session_type: aiSessionType,
+            ai_label: aiLabel,
+          });
+          const narrative = buildAutoSessionNarrative(narrativeRows, {
+            projectId: finalProjectId || existingWorkflowSession.project_id || null,
+            clientId: finalClientId || existingWorkflowSession.client_id || null,
+            fallbackTitle: aiWorkflowName || aiLabel || appName,
+          });
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_BLOCKED, {
+            sessionId: id,
+            workflowId: resolvedWorkflowId,
+            appName,
+            reason: ownership.reason || flushReason || 'workflow_continuity',
+            confidence: ownership.confidence,
+          });
+          run(
+            `UPDATE auto_sessions
+                SET ended_at=?,
+                    duration_seconds=duration_seconds+?,
+                    window_title=?,
+                    url=COALESCE(?, url),
+                    project_id=COALESCE(project_id, ?),
+                    client_id=COALESCE(client_id, ?),
+                    ai_label=COALESCE(?, ai_label),
+                    ai_category=COALESCE(?, ai_category),
+                    ai_session_type=COALESCE(?, ai_session_type),
+                    ai_confidence=MAX(COALESCE(ai_confidence,0), ?),
+                    ai_is_deep_work=MAX(COALESCE(ai_is_deep_work,0), ?),
+                    ai_workflow_name=COALESCE(?, ai_workflow_name),
+                    workflow_id=?,
+                    supporting_tools=?,
+                    ai_recommended_title=COALESCE(?, ai_recommended_title),
+                    ai_recommended_description=COALESCE(?, ai_recommended_description)
+              WHERE id=?`,
+            [now, duration, title || '', url || null, finalProjectId, finalClientId,
+             aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName,
+             resolvedWorkflowId, supportingTools, narrative.title, narrative.description, id]
+          );
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_EXTENDED, {
+            sessionId: id,
+            workflowId: resolvedWorkflowId,
+            appName,
+            duration,
+            confidence: ownership.confidence,
+          });
+          logWorkflowPersistence(WORKFLOW_EVENTS.EXTENDED, {
+            workflowId: resolvedWorkflowId,
+            sessionId: id,
+            appName,
+            supportingTools: JSON.parse(supportingTools),
+          });
+        } else if (shouldInsertSession) {
+          const supportingTools = mergeSupportingTools(null, activeWorkflow, appName);
+          const narrative = buildAutoSessionNarrative([{
+            app_name: appName,
+            window_title: title || '',
+            url: url || null,
+            duration_seconds: duration,
+            ai_category: aiCategory,
+            ai_session_type: aiSessionType,
+            ai_label: aiLabel,
+          }], {
+            projectId: finalProjectId,
+            clientId: finalClientId,
+            fallbackTitle: aiWorkflowName || aiLabel || appName,
+          });
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_ALLOWED, {
+            workflowId: resolvedWorkflowId,
+            appName,
+            reason: workflowSplit
+              ? 'workflow_split'
+              : (ownership.reason === 'no_active_workflow' ? 'first_session_without_active_workflow' : 'first_session_for_workflow'),
+            confidence: ownership.confidence,
+          });
+          run(
+            `INSERT INTO auto_sessions
+               (id,user_id,app_name,window_title,url,started_at,ended_at,duration_seconds,
+                date_key,project_id,client_id,
+                ai_label,ai_category,ai_session_type,ai_confidence,ai_is_deep_work,ai_workflow_name,workflow_id,supporting_tools,
+                ai_recommended_title,ai_recommended_description)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [id, userId, appName, title || '', url || null, now - duration, now, duration,
+             dateKey, finalProjectId, finalClientId,
+             aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName, resolvedWorkflowId, supportingTools,
+             narrative.title, narrative.description]
+          );
+        } else {
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_BLOCKED, {
+            workflowId: resolvedWorkflowId,
+            appName,
+            reason: ownership.reason || flushReason || 'workflow_owned_without_insert',
+            confidence: ownership.confidence,
+          });
+          return;
+        }
 
         // Persist AI session metadata separately for rich queries
         if (aiEngine && aiLabel) {
@@ -1311,24 +1636,49 @@ function startAutoTracker(userId) {
         }
 
         if (mainWindow) {
-          mainWindow.webContents.send('tracker:activity', { appName, title, url, duration, dateKey });
+          mainWindow.webContents.send('tracker:activity', {
+            appName, title, url, duration, dateKey,
+            workflowId: resolvedWorkflowId,
+            workflowName: aiWorkflowName,
+            workflowSplit: !!workflowSplit,
+            flushReason: flushReason || null,
+          });
         }
       }
+    },
+
+    getProject: () => {
+      if (!userId || !db) return null;
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        const calEvent = get(
+          `SELECT project_id FROM calendar_events
+           WHERE user_id=? AND project_id IS NOT NULL
+           AND start_time<=? AND end_time>=?
+           ORDER BY start_time DESC LIMIT 1`,
+          [userId, now, now]
+        );
+        if (calEvent?.project_id) {
+          const p = get('SELECT id, name FROM projects WHERE id=?', [calEvent.project_id]);
+          if (p) return p;
+        }
+      } catch (_) {}
+      return null;
     },
 
     onIdle: () => {
       if (mainWindow) mainWindow.webContents.send('tracker:idle', {});
 
       // AF: buffer was pending but user went idle — just reset, no session yet
-      if (afState === 'buffering') {
-        clearInterval(afBufferTick); afBufferTick = null;
-        afBufferStart = null; afState = 'watching';
+      if (afState === 'buffering' && !afSession) {
+        clearAfBuffer('idle_before_session');
+        setAfState('watching', 'idle_before_session');
         afBroadcast();
       // AF: session running — arm the idle-stop countdown
-      } else if (afState === 'tracking' && afSession && !afIdleTimer) {
+      } else if (ensureActiveAfTracking('idle_active_session') && !afIdleTimer) {
         afIdleTimer = setTimeout(() => {
           afIdleTimer = null;
-          if (afState !== 'tracking' || !afSession) return;
+          if (!ensureActiveAfTracking('idle_timeout_guard')) return;
           closeAutoFocusSession('idle');
         }, AF_IDLE_STOP_SECS * 1000);
       }
@@ -1339,7 +1689,12 @@ function startAutoTracker(userId) {
 
       // AF: user came back — cancel any pending idle-stop immediately
       if (afIdleTimer) { clearTimeout(afIdleTimer); afIdleTimer = null; }
-      if (afState === 'paused') { afState = 'watching'; afBroadcast(); }
+      if (ensureActiveAfTracking('resume_active_session')) {
+        afBroadcast('resume_active_session');
+      } else if (afState === 'paused') {
+        setAfState('watching', 'resume_without_session');
+        afBroadcast();
+      }
     },
 
     onBlocked: (appName) => {
@@ -3206,12 +3561,11 @@ ipcMain.handle('tracking:pauseAutoSession', () => {
   if (afSession) {
     closeAutoFocusSession('user_paused');
   } else {
-    clearInterval(afBufferTick); afBufferTick = null;
+    clearAfBuffer('user_paused');
     clearTimeout(afIdleTimer);  afIdleTimer  = null;
-    afBufferStart = null;
     afSession     = null;
   }
-  afState = 'user_paused';
+  setAfState('user_paused', 'user_paused');
   afBroadcast('user_paused');
   return { success: true };
 });
@@ -3222,8 +3576,10 @@ ipcMain.handle('tracking:pauseAutoSession', () => {
 // calling resume (e.g. from the renderer's calendar-event-end handler) must
 // not clobber the running session by setting afState = 'watching'.
 ipcMain.handle('tracking:resumeAutoTracking', () => {
-  if (afState === 'user_paused') {
-    afState = 'watching';
+  if (ensureActiveAfTracking('user_resume_active_session')) {
+    afBroadcast('user_resume_active_session');
+  } else if (afState === 'user_paused') {
+    setAfState('watching', 'user_resumed');
     afBroadcast('user_resumed');
   }
   return { success: true };
@@ -3232,10 +3588,14 @@ ipcMain.handle('tracking:resumeAutoTracking', () => {
 // Returns current AF machine state so the TimerPage can sync on mount
 // without waiting for the next heartbeat event.
 ipcMain.handle('tracker:getAutoFocusState', () => {
-  const bufferPct = (afState === 'buffering' && afBufferStart)
+  hydrateActiveAfSessionFromDb('get_state_db_active_session');
+  ensureActiveAfTracking('get_state_active_session_guard');
+  const state = hasActiveAfSession() ? 'tracking' : afState;
+  const bufferPct = (state === 'buffering' && afBufferStart)
     ? Math.min(100, Math.round(((Date.now() - afBufferStart) / 1000 / AF_THRESHOLD_SECS) * 100))
     : 0;
-  return { state: afState, session: afSession, bufferPct };
+  logAF('AF_BROADCAST_STATE', 'get_auto_focus_state', { broadcastState: state, bufferPct });
+  return { state, session: afSession, bufferPct };
 });
 
 // ─── FOCUS MODE ───────────────────────────────────────────────────────────────

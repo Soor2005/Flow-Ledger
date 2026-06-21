@@ -11,12 +11,14 @@
 const { exec, spawn } = require('child_process');
 const os   = require('path');   // only for path.join
 const path = require('path');
+const { trackingWorkflowManager, WORKFLOW_EVENTS } = require('./workflow/workflowEngine');
 
 const POLL_MS               = 4000;   // poll every 4 seconds
 const IDLE_THRESHOLD        = 60;     // seconds of system idle before we stop recording
 const MIN_DURATION          = 3;      // ignore bursts < 3 seconds
 const FLUSH_INTERVAL_MS     = 30_000; // persist a snapshot every 30 s
 const BLOCK_COOLDOWN_MS     = 30_000; // 30 s cooldown between block kills per app
+const TRACE_PREFIX          = '[AUTO_TRACKER_TRACE]';
 
 // App names that must never be recorded — OS shells and generic runtimes.
 // Case-insensitive match against the raw process name returned by OS.
@@ -26,6 +28,56 @@ const SELF_APP_RE = /^(electron|node(?:\.exe)?|cmd|conhost|explorer|finder|syste
 
 // ─── OS DETECTION ─────────────────────────────────────────────────────────────
 const PLATFORM = process.platform; // 'win32' | 'darwin' | 'linux'
+
+const HIDDEN_CHARS_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060\ufeff]/g;
+const BROWSER_SUFFIX_RE = /\s+[-–—]\s+(Google Chrome|Chrome|Microsoft Edge|Edge|Brave|Firefox|Arc|Opera|Safari)$/i;
+const VOLATILE_QUERY_RE = /^(utm_|fbclid$|gclid$|mc_|ref$|ref_src$|igshid$|session|token|auth|cache|ts|t)$/i;
+
+function cleanTrackerString(value) {
+  return String(value || '').replace(HIDDEN_CHARS_RE, '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeTrackerApp(appName = '') {
+  return cleanTrackerString(appName).replace(/\.exe$/i, '').toLowerCase();
+}
+
+function normalizeTrackerTitle(title = '') {
+  return cleanTrackerString(title).replace(BROWSER_SUFFIX_RE, '').toLowerCase();
+}
+
+function normalizeTrackerUrl(url = '') {
+  const raw = cleanTrackerString(url);
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    parsed.hash = '';
+    [...parsed.searchParams.keys()].forEach((key) => {
+      if (VOLATILE_QUERY_RE.test(key)) parsed.searchParams.delete(key);
+    });
+    return `${parsed.hostname.replace(/^www\./i, '').toLowerCase()}${parsed.pathname.replace(/\/+$/, '').toLowerCase()}${parsed.search}`;
+  } catch {
+    return raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('#')[0].trim().toLowerCase();
+  }
+}
+
+function trackerFingerprint(info = {}) {
+  const app = normalizeTrackerApp(info.appName);
+  const title = normalizeTrackerTitle(info.title);
+  const url = normalizeTrackerUrl(info.url);
+  const browserScope = /chrome|edge|brave|firefox|safari|arc|opera/.test(app)
+    ? (url || title)
+    : title;
+  return `${app}|${browserScope}`;
+}
+
+function traceTracker(event, payload = {}) {
+  const safe = {
+    ...payload,
+    title: cleanTrackerString(payload.title || '').slice(0, 140),
+    url: cleanTrackerString(payload.url || '').slice(0, 180),
+  };
+  console.debug(TRACE_PREFIX, event, safe);
+}
 
 // ─── PERSISTENT POWERSHELL BRIDGE (Windows) ──────────────────────────────────
 // Spawning powershell.exe once and sending commands via stdin is ~10× faster
@@ -147,18 +199,20 @@ class PowerShellBridge {
 
 // ─── AUTO TRACKER ─────────────────────────────────────────────────────────────
 class AutoTracker {
-  constructor({ onActivity, onIdle, onResume, onBlocked, getIdleTime, isBlocked }) {
+  constructor({ onActivity, onIdle, onResume, onBlocked, getIdleTime, isBlocked, getProject }) {
     this.onActivity  = onActivity;
     this.onIdle      = onIdle;
     this.onResume    = onResume;
     this.onBlocked   = onBlocked;
     this.getIdleTime = getIdleTime;   // () => seconds of system idle
     this.isBlocked   = isBlocked;     // (appName) => bool
+    this.getProject  = getProject;    // () => { id, name } | null
 
     this.currentApp     = null;
     this.currentTitle   = null;
     this.currentUrl     = null;
     this.sessionStart   = null;
+    this.currentFingerprint = null;
     this.idle           = false;
     this.intervalHandle = null;
     this.psBridge       = PLATFORM === 'win32' ? new PowerShellBridge() : null;
@@ -199,7 +253,7 @@ class AutoTracker {
     if (idleSecs >= IDLE_THRESHOLD) {
       if (!this.idle) {
         this.idle = true;
-        this._flush();           // commit whatever was running
+        this._flush('IDLE_CHANGE:entered_idle', { endWorkflow: true, workflowReason: 'prolonged_idle' });
         this.onIdle?.();
       }
       return;
@@ -207,6 +261,7 @@ class AutoTracker {
     if (this.idle) {
       this.idle         = false;
       this.sessionStart = Date.now();
+      traceTracker('IDLE_CHANGE', { reason: 'resumed_from_idle' });
       this.onResume?.();
     }
 
@@ -246,7 +301,7 @@ class AutoTracker {
       if (now - last >= BLOCK_COOLDOWN_MS) {
         this._lastBlocked[info.appName] = now;
         // Flush any accumulated time for the blocked app before notifying
-        await this._flush();
+        await this._flush('END_SESSION:blocked_app');
         this.onBlocked?.(info.appName, info.title);
       }
       // Do NOT record time while blocked — reset current session
@@ -254,60 +309,140 @@ class AutoTracker {
       this.currentTitle = null;
       this.currentUrl   = null;
       this.sessionStart = null;
+      this.currentFingerprint = null;
       return;
     }
 
-    // 5. Detect change
-    const changed = info.appName !== this.currentApp || info.title !== this.currentTitle;
-    if (changed) {
-      await this._flush();
+    // 5. Workflow-centric context change — app/URL/tab changes are context signals,
+    //    not automatic session splits. WorkflowManager decides continue vs split.
+    const nextFingerprint = trackerFingerprint(info);
+    const contextChanged = nextFingerprint !== this.currentFingerprint;
+    const project = this.getProject?.() || null;
+
+    if (contextChanged) {
+      const hadPreviousApp = !!this.currentApp;
+      const workflowActivity = {
+        appName: info.appName,
+        title: info.title,
+        url: info.url || null,
+        timestamp: Date.now(),
+      };
+
+      const wfResult = trackingWorkflowManager.processActivity(workflowActivity, project, {
+        contextChanged: true,
+        calendarInterruption: false,
+      });
+
+      if (hadPreviousApp) {
+        const splitReason = wfResult.shouldSplitWorkflow ? wfResult.breakReason : null;
+        traceTracker(wfResult.isNew ? WORKFLOW_EVENTS.SPLIT : 'WORKFLOW_CONTINUED', {
+          reason: splitReason || 'context_signal_app_change',
+          from: this.currentFingerprint,
+          to: nextFingerprint,
+          workflowId: wfResult.workflowId,
+          confidence: wfResult.confidence,
+          appName: info.appName,
+        });
+        await this._flush(
+          wfResult.shouldSplitWorkflow
+            ? `WORKFLOW_SPLIT:${splitReason || 'transition'}`
+            : 'CONTEXT_SEGMENT:app_change_same_workflow',
+          { workflowId: wfResult.workflowId, workflowSplit: wfResult.shouldSplitWorkflow },
+        );
+      } else {
+        traceTracker('START_SESSION', {
+          reason: 'initial_window',
+          appName: info.appName,
+          workflowId: wfResult.workflowId,
+        });
+      }
+
       this.currentApp   = info.appName;
       this.currentTitle = info.title;
       this.currentUrl   = info.url || null;
       this.sessionStart = Date.now();
+      this.currentFingerprint = nextFingerprint;
     }
 
     // 6. Periodic flush — write a snapshot every FLUSH_INTERVAL_MS even if the app
     //    hasn't changed. Without this, Activity shows nothing until the user switches apps.
     if (
-      !changed &&
+      !contextChanged &&
       this.currentApp &&
       this.sessionStart &&
       Date.now() - this.sessionStart >= FLUSH_INTERVAL_MS
     ) {
       const duration = Math.floor((Date.now() - this.sessionStart) / 1000);
       if (duration >= MIN_DURATION) {
+        const activeWf = trackingWorkflowManager.getActiveWorkflow();
+        traceTracker('UPDATE_SESSION', {
+          reason: 'periodic_telemetry_flush',
+          appName: this.currentApp,
+          title: this.currentTitle,
+          url: this.currentUrl,
+          duration,
+          workflowId: activeWf?.id,
+        });
         this.onActivity?.({
           appName:  this.currentApp,
           title:    this.currentTitle,
           url:      this.currentUrl,
           duration,
           flush:    true,
+          workflowId: activeWf?.id || null,
+          workflowName: activeWf?.name || null,
         });
         this.sessionStart = Date.now(); // restart counter for this app
       }
     }
     // Emit heartbeat so callers can show "live" activity
+    const activeWorkflow = trackingWorkflowManager.getActiveWorkflow();
     this.onActivity?.({
       appName:  this.currentApp,
       title:    this.currentTitle,
       url:      this.currentUrl,
       elapsed:  Math.floor((Date.now() - (this.sessionStart || Date.now())) / 1000),
       idle:     false,
+      workflowId: activeWorkflow?.id || null,
+      workflowName: activeWorkflow?.name || null,
+      workflowLocked: activeWorkflow?.locked || false,
+      workflowConfidence: activeWorkflow?.confidence ?? null,
     });
   }
 
   /** Flush current app-session to DB callback */
-  async _flush() {
+  async _flush(reason, meta = {}) {
     if (!this.currentApp || !this.sessionStart) return;
     const duration = Math.floor((Date.now() - this.sessionStart) / 1000);
     if (duration < MIN_DURATION) return;
+
+    const workflowId = meta.workflowId || trackingWorkflowManager.getActiveWorkflow()?.id || null;
+    const workflowName = trackingWorkflowManager.getActiveWorkflow()?.name || null;
+
+    if (meta.endWorkflow) {
+      trackingWorkflowManager.endActiveWorkflow(meta.workflowReason || reason);
+    }
+
+    traceTracker('END_SESSION', {
+      reason: reason || 'flush',
+      appName: this.currentApp,
+      title: this.currentTitle,
+      url: this.currentUrl,
+      duration,
+      fingerprint: this.currentFingerprint,
+      workflowId,
+      workflowSplit: !!meta.workflowSplit,
+    });
     this.onActivity?.({
       appName:  this.currentApp,
       title:    this.currentTitle,
       url:      this.currentUrl,
       duration,
       flush:    true,
+      workflowId,
+      workflowName,
+      workflowSplit: !!meta.workflowSplit,
+      flushReason: reason || 'flush',
     });
     this.sessionStart = null;
   }
