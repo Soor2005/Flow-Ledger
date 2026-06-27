@@ -694,7 +694,7 @@ function isQualityTitle(title = '', project = null) {
  * @returns {Object} synthesizedContent
  */
 export function synthesize(reasoning, existing = {}) {
-  const preserveTitle = hasMeaningfulExistingTitle(existing.title);
+  const preserveTitle = hasMeaningfulExistingTitle(existing.title, reasoning.project);
   // Only preserve descriptions that are genuinely user-written — auto-generated
   // templates get replaced with the improved outcome-driven narrative.
   const existingDesc = (existing.description || '').trim();

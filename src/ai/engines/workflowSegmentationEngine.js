@@ -61,7 +61,7 @@ const COMPATIBLE_PAIRS = new Set([
   'data-browser', 'browser-data',
 ]);
 
-function getEcosystem(appName = '') {
+export function getEcosystem(appName = '') {
   const lower = appName.toLowerCase();
   for (const [eco, apps] of Object.entries(ECOSYSTEMS)) {
     if (apps.some(a => lower.includes(a.toLowerCase()) || a.toLowerCase().includes(lower))) {
@@ -275,7 +275,7 @@ const WORKFLOW_TYPES = [
   },
 ];
 
-function classifyWorkflowType(ecosystems) {
+export function classifyWorkflowType(ecosystems) {
   const ecoSet = new Set(ecosystems);
 
   const candidates = WORKFLOW_TYPES

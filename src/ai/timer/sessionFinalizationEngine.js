@@ -221,7 +221,7 @@ function buildSessionInsights(session, workflow, focusQuality, flowState, durati
 // ─── Generate AI recommendation for completed session ─────────────────────────
 export function generateSessionRecommendation(insights, flowState, focusQuality) {
   const { overall: score } = focusQuality;
-  const { stateId } = flowState;
+  const { id: stateId } = flowState;
 
   if (score >= 85) return 'Excellent session. Continue similar workflows during your peak focus hours.';
   if (stateId === 'context_switching') return 'Next session: open only your primary work tool for the first 30 minutes.';

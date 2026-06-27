@@ -146,20 +146,18 @@ export function useTimerAI({
         }
       }
 
-      // ── Store focus quality metrics in DB (ai_confidence field) ─────────
+      // ── Store focus quality metrics locally for analytics access ────────
+      // This used to also fire a second, unguarded api.updateSession() call
+      // with `title: intel.title || ...` — since intel.focusQuality is
+      // truthy on almost every finalized session, that re-overwrote the
+      // title (including a user's manually-typed one) right after the block
+      // above had correctly decided, via the `isVague` check, not to touch
+      // it. The DB write here did nothing the block above doesn't already
+      // do correctly, so it's removed rather than guarded — only the
+      // genuinely new work (the metrics computed below) stays.
       if (intel?.focusQuality && session.id) {
         try {
           const metrics = computeSessionProductivityMetrics(session, usedAutoSessions);
-          // Store as JSON in notes extension — non-destructive, for analytics
-          api.updateSession?.({
-            sessionId: session.id,
-            category:  session.category || 'General',
-            title:     intel.title || session.title || session.category,
-            notes:     session.notes || null,
-            projectId: session.project_id || null,
-            clientId:  session.client_id  || null,
-          }).catch(() => {});
-          // Persist flow state label for analytics access
           if (metrics.focusScore > 0) {
             try { localStorage.setItem(`fl_session_fq_${session.id}`, JSON.stringify(metrics)); } catch {}
           }
@@ -194,6 +192,7 @@ export function useTimerAI({
   const liveInsights     = realTimeIntel?.insights     || [];
   const recommendation   = realTimeIntel?.recommendation || null;
   const continuity       = realTimeIntel?.continuity   || null;
+  const projectRecurrence = realTimeIntel?.projectRecurrence || null;
   const productivityState = realTimeIntel?.productivityState || null;
   const contextSwitching = realTimeIntel?.contextSwitching || null;
   const workflowDesc     = realTimeIntel?.workflowDescription || (heartbeat?.appName ? `Using ${heartbeat.appName}` : 'Watching…');
@@ -209,6 +208,7 @@ export function useTimerAI({
     liveInsights,
     recommendation,
     continuity,
+    projectRecurrence,
     projectSuggestion,
     productivityState,
     contextSwitching,

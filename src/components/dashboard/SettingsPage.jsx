@@ -823,6 +823,14 @@ export default function SettingsPage({ user, categories, setCategories }) {
     prefs.focusAlerts, prefs.breakReminders, prefs.meetingReminders,
   ]);
 
+  // ── "Break reminders" toggle → the actual DB-backed break scheduler ──────────
+  // The notification-settings IPC above has no listener on the main side, so
+  // without this the toggle visually flips but the smart break popup keeps
+  // firing (or never fires) regardless of what the user picked.
+  useEffect(() => {
+    api.updateBreakSettings?.({ userId: user.id, enabled: prefs.breakReminders });
+  }, [user.id, prefs.breakReminders]);
+
   // ── General ──────────────────────────────────────────────────────────────────
   const [target, setTarget] = useState(user.daily_target_hours || 6);
   useEffect(() => { setTarget(user.daily_target_hours || 6); }, [user.daily_target_hours]);

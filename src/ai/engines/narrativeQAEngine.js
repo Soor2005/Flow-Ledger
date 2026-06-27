@@ -257,7 +257,12 @@ function checkRepetition(title = '', description = '') {
   const repeatedWords = descWords.filter(w => titleWords.has(w));
   const repetitionRate = titleWords.size > 0 ? repeatedWords.length / titleWords.size : 0;
 
-  if (repetitionRate >= 0.80 && repeatedWords.length >= 4) {
+  // The absolute-count floor used to be a fixed 4, but titles in this app are
+  // short (2-9 words, often only 2-4 words long enough to count here at all),
+  // so near-total duplication could never reach 4 repeated words and silently
+  // passed. Scale the floor to the title's own word count instead.
+  const repetitionFloor = Math.min(titleWords.size, 2);
+  if (repetitionRate >= 0.80 && repeatedWords.length >= repetitionFloor) {
     return finding('high_repetition', SEVERITY.WARN,
       `Description repeats ${Math.round(repetitionRate * 100)}% of title words`, { repetitionRate });
   }

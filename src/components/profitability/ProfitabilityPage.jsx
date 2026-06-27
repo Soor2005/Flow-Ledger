@@ -1145,7 +1145,7 @@ export default function ProfitabilityPage({ user }) {
           const title    = 'Flow Ledger — Revenue & Value Analytics';
           const filename = `flow-ledger-profitability-${range}d-${new Date().toISOString().split('T')[0]}.csv`;
           if (format === 'csv') exportAsCSV(title, meta, sections, filename);
-          else exportAsPDF(title, meta, sections);
+          else await exportAsPDF(title, meta, sections);
         }}
       />
     </div>

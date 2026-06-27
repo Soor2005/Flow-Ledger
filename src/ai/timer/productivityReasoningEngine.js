@@ -48,7 +48,7 @@ export function summarizeDeepWork(breakdown, elapsedSecs) {
 
 // ─── AI-generated session recommendation ─────────────────────────────────────
 export function generateRecommendation(flowState, focusQuality, contextSwitching, elapsedSecs, opts = {}) {
-  const { stateId } = flowState;
+  const { id: stateId } = flowState;
   const { overall: score, deepWorkScore } = focusQuality;
   const { severity: ctxSeverity } = contextSwitching;
   const mins = elapsedSecs / 60;

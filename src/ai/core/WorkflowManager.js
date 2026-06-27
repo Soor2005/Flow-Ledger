@@ -5,7 +5,7 @@
  * All workflow split/continue decisions flow through processActivity().
  */
 
-import { extractWorkflowIdentity } from '../engines/workflowDominanceEngine.js';
+import { extractWorkflowIdentity, extractKeywords } from '../engines/workflowDominanceEngine.js';
 import { calculateWorkflowConfidence } from './WorkflowConfidenceEngine.js';
 import { isSupportingToolContext, normalizeToolName, safeUrlHostname } from '../config/supportingTools.js';
 import { logWorkflowEvent, WORKFLOW_EVENTS } from './workflowDiagnostics.js';
@@ -194,7 +194,13 @@ class WorkflowManager {
       workflow.context.domains.push(domain);
     }
 
-    const titleKws = (activity.window_title || '').split(/\s+/).filter(k => k.length > 2);
+    // Use the same lowercase + stopword-filtered extraction extractWorkflowIdentity
+    // uses below — a raw, unnormalized split() here used to push mixed-case
+    // words (e.g. "Code") into workflow.keywords that could never match the
+    // lowercased keywords extractWorkflowIdentity produces for later
+    // activities, silently deflating the Jaccard similarity scoring that
+    // drives continuity/confidence.
+    const titleKws = extractKeywords(activity.window_title || '');
     this._mergeKeywords(workflow, titleKws);
 
     const identity = extractWorkflowIdentity(activity);
@@ -272,6 +278,22 @@ class WorkflowManager {
       return { split: true, reason: 'project_change' };
     }
 
+    // A locked workflow is only broken by the hard signals above (explicit
+    // stop, calendar interruption, prolonged idle, confidence collapse, or
+    // an actual project change) — a brief diversion to an unrelated app is
+    // NOT enough on its own. The softer `objective_change` heuristic below
+    // must therefore be checked *after* this, or every locked workflow could
+    // be torn down by a short detour with no keyword overlap.
+    if (workflow.locked) {
+      logWorkflowEvent(WORKFLOW_EVENTS.SESSION_CONTINUATION, {
+        workflowId: workflow.id,
+        reason: 'workflow_locked',
+        confidence,
+        app: activity.app_name,
+      });
+      return { split: false, reason: null };
+    }
+
     const identity = extractWorkflowIdentity(activity);
     if (
       workflow.objective &&
@@ -284,16 +306,6 @@ class WorkflowManager {
       confidence < 0.45
     ) {
       return { split: true, reason: 'objective_change' };
-    }
-
-    if (workflow.locked) {
-      logWorkflowEvent(WORKFLOW_EVENTS.SESSION_CONTINUATION, {
-        workflowId: workflow.id,
-        reason: 'workflow_locked',
-        confidence,
-        app: activity.app_name,
-      });
-      return { split: false, reason: null };
     }
 
     if (isSupportingToolContext(activity.app_name, activity.url)) {

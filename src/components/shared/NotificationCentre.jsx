@@ -18,6 +18,8 @@ import {
   CheckCircle, Circle, AlertCircle, ListTodo, AlarmClock,
   ClipboardList, Loader2,
 } from 'lucide-react';
+import { repairMojibake } from '../../utils/textEncoding';
+import { readPrefs } from '../../hooks/usePrefs';
 
 const api = window.electron || {};
 
@@ -148,8 +150,13 @@ function mkTheme(isLight) {
 }
 
 // ─── Desktop notification helper ──────────────────────────────────────────────
+// Reuses usePrefs' readPrefs() so settings always come back merged with
+// DEFAULT_PREFS — reading raw localStorage here previously meant a fresh
+// profile (or one saved before `desktopNotifications` existed) had
+// `appPrefs.desktopNotifications === undefined`, which silently disabled all
+// desktop notifications with no error anywhere.
 function getAppPrefs() {
-  try { return JSON.parse(localStorage.getItem('fl_prefs') || '{}'); } catch { return {}; }
+  try { return readPrefs(); } catch { return {}; }
 }
 // Resolve the app logo URL that works under both dev (localhost) and production
 // (file:// protocol).  CRA sets PUBLIC_URL to "." in production builds so that
@@ -164,21 +171,30 @@ const _LOGO_URL = (() => {
   } catch { return ''; }
 })();
 
+function showDesktopNotif(title, description, appPrefs) {
+  // notifSound defaults to true; when false → silent notification (no OS sound)
+  new Notification(title || 'Flow Ledger', {
+    body:   description || '',
+    silent: appPrefs.notifSound === false,
+    icon:   _LOGO_URL,
+  });
+}
+
 function fireDesktopNotif(title, description) {
   try {
     const appPrefs = getAppPrefs();
     if (!appPrefs.desktopNotifications) return;
     if (typeof Notification === 'undefined') return;
-    if (Notification.permission !== 'granted') {
-      Notification.requestPermission();
+    if (Notification.permission === 'granted') {
+      showDesktopNotif(title, description, appPrefs);
       return;
     }
-    // notifSound defaults to true; when false → silent notification (no OS sound)
-    new Notification(title || 'Flow Ledger', {
-      body:   description || '',
-      silent: appPrefs.notifSound === false,
-      icon:   _LOGO_URL,
-    });
+    if (Notification.permission === 'denied') return;
+    // First run: ask, then actually show this notification once granted
+    // instead of silently dropping it until the *next* call.
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted') showDesktopNotif(title, description, appPrefs);
+    }).catch(() => {});
   } catch {}
 }
 
@@ -244,10 +260,22 @@ function normalizeLegacy(n) {
     relatedPage: n.relatedPage || null,
   };
 }
+// One-time, self-healing repair of records persisted before the mojibake
+// source bug (Dashboard.jsx) was fixed — re-saves the list only if anything
+// actually needed fixing.
+function repairNotif(n) {
+  const title = repairMojibake(n.title);
+  const description = repairMojibake(n.description);
+  if (title === n.title && description === n.description) return n;
+  return { ...n, title, description };
+}
 function loadNotifs() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
-    return raw.map(normalizeLegacy);
+    const list = raw.map(normalizeLegacy);
+    const repaired = list.map(repairNotif);
+    if (repaired.some((n, i) => n !== list[i])) saveNotifs(repaired);
+    return repaired;
   } catch { return []; }
 }
 function saveNotifs(list) {
@@ -274,6 +302,19 @@ function isDuplicate(type, title) {
 // ─── Global event buses ───────────────────────────────────────────────────────
 const _panelListeners = new Set();
 const _toastListeners = new Set();
+
+/**
+ * Subscribe to live notification-list updates — lets things like the navbar
+ * bell badge stay accurate even while the notification panel itself is
+ * unmounted/closed, instead of only refreshing the unread count at mount
+ * time and whenever the panel is opened.
+ * @param {(list: object[]) => void} cb
+ * @returns {() => void} unsubscribe
+ */
+export function onNotificationsChanged(cb) {
+  _panelListeners.add(cb);
+  return () => _panelListeners.delete(cb);
+}
 
 function isQuietHours(prefs) {
   if (!prefs.quietHoursEnabled) return false;
@@ -317,7 +358,11 @@ export function pushNotification(type, title, description, opts = {}) {
  */
 export function pushToast(type, title, description, opts = {}) {
   const prefs = loadPrefs();
-  if (prefs.silent) return;
+  // pushNotification() below applies this same gate, but only to itself — it
+  // can't stop pushToast from continuing on to fire the desktop notification
+  // and floating toast. Check here too so quiet hours suppress all three
+  // consistently instead of just silently dropping the panel record.
+  if (prefs.silent || isQuietHours(prefs)) return;
   pushNotification(type, title, description, opts);
   // Fire OS-level desktop notification when the user has enabled it
   fireDesktopNotif(title, description);

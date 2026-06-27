@@ -3,7 +3,7 @@ import {
   Calendar, Timer, Settings, LogOut,
   Briefcase, FileText, Cpu, Zap, Users, TrendingUp, Hash, Shield,
   Music, Command, Flame, Search, Sun, Moon, Star, Home, Bell,
-  ChevronDown, BarChart2, Download, ArrowDown,
+  ChevronDown, BarChart2, Download, ArrowDown, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { usePrefs } from '../../hooks/usePrefs';
@@ -29,9 +29,11 @@ import BreakReminder from '../shared/BreakReminder';
 import FocusMusic from '../shared/FocusMusic';
 import PageTransition from '../shared/PageTransition';
 import FocusSessionDock from '../shared/FocusSessionDock';
+import { isMac as IS_MAC_TB, MacControls as TrafficLights, WinControls } from '../shared/TitleBar';
+import ProductivityScoreWidget from '../shared/ProductivityScoreWidget';
 import DailyDebrief from '../shared/DailyDebrief';
 import CommandPalette, { pushRecentPage } from '../shared/CommandPalette';
-import NotificationCentre, { pushNotification, pushToast, ToastStack, NotificationBell } from '../shared/NotificationCentre';
+import NotificationCentre, { pushNotification, pushToast, ToastStack, NotificationBell, onNotificationsChanged } from '../shared/NotificationCentre';
 import OnboardingWizard, { shouldShowOnboarding } from '../shared/OnboardingWizard';
 import SetupWizard from '../onboarding/SetupWizard';
 import { shouldShowSetup } from '../onboarding/setupGuard';
@@ -41,10 +43,10 @@ import { generateTitle, generateDescription } from '../../ai/engines/eventWritin
 
 const api = window.electron || {};
 
-// â”€â”€â”€ AI session-end notification builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Title   â†’ the event title (AI-generated or user-set).
-// Body    â†’ a STAT SUMMARY that is always distinct from the title:
-//           duration Â· category Â· deep focus badge Â· project
+// ─── AI session-end notification builder ───────────────────────────────────
+// Title   → the event title (AI-generated or user-set).
+// Body    → a STAT SUMMARY that is always distinct from the title:
+//           duration · category · deep focus badge · project
 // The body NEVER re-describes the title to avoid "Exploring Research Session /
 // Researched Research Session." duplication.
 function buildSessionEndNotif(session, durationSecs) {
@@ -53,7 +55,7 @@ function buildSessionEndNotif(session, durationSecs) {
   const m = Math.round((durationSecs % 3600) / 60);
   const durLabel = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${Math.max(1, m)}m`;
 
-  // Category label â€” human-readable
+  // Category label — human-readable
   const CAT_LABELS = {
     development: 'Development', coding: 'Development', research: 'Research',
     design: 'Design', writing: 'Writing', planning: 'Planning',
@@ -65,27 +67,27 @@ function buildSessionEndNotif(session, durationSecs) {
     ? session.category.charAt(0).toUpperCase() + session.category.slice(1)
     : 'Session');
 
-  // Stat summary pills â€” never echoes the event title
+  // Stat summary pills — never echoes the event title
   const parts = [durLabel, catLabel];
   if (session.is_deep_work) parts.push('Deep focus');
   if (session.project_name) parts.push(session.project_name);
-  const body = parts.join(' Â· ');
+  const body = parts.join(' · ');
 
   // Decide the notification title:
   //   - Use existing meaningful user title if set
-  //   - Skip AI generation for "Auto: X" sessions â€” use a clean app-name label instead
+  //   - Skip AI generation for "Auto: X" sessions — use a clean app-name label instead
   //   - Otherwise run the AI title generator for context-aware name
   let notifTitle;
   try {
     const isAutoSession = (session.title || '').toLowerCase().startsWith('auto:');
     if (isAutoSession) {
-      // "Auto: claude" â†’ "Claude â€” auto-tracked"
+      // "Auto: claude" → "Claude — auto-tracked"
       const appName = (session.title || '').replace(/^auto:\s*/i, '').trim();
       notifTitle = appName
-        ? `${appName.charAt(0).toUpperCase() + appName.slice(1)} â€” auto-tracked`
+        ? `${appName.charAt(0).toUpperCase() + appName.slice(1)} — auto-tracked`
         : 'Auto-tracked session';
     } else if (session.title && !['session', 'focus session', 'focus block', 'untitled'].includes(session.title.toLowerCase())) {
-      // User already set a meaningful title â€” use it directly
+      // User already set a meaningful title — use it directly
       notifTitle = session.title;
     } else {
       // Run AI title generation (uses category + project context)
@@ -308,6 +310,18 @@ export default function Dashboard() {
     try { return JSON.parse(localStorage.getItem('fl_notifications') || '[]').filter(n => !n.read).length; }
     catch { return 0; }
   });
+  const showNotifsRef = useRef(showNotifs);
+  useEffect(() => { showNotifsRef.current = showNotifs; }, [showNotifs]);
+  // Keep the bell badge live — without this it only reflected whatever the
+  // unread count was at mount time, so notifications pushed afterwards (e.g.
+  // session-stop, break reminders) silently piled up with no visible signal
+  // until the panel happened to be opened for some other reason.
+  useEffect(() => {
+    const unsub = onNotificationsChanged((list) => {
+      setNotifCount(showNotifsRef.current ? 0 : list.filter(n => !n.read).length);
+    });
+    return unsub;
+  }, []);
   const [breakData, setBreakData] = useState({});
   const [showDebrief, setShowDebrief] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -326,28 +340,28 @@ export default function Dashboard() {
     api.activeScheduledSession?.({ userId: user.id }).then(s => setScheduledSession(s || null)).catch(() => {});
   }, [user.id, refreshActive]);
 
-  // â”€â”€ Listen for scheduled-session push events from the main process â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Listen for scheduled-session push events from the main process ───────────
   useEffect(() => {
     const unsub = api.onScheduledSession?.((sess) => setScheduledSession(sess || null));
     return () => typeof unsub === 'function' && unsub();
   }, []);
 
-  // â”€â”€ When a session is stopped externally (e.g. auto-stopped by scheduled session
+  // ── When a session is stopped externally (e.g. auto-stopped by scheduled session
   // watcher), clear activeSession so the dock and timer page update immediately.
   useEffect(() => {
     const unsub = api.onSessionStopped?.(() => setActiveSession(null));
     return () => typeof unsub === 'function' && unsub();
   }, []);
 
-  // â”€â”€ Keep dock in sync with auto-focus sessions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Keep dock in sync with auto-focus sessions ─────────────────────────────
   // Auto-tracking sessions are managed by the Electron main-process AF machine
-  // and only surfaced as events â€” they never go through the manual startSession
+  // and only surfaced as events — they never go through the manual startSession
   // flow so activeSession would otherwise stay null while the tracker records.
   useEffect(() => {
     const unsub = api.onAutoFocusState?.((data) => {
       if (!data) return;
       if (data.reason === 'started' && data.session) {
-        // Session object is in the event payload â€” set it directly to avoid a
+        // Session object is in the event payload — set it directly to avoid a
         // race-condition with refreshActive querying before the row is committed.
         setActiveSession(data.session);
       } else if (
@@ -357,7 +371,7 @@ export default function Dashboard() {
       ) {
         setActiveSession(null);
       } else if (data.reason === 'user_resumed') {
-        // Session may have already been committed â€” query DB for the live row.
+        // Session may have already been committed — query DB for the live row.
         refreshActive();
       }
     });
@@ -374,12 +388,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     const handler = (e) => {
-      // Command palette â€” respects the user's configured shortcut (default Ctrl+K)
+      // Command palette — respects the user's configured shortcut (default Ctrl+K)
       if (matchesShortcut(e, prefs.shortcutPalette || 'Ctrl+K')) {
         e.preventDefault();
         setShowPalette(v => !v);
       }
-      // Cmd/Ctrl+N  â†’ toggle notification centre (hardcoded system shortcut)
+      // Cmd/Ctrl+N  → toggle notification centre (hardcoded system shortcut)
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'n') {
         e.preventDefault();
         setShowNotifs(v => !v);
@@ -458,7 +472,7 @@ export default function Dashboard() {
     });
   };
 
-  // â”€â”€ Sidebar auto-collapse based on window width â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Sidebar auto-collapse based on window width ───────────────────────────────
   useEffect(() => {
     if (prefs.sidebarBehavior !== 'auto') return;
     const handleResize = () => {
@@ -476,31 +490,31 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', handleResize);
   }, [prefs.sidebarBehavior]);
 
-  // â”€â”€ Global pref effects (applied at startup AND on every change) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Global pref effects (applied at startup AND on every change) ─────────────
   // These must live here (not just in SettingsPage) so they're active even when
   // the user has never opened Settings in this session.
 
-  // 1. Accent color â€” injects a <style> tag that overrides Tailwind's static classes
+  // 1. Accent color — injects a <style> tag that overrides Tailwind's static classes
   useEffect(() => {
     applyAccentColor(prefs.accentColor || '#7c6cf2');
   }, [prefs.accentColor]);
 
-  // 2. Interface density â€” toggles fl-compact on <html>
+  // 2. Interface density — toggles fl-compact on <html>
   useEffect(() => {
     document.documentElement.classList.toggle('fl-compact', prefs.density === 'compact');
   }, [prefs.density]);
 
-  // 3. Reduce motion â€” toggles fl-reduce-motion on <html>
+  // 3. Reduce motion — toggles fl-reduce-motion on <html>
   useEffect(() => {
     document.documentElement.classList.toggle('fl-reduce-motion', !!prefs.reduceMotion);
   }, [prefs.reduceMotion]);
 
-  // 4. Time format â€” updates the module-level formatter used by formatTime()
+  // 4. Time format — updates the module-level formatter used by formatTime()
   useEffect(() => {
     setGlobalTimeFormat(prefs.timeFormat || '12h');
   }, [prefs.timeFormat]);
 
-  // 5. Date format â€” updates the module-level formatter used by formatDate()
+  // 5. Date format — updates the module-level formatter used by formatDate()
   useEffect(() => {
     setGlobalDateFormat(prefs.dateFormat || 'MMM D');
   }, [prefs.dateFormat]);
@@ -535,11 +549,51 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• TOP NAVBAR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
-      <header
-        className="drag-region fl-topnav relative z-30 shrink-0 flex items-center"
+      {/* ══════════════════════════ NATIVE TITLE BAR ═════════════════════════
+          28-32px — only the app menu (sidebar toggle) and window controls.
+          This is the actual OS-level drag region; everything else lives in
+          the application toolbar below.
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <div
+        className="drag-region fl-titlebar relative z-40 shrink-0 flex items-center justify-between select-none"
         style={{
-          height: 48,
+          height: 30,
+          background: '#0a0d14',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}
+      >
+        <div className="no-drag flex items-center gap-2" style={{ paddingLeft: 10 }}>
+          {/* macOS window controls (close / minimize / maximize) */}
+          {IS_MAC_TB && <TrafficLights />}
+
+          {/* Sidebar collapse / expand — same 30px footprint as the toolbar's
+              utility icon buttons, capped by the 30px title bar height. */}
+          <button
+            onClick={toggleCollapsed}
+            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-[#5d6c89] transition-all duration-150 hover:bg-white/[0.07] hover:text-white active:scale-95"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed
+              ? <PanelLeftOpen size={16} strokeWidth={1.8} />
+              : <PanelLeftClose size={16} strokeWidth={1.8} />}
+          </button>
+        </div>
+
+        {/* Windows/Linux window controls — flush against the right edge */}
+        {!IS_MAC_TB && <WinControls height={30} />}
+      </div>
+
+      {/* ══════════════════════════ APPLICATION TOOLBAR ══════════════════════
+          48-56px — all app-level controls: search, command palette, music,
+          theme, favorites, notifications, branding, profile. No window
+          chrome here, and no page-specific controls (those live on their
+          own pages).
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <header
+        className="fl-topnav relative z-30 shrink-0 flex items-center"
+        style={{
+          height: 56,
           background: 'linear-gradient(180deg,#0d1119 0%,#0b0e16 100%)',
           borderBottom: '1px solid rgba(255,255,255,0.07)',
           boxShadow: '0 1px 0 rgba(255,255,255,0.025)',
@@ -549,58 +603,28 @@ export default function Dashboard() {
         <div aria-hidden className="pointer-events-none absolute inset-0"
           style={{ background: 'radial-gradient(ellipse at center,rgba(124,108,242,0.07),transparent 60%)' }} />
 
-        {/* LEFT â€” flex-1: traffic lights + sidebar toggle */}
-        <div className="no-drag flex flex-1 items-center gap-2 pl-3 pr-2">
-
-          {/* Window controls (close / minimize / maximize) */}
-          <TrafficLights />
-
-          {/* Thin divider */}
-          <div className="h-[14px] w-px shrink-0 mx-0.5" style={{ background: 'rgba(255,255,255,0.07)' }} />
-
-          {/* Sidebar collapse / expand */}
-          <button
-            onClick={toggleCollapsed}
-            className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] text-[#6a7a9a] transition-all duration-150 hover:bg-white/[0.07] hover:text-white"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? (
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" stroke="currentColor">
-                <rect x="2" y="2" width="10" height="10" rx="1.8" />
-                <line x1="5" y1="2" x2="5" y2="12" />
-                <path d="M8 5.25 9.6 7 8 8.75" />
-              </svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" stroke="currentColor">
-                <rect x="2" y="2" width="10" height="10" rx="1.8" />
-                <line x1="6" y1="2" x2="6" y2="12" />
-                <path d="M9 5.25 7.4 7 9 8.75" />
-              </svg>
-            )}
-          </button>
+        {/* LEFT — flex-1: productivity score widget */}
+        <div className="flex flex-1 items-center pl-5">
+          <ProductivityScoreWidget userId={user.id} />
         </div>
 
-        {/* CENTER â€” absolutely pinned to 50% so it never shifts with content changes */}
-        <div className="no-drag pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-[7px] select-none">
-          <div
-            className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px]"
-            style={{
-              background: 'var(--color-accent-avatar, linear-gradient(160deg,#9b5cf6,#6b6dff))',
-              border: '1px solid rgba(255,255,255,0.12)',
-              boxShadow: 'var(--color-accent-glow-sm, 0 3px 10px rgba(124,108,242,0.32)), inset 0 1px 0 rgba(255,255,255,0.14)',
-            }}
-          >
-            <img src={logoSrc} alt="Flow Ledger" className="h-[12px] w-[12px] rounded-[3px] object-contain" />
-          </div>
-          <span className="whitespace-nowrap text-[13px] font-semibold tracking-[-0.018em] text-white/88">
-            Flow Ledger
+        {/* CENTER — absolutely pinned to 50% so it never shifts with content changes */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-[11px] select-none">
+          <img
+            src={logoSrc}
+            alt="Flow Ledger"
+            className="h-[22px] w-[22px] shrink-0 object-contain"
+            style={{ filter: 'drop-shadow(0 3px 10px rgba(124,108,242,0.45))' }}
+          />
+          <span className="whitespace-nowrap text-[13px] font-semibold uppercase tracking-[0.04em] text-white/88">
+            FLOW LEDGER
           </span>
         </div>
 
-        {/* RIGHT â€” flex-1 justify-end: utility icons + profile */}
-        <div className="no-drag fl-topnav-right-rail">
+        {/* RIGHT — flex-1 justify-end: utility icons + profile */}
+        <div className="fl-topnav-right-rail">
 
-          {/* â”€â”€ Utility icon row â”€â”€ */}
+          {/* ── Utility icon row ── */}
           <div className="fl-topnav-utility-row">
             {utilityButtons.map((btn, i) => (
               <button
@@ -617,10 +641,10 @@ export default function Dashboard() {
                 <btn.icon size={14} strokeWidth={1.8} />
               </button>
             ))}
-            {/* Update indicator â€” shows when an update is available or downloaded */}
+            {/* Update indicator — shows when an update is available or downloaded */}
             <UpdateNavButton updater={updater} onOpenSettings={() => { setPage('settings'); }} />
 
-            {/* Notification bell â€” uses dedicated component for badge + pulse */}
+            {/* Notification bell — uses dedicated component for badge + pulse */}
             <NotificationBell
               onClick={() => { setShowNotifs(v => !v); if (!showNotifs) setNotifCount(0); }}
               count={notifCount}
@@ -631,7 +655,7 @@ export default function Dashboard() {
           {/* Separator */}
           <div className="fl-nav-sep mx-2 h-[18px] w-px shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
-          {/* â”€â”€ Profile pill â”€â”€ */}
+          {/* ── Profile pill ── */}
           <div className="fl-topnav-profile-wrap relative" ref={profileRef}>
             <button
               onClick={() => setProfileOpen(o => !o)}
@@ -708,7 +732,7 @@ export default function Dashboard() {
                   <ProfileMenuItem
                     icon={Settings}
                     label="Settings"
-                    shortcut="âŒ˜,"
+                    shortcut="⌘,"
                     onClick={() => { navigate('settings'); setProfileOpen(false); }}
                   />
                   <ProfileMenuItem
@@ -734,7 +758,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• APP BODY â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════════════════════ APP BODY ════════════════════════════════ */}
       <div className="flex flex-1 overflow-hidden">
 
         <aside
@@ -845,7 +869,7 @@ export default function Dashboard() {
             ))}
           </nav>
 
-          {/* Bottom: Settings only â€” pb-[58px] so the fixed FocusSessionDock never overlaps */}
+          {/* Bottom: Settings only — pb-[58px] so the fixed FocusSessionDock never overlaps */}
           <div className="relative shrink-0 border-t border-white/[0.08]" style={{ paddingBottom: 58 }}>
             <div className={`${prefs.sidebarMotion ? 'transition-[padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]' : ''} ${collapsed ? 'px-3 py-2.5' : 'px-4 py-2.5'}`}>
               <NavItem
@@ -891,8 +915,15 @@ export default function Dashboard() {
 
       </div>{/* end body row */}
 
-      {/* Overlays â€” outside the body row so they stack over everything */}
-      {showBreak && <BreakReminder userId={user.id} data={breakData} onDismiss={() => setShowBreak(false)} />}
+      {/* Overlays — outside the body row so they stack over everything */}
+      {showBreak && (
+        <BreakReminder
+          userId={user.id}
+          data={breakData}
+          onDismiss={() => setShowBreak(false)}
+          onSessionChange={refreshActive}
+        />
+      )}
       <FocusMusic show={showMusic} onClose={() => setShowMusic(false)} />
       <FocusSessionDock
         activeSession={activeSession}
@@ -925,7 +956,7 @@ export default function Dashboard() {
       )}
       {showDebrief && <DailyDebrief user={user} onClose={() => setShowDebrief(false)} />}
 
-      {/* Global toast stack â€” always mounted, renders bottom-right toasts */}
+      {/* Global toast stack — always mounted, renders bottom-right toasts */}
       <ToastStack onNavigate={(page) => { navigate(page); setShowNotifs(false); }}/>
     </div>
   );
@@ -955,9 +986,7 @@ function ProfileMenuItem({ icon: Icon, label, shortcut, danger, onClick }) {
   );
 }
 
-const api_tb = window.electron || {};
-
-// â”€â”€â”€ Update nav button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Update nav button ────────────────────────────────────────────────────────
 function UpdateNavButton({ updater, onOpenSettings }) {
   if (!updater) return null;
 
@@ -978,7 +1007,7 @@ function UpdateNavButton({ updater, onOpenSettings }) {
   const label = isDownloaded
     ? 'Restart & Install'
     : isDownloading
-      ? 'Downloadingâ€¦'
+      ? 'Downloading…'
       : `v${updateInfo?.version} ready`;
 
   const accent = isDownloaded ? '#10b981' : '#7c6cf2';
@@ -989,7 +1018,7 @@ function UpdateNavButton({ updater, onOpenSettings }) {
   return (
     <button
       onClick={handleClick}
-      title={isDownloaded ? 'Update downloaded â€” click to restart and install' : 'Update available â€” click to download'}
+      title={isDownloaded ? 'Update downloaded — click to restart and install' : 'Update available — click to download'}
       style={{
         display: 'flex', alignItems: 'center', gap: 5,
         height: 26, padding: '0 9px',
@@ -1037,38 +1066,5 @@ function UpdateNavButton({ updater, onOpenSettings }) {
   );
 }
 
-function TrafficLights() {
-  const [hov, setHov] = React.useState(null); // 'close' | 'min' | 'max' | null
-  const dots = [
-    { id: 'close', color: '#ff5f57', hover: '#ff5f57', symbol: 'âœ•', action: () => api_tb.close?.() },
-    { id: 'min',   color: '#febc2e', hover: '#febc2e', symbol: 'âˆ’', action: () => api_tb.minimize?.() },
-    { id: 'max',   color: '#28c840', hover: '#28c840', symbol: '+', action: () => api_tb.maximize?.() },
-  ];
-  return (
-    <div
-      className="flex items-center gap-[6px] shrink-0"
-      onMouseEnter={() => setHov('group')}
-      onMouseLeave={() => setHov(null)}
-    >
-      {dots.map(({ id, color, symbol, action }) => (
-        <button
-          key={id}
-          onClick={action}
-          title={id === 'close' ? 'Close' : id === 'min' ? 'Minimize' : 'Maximize'}
-          className="flex h-3 w-3 items-center justify-center rounded-full transition-all duration-100"
-          style={{
-            background: color,
-            boxShadow: `0 0 0 1px ${color}55`,
-          }}
-        >
-          {hov === 'group' && (
-            <span className="text-[7px] font-extrabold leading-none" style={{ color: 'rgba(0,0,0,0.55)' }}>
-              {symbol}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
-
+// Windows/Linux window controls flush against the navbar's right edge,
+// spanning its full 48px height (matches native Windows 10/11 chrome).

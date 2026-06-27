@@ -21,7 +21,7 @@
     --fl-light-faint:      #94A3B8;
     --fl-light-hover:      #F1F5F9;
 
-    /* â”€â”€ Calendar Summary Panel tokens (dark defaults) â”€â”€ */
+    /* ── Calendar Summary Panel tokens (dark defaults) ── */
     --sp-bg:          #0C0E14;
     --sp-bg-card:     #1A1D24;
     --sp-bg-cell:     #111420;
@@ -38,7 +38,7 @@
     --sp-now-line:    rgba(239,68,68,0.7);
     --sp-btn-hover:   rgba(255,255,255,0.06);
 
-    /* â”€â”€ Activity / chart tokens (dark defaults) â”€â”€ */
+    /* ── Activity / chart tokens (dark defaults) ── */
     --act-panel-bg:         linear-gradient(145deg, rgba(18,24,36,0.94), rgba(10,15,24,0.98));
     --chart-grid:           #1E222E;
     --chart-track:          #1E222E;
@@ -49,7 +49,7 @@
     --timeline-track:       #13151c;
     --timeline-grid:        #2A2F3A;
 
-    /* â”€â”€ Settings page tokens (dark defaults) â”€â”€ */
+    /* ── Settings page tokens (dark defaults) ── */
     --st-page-bg:        linear-gradient(180deg, rgba(12,15,24,0.99), rgba(9,12,19,1));
     --st-header-bg:      linear-gradient(180deg, rgba(13,17,27,0.97), rgba(11,14,22,0.88));
     --st-card-bg:        linear-gradient(145deg, rgba(18,22,34,0.94), rgba(11,14,22,0.98));
@@ -88,7 +88,7 @@
     --fl-help-panel-bg: #F8F5FF;
     --fl-danger-header-bg: #FFF1F2;
 
-    /* â”€â”€ Calendar Summary Panel tokens (light overrides) â”€â”€ */
+    /* ── Calendar Summary Panel tokens (light overrides) ── */
     --sp-bg:          #FFFFFF;
     --sp-bg-card:     #F8F5FF;
     --sp-bg-cell:     #F4F1FF;
@@ -105,7 +105,7 @@
     --sp-now-line:    rgba(220,38,38,0.55);
     --sp-btn-hover:   rgba(124,108,242,0.06);
 
-    /* â”€â”€ Activity / chart tokens (light overrides) â”€â”€ */
+    /* ── Activity / chart tokens (light overrides) ── */
     --act-panel-bg:         linear-gradient(145deg, rgba(248,245,255,0.95), rgba(255,255,255,0.98));
     --chart-grid:           #E8E2FF;
     --chart-track:          #DDD6FF;
@@ -116,7 +116,7 @@
     --timeline-track:       #F4F1FF;
     --timeline-grid:        #DDD6FF;
 
-    /* â”€â”€ Settings page tokens (light overrides) â”€â”€ */
+    /* ── Settings page tokens (light overrides) ── */
     --st-page-bg:        linear-gradient(180deg, #f4f1ff, #edeaff);
     --st-header-bg:      linear-gradient(180deg, #ffffff, #f8f5ff);
     --st-card-bg:        linear-gradient(145deg, #ffffff, #f8f5ff);
@@ -315,7 +315,7 @@
     transition: color 0.15s ease, opacity 0.15s ease;
   }
 
-  /* â”€â”€ Sidebar nav active indicator (white bar, visible on purple pill) â”€â”€ */
+  /* ── Sidebar nav active indicator (white bar, visible on purple pill) ── */
   .fl-sidebar .nav-active::before {
     content: '';
     position: absolute;
@@ -329,7 +329,7 @@
     box-shadow: 0 0 8px rgba(255,255,255,0.50);
   }
 
-  /* Collapsed sidebar â€“ hide left indicator bar */
+  /* Collapsed sidebar – hide left indicator bar */
   .fl-sidebar.is-collapsed .nav-item.nav-active::before { display: none; }
   .fl-sidebar:not(.is-collapsed) .nav-item.nav-active::before { display: block; }
 
@@ -1090,13 +1090,13 @@
     background-color: var(--fl-light-panel-soft) !important;
   }
 
-  /* Session detail popup â€” glassmorphism card */
+  /* Session detail popup — glassmorphism card */
   .fl-session-popup-card {
     background: rgba(13, 17, 23, 0.82);
     backdrop-filter: blur(24px) saturate(1.6);
     -webkit-backdrop-filter: blur(24px) saturate(1.6);
   }
-  /* â”€â”€ Session detail popup â€” full light mode overhaul â”€â”€ */
+  /* ── Session detail popup — full light mode overhaul ── */
   .theme-light .fl-calendar-overlay-backdrop {
     background: rgba(90, 85, 120, 0.22) !important;
     backdrop-filter: blur(8px) !important;
@@ -1140,7 +1140,7 @@
   /* Type badge row */
   .theme-light .fl-session-popup-card span[style*="textTransform: 'uppercase'"],
   .theme-light .fl-session-popup-card span[style*="textTransform:uppercase"] {
-    /* color already inherits from the event color â€” keep as-is */
+    /* color already inherits from the event color — keep as-is */
   }
 
   /* Scrollable body */
@@ -1253,7 +1253,7 @@
 
   /* App avatar */
   .theme-light .fl-sdp-body span[style*="fontSize: 11"][style*="fontWeight: 800"] {
-    /* keep colored letter â€” no override needed */
+    /* keep colored letter — no override needed */
   }
   /* App name text */
   .theme-light .fl-sdp-body span[style*="#8E96B4"],
@@ -1284,7 +1284,7 @@
 
   /* Tags row */
   .theme-light .fl-sdp-body span[style*="background"][style*="color"][style*="border"] {
-    /* tag chips â€” keep event color, just tweak bg opacity */
+    /* tag chips — keep event color, just tweak bg opacity */
   }
 
   /* Project picker button */
@@ -1374,7 +1374,7 @@
     outline: none !important;
   }
 
-  /* â”€â”€ Activity timeline tooltip â€” light mode â”€â”€ */
+  /* ── Activity timeline tooltip — light mode ── */
   /* Card surface */
   .theme-light .fl-timeline-tooltip {
     background: linear-gradient(160deg, #FFFFFF 0%, #FAF8FF 100%) !important;
@@ -1520,7 +1520,7 @@
     color: #FFFFFF !important;
   }
 
-  /* â”€â”€ Global: dark-mode hex text that renders low-contrast on light bg â”€â”€ */
+  /* ── Global: dark-mode hex text that renders low-contrast on light bg ── */
   .theme-light [class*="text-[#8090b0]"],
   .theme-light [class*="text-[#7a8ba8]"],
   .theme-light [class*="text-[#6a7a96]"] {
@@ -1535,7 +1535,7 @@
     color: #475569 !important;
   }
 
-  /* â”€â”€ Global: progress-bar tracks (bg-white/[0.06]) â†’ soft lavender â”€â”€ */
+  /* ── Global: progress-bar tracks (bg-white/[0.06]) → soft lavender ── */
   .theme-light .h-1\.5.overflow-hidden.rounded-full,
   .theme-light .h-2\.5.overflow-hidden.rounded-full,
   .theme-light .h-2.overflow-hidden.rounded-full,
@@ -1543,14 +1543,14 @@
     background-color: rgba(124, 108, 242, 0.09) !important;
   }
 
-  /* â”€â”€ Global: semi-transparent white borders used as dividers â”€â”€ */
+  /* ── Global: semi-transparent white borders used as dividers ── */
   .theme-light .border-white\/\[0\.06\],
   .theme-light .border-white\/\[0\.07\],
   .theme-light .border-white\/\[0\.08\] {
     border-color: var(--fl-light-border) !important;
   }
 
-  /* â”€â”€ Global: amber warning banners â”€â”€ */
+  /* ── Global: amber warning banners ── */
   .theme-light .border-amber-500\/20.bg-amber-500\/8,
   .theme-light [class*="border-amber-500/20"][class*="bg-amber-500"] {
     background: rgba(245,158,11,0.08) !important;
@@ -1587,14 +1587,14 @@
     box-shadow: 0 1px 0 rgba(15, 23, 42, 0.035);
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     SIDEBAR â€” LIGHT MODE
-     Lavender bg Â· solid purple active pill Â· dark text
-     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  /* ══════════════════════════════════════════════════════
+     SIDEBAR — LIGHT MODE
+     Lavender bg · solid purple active pill · dark text
+     ══════════════════════════════════════════════════════ */
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     SIDEBAR â€” LIGHT MODE  (premium, readable, visually separated)
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  /* ═══════════════════════════════════════════════════════════════
+     SIDEBAR — LIGHT MODE  (premium, readable, visually separated)
+  ═══════════════════════════════════════════════════════════════ */
 
   /* Shell */
   .theme-light .fl-sidebar {
@@ -1622,7 +1622,7 @@
     border-bottom-color: var(--fl-sidebar-divider) !important;
   }
 
-  /* All inner white borders â†’ purple-tinted */
+  /* All inner white borders → purple-tinted */
   .theme-light .fl-sidebar [class*="border-white"] {
     border-color: var(--fl-sidebar-divider) !important;
   }
@@ -1640,17 +1640,17 @@
   /* "Flow Ledger" brand title */
   .theme-light .fl-sidebar .text-white { color: #1a1640 !important; }
 
-  /* Account name subtitle â€” text-[#b7c5e3] */
+  /* Account name subtitle — text-[#b7c5e3] */
   .theme-light .fl-sidebar [class*="text-[#b7c5e"] { color: #5a4e90 !important; }
 
-  /* â”€â”€ Section group labels â”€â”€ */
+  /* ── Section group labels ── */
   .theme-light .fl-sidebar nav p {
     color: rgba(88,68,190,0.65) !important;
     font-weight: 700;
     letter-spacing: 0.09em;
   }
 
-  /* Section dividers â€” more visible */
+  /* Section dividers — more visible */
   .theme-light .fl-sidebar .mb-2.h-px {
     background: linear-gradient(90deg, transparent, var(--fl-sidebar-divider-strong) 40%, var(--fl-sidebar-divider-strong) 60%, transparent) !important;
   }
@@ -1658,7 +1658,7 @@
     background: var(--fl-sidebar-divider-strong) !important;
   }
 
-  /* â”€â”€ Nav item base â”€â”€ */
+  /* ── Nav item base ── */
   .theme-light .fl-sidebar .nav-item {
     color: var(--fl-sidebar-item-text) !important;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
@@ -1680,7 +1680,7 @@
   .theme-light .fl-sidebar .nav-item:hover:not(.nav-active) svg { color: var(--fl-sidebar-item-icon-hover) !important; }
   .theme-light .fl-sidebar .nav-item:hover:not(.nav-active) span:not([aria-hidden]) { color: var(--fl-sidebar-item-text-hover) !important; }
 
-  /* â”€â”€ ACTIVE NAV PILL â”€â”€ */
+  /* ── ACTIVE NAV PILL ── */
   .theme-light .fl-sidebar .nav-active {
     background: linear-gradient(135deg, #6B5CF2 0%, #5040DC 100%) !important;
     border-color: var(--fl-sidebar-active-border) !important;
@@ -1707,7 +1707,7 @@
     background: var(--fl-sidebar-hover-strong) !important;
   }
 
-  /* â”€â”€ Search bar â”€â”€ */
+  /* ── Search bar ── */
   .theme-light .fl-sidebar [title="Command Palette  Ctrl K"],
   .theme-light .fl-sidebar [title*="Command Palette"] {
     background: rgba(255,255,255,0.90) !important;
@@ -1715,10 +1715,10 @@
     color: #4a3f80 !important;
     box-shadow: 0 2px 10px rgba(107,92,242,0.08), inset 0 1px 0 rgba(255,255,255,0.96) !important;
   }
-  /* Search icon + label text â€” resting */
+  /* Search icon + label text — resting */
   .theme-light .fl-sidebar [title*="Command Palette"] svg { color: #6B5CF2 !important; }
   .theme-light .fl-sidebar [title*="Command Palette"] > span { color: #4a3f80 !important; }
-  /* Hover â€” override Tailwind group-hover:text-white which makes text invisible on light bg */
+  /* Hover — override Tailwind group-hover:text-white which makes text invisible on light bg */
   .theme-light .fl-sidebar [title*="Command Palette"]:hover {
     background: rgba(107,92,242,0.10) !important;
     border-color: rgba(107,92,242,0.28) !important;
@@ -1737,14 +1737,14 @@
     color: #5546d0 !important;
   }
 
-  /* â”€â”€ Active recording card â”€â”€ */
+  /* ── Active recording card ── */
   .theme-light .fl-sidebar [style*="rgba(20,35,28"] {
     background: linear-gradient(135deg, #EDFAF4, #E2F9EE) !important;
     border-color: rgba(52,211,153,0.28) !important;
     box-shadow: 0 4px 14px rgba(16,185,129,0.10), inset 0 1px 0 rgba(255,255,255,0.88) !important;
   }
 
-  /* â”€â”€ Profile / user row â”€â”€ */
+  /* ── Profile / user row ── */
   .theme-light .fl-sidebar .group\/usr {
     background: rgba(255,255,255,0.82) !important;
     border-color: rgba(107,92,242,0.18) !important;
@@ -1757,7 +1757,7 @@
   .theme-light .fl-sidebar .group\/usr .text-white { color: #1a1640 !important; }
   .theme-light .fl-sidebar [class*="text-[#92a2c6]"] { color: #5a4e90 !important; }
 
-  /* â”€â”€ Utility buttons (bottom toolbar) â”€â”€ */
+  /* ── Utility buttons (bottom toolbar) ── */
   .theme-light .fl-sidebar [class*="text-[#aebbd8]"] { color: #5248a0 !important; }
 
   /* Resting button */
@@ -1782,7 +1782,7 @@
     --tw-ring-color: #E5E0F5 !important;
   }
 
-  /* â”€â”€ Collapse / expand toggle â”€â”€ */
+  /* ── Collapse / expand toggle ── */
   .theme-light .fl-sidebar [title="Collapse sidebar"],
   .theme-light .fl-sidebar [title="Expand sidebar"] {
     background: rgba(255,255,255,0.82) !important;
@@ -1797,7 +1797,7 @@
     box-shadow: 0 2px 8px rgba(107,92,242,0.14) !important;
   }
 
-  /* â”€â”€ Command Palette â€“ light mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Command Palette – light mode ──────────────────────── */
   .theme-light .cp-backdrop-overlay {
     background: rgba(15,17,23,0.30) !important;
   }
@@ -1853,7 +1853,7 @@
     color: #5B3FCC !important;
   }
 
-  /* Active / hover: dark navy â†’ soft lavender */
+  /* Active / hover: dark navy → soft lavender */
   .theme-light .fl-command-palette [class*="bg-[#211D4B"] {
     background: #EDE9FF !important;
     color: var(--fl-light-text) !important;
@@ -1873,13 +1873,13 @@
     border-color: rgba(124,108,242,0.32) !important;
   }
 
-  /* Semi-transparent white surfaces â†’ lavender tint */
+  /* Semi-transparent white surfaces → lavender tint */
   .theme-light .fl-command-palette [class*="bg-white/"],
   .theme-light .fl-command-palette [class*="bg-white\\["] {
     background: rgba(124,108,242,0.04) !important;
   }
 
-  /* Semi-transparent white borders â†’ real border */
+  /* Semi-transparent white borders → real border */
   .theme-light .fl-command-palette [class*="border-white/"] {
     border-color: #E5DFFA !important;
   }
@@ -1908,7 +1908,7 @@
   .theme-light .fl-command-palette .text-red-200 {
     color: #991B1B !important;
   }
-  /* â”€â”€ End Command Palette light mode â”€â”€ */
+  /* ── End Command Palette light mode ── */
 
   .theme-light .fl-projects-page button:not(.bg-accent):not(.bg-violet-600):not(.bg-blue-600):not(.bg-red-600) {
     border-color: var(--fl-light-border) !important;
@@ -2145,10 +2145,10 @@
     border-color: var(--fl-light-border) !important;
   }
 
-  /* Grid lines in light mode â€” kept very faint so they don't bleed through
+  /* Grid lines in light mode — kept very faint so they don't bleed through
      semi-transparent block backgrounds. Half-hour lines are deliberately
      lighter than hour lines (previous values had them inverted). */
-  /* Grid lines â€” more visible for better time-scanning */
+  /* Grid lines — more visible for better time-scanning */
   .theme-light .fl-calendar-grid-line {
     border-top-color: rgba(100, 116, 139, 0.18) !important;
   }
@@ -2411,7 +2411,7 @@
     box-shadow: 0 4px 16px rgba(124, 108, 242, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.96) !important;
   }
 
-  /* Time gutter (hour labels column) â€” clean, higher-contrast labels */
+  /* Time gutter (hour labels column) — clean, higher-contrast labels */
   .theme-light .fl-calendar-gutter {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 247, 255, 0.96) 100%) !important;
     border-right-color: rgba(200, 190, 255, 0.40) !important;
@@ -2627,13 +2627,13 @@
     background: #7C6CF2 !important;
   }
 
-  /* â”€â”€ Calendar event block â€” light mode overhaul â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  /* ── Calendar event block — light mode overhaul ───────────────────────────
      The block background uses CSS custom properties (--fl-block-rgb / --fl-block-color)
      that are set as inline vars on every block, enabling per-block pastel tinting
      without touching JSX for every color variant.
-  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  ─────────────────────────────────────────────────────────────────────────── */
 
-  /* Pastel background: clear tint over white â€” strong enough to read as coloured */
+  /* Pastel background: clear tint over white — strong enough to read as coloured */
   .theme-light .fl-calendar-block {
     background:
       linear-gradient(
@@ -2714,7 +2714,7 @@
       inset -6px 0 0 rgba(124, 108, 242, 0.05) !important;
   }
 
-  /* Vertical separator line â€” lighter */
+  /* Vertical separator line — lighter */
   .theme-light .fl-calendar-block--underlay .fl-calendar-block__underlay-depth > div:nth-child(3) {
     background: linear-gradient(
       to bottom,
@@ -2725,7 +2725,7 @@
     ) !important;
   }
 
-  /* Stack-count badge â€” white pill, high-contrast dark text */
+  /* Stack-count badge — white pill, high-contrast dark text */
   .theme-light .fl-calendar-block--underlay .fl-calendar-block__underlay-depth > div:nth-child(4) {
     background: rgba(255, 255, 255, 0.96) !important;
     border-color: rgba(124, 108, 242, 0.38) !important;
@@ -2735,7 +2735,7 @@
     color: rgba(15, 13, 31, 0.82) !important;
   }
 
-  /* â”€â”€ Block typography â€” dark text on light pastel backgrounds â”€â”€ */
+  /* ── Block typography — dark text on light pastel backgrounds ── */
   .theme-light .fl-calendar-block__title {
     color: #0F0D1F !important;
     text-shadow: none !important;
@@ -2756,14 +2756,14 @@
     color: rgba(15, 13, 31, 0.60) !important;
   }
 
-  /* Duration badge â€” coloured-tint pill with high-contrast dark text */
+  /* Duration badge — coloured-tint pill with high-contrast dark text */
   .theme-light .fl-calendar-block__badge {
     background: rgb(var(--fl-block-rgb) / 0.15) !important;
     border-color: rgb(var(--fl-block-rgb) / 0.30) !important;
     color: rgba(15, 13, 31, 0.82) !important;
   }
 
-  /* Fallback: keep any remaining text readable â€” overrides the old #FFFFFF rule */
+  /* Fallback: keep any remaining text readable — overrides the old #FFFFFF rule */
   .theme-light .fl-calendar-block p,
   .theme-light .fl-calendar-block span {
     color: #0F0D1F !important;
@@ -2774,7 +2774,7 @@
     color: rgba(15, 13, 31, 0.62) !important;
   }
 
-  /* Upcoming (future-scheduled) block â€” vivid but 72% opacity + dashed border
+  /* Upcoming (future-scheduled) block — vivid but 72% opacity + dashed border
      signals "planned, not yet started" while still using the full event colour */
   .theme-light .fl-calendar-block--upcoming {
     background:
@@ -2787,7 +2787,7 @@
     opacity: 0.72;
   }
 
-  /* Active pulse dot â€” keep bright green in light mode */
+  /* Active pulse dot — keep bright green in light mode */
   .theme-light .fl-calendar-block span[style*="background: '#34D399'"],
   .theme-light .fl-calendar-block span[style*="background: #34D399"] {
     background: #059669 !important;
@@ -2830,7 +2830,7 @@
     pointer-events: none;
   }
 
-  /* Scrollable calendar content area â€” slightly warmer white */
+  /* Scrollable calendar content area — slightly warmer white */
   .theme-light .fl-calendar-scroll {
     background: rgba(255, 255, 255, 0.70) !important;
   }
@@ -2839,7 +2839,7 @@
     isolation: isolate;
   }
 
-  /* Alternating hour-band tint â€” very subtle, aids vertical scanning */
+  /* Alternating hour-band tint — very subtle, aids vertical scanning */
   .theme-light .fl-calendar-timeline::before {
     content: "";
     position: absolute;
@@ -2901,7 +2901,7 @@
     background: linear-gradient(180deg, rgba(248, 245, 255, 0.99) 0%, #FFFFFF 100%);
   }
 
-  /* Sticky day header â€” clean white bar with crisp separator */
+  /* Sticky day header — clean white bar with crisp separator */
   .theme-light .fl-calendar-day-header {
     position: sticky !important;
     top: 0;
@@ -2923,7 +2923,7 @@
     pointer-events: none;
   }
 
-  /* Today header â€” accent underline */
+  /* Today header — accent underline */
   .theme-light .fl-calendar-day-header.is-today {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 245, 255, 0.98) 100%) !important;
     box-shadow: 0 1px 0 rgba(107, 92, 242, 0.30), 0 3px 12px rgba(107, 92, 242, 0.06) !important;
@@ -2996,7 +2996,7 @@
     align-items: stretch;
   }
 
-  /* â”€â”€ Schedule modal card â”€â”€ */
+  /* ── Schedule modal card ── */
   .theme-light .fl-calendar-schedule-modal {
     background: linear-gradient(180deg, #FFFFFF 0%, #F8F6FF 100%) !important;
     border-color: #DDD6FF !important;
@@ -3021,7 +3021,7 @@
     color: #9CA3AF !important;
   }
 
-  /* â”€â”€ CustomSelect â€” trigger button â”€â”€ */
+  /* ── CustomSelect — trigger button ── */
   .theme-light .fl-csel-trigger {
     background: #FFFFFF !important;
     border: 1px solid #D7DFEB !important;
@@ -3046,7 +3046,7 @@
     color: inherit !important;
   }
 
-  /* â”€â”€ CustomSelect â€” dropdown panel â”€â”€ */
+  /* ── CustomSelect — dropdown panel ── */
   .theme-light .fl-csel-panel {
     background: #FFFFFF !important;
     border: 1px solid #DDE4EE !important;
@@ -3090,10 +3090,10 @@
     border-color: rgba(124,108,242,0.22) !important;
   }
   .theme-light .fl-csel-dot {
-    /* color/background set inline â€” nothing to override */
+    /* color/background set inline — nothing to override */
   }
 
-  /* â”€â”€ Billing toggle buttons â”€â”€ */
+  /* ── Billing toggle buttons ── */
   .theme-light .fl-calendar-schedule-modal .fl-sched-billing-btn {
     background: #F4F6FA !important;
     border-color: #D7DFEB !important;
@@ -3105,13 +3105,13 @@
     color: #4F46E5 !important;
   }
 
-  /* â”€â”€ Drag-range selection highlight â”€â”€ */
+  /* ── Drag-range selection highlight ── */
   .theme-light .fl-calendar-drag-range {
     background: rgba(107, 92, 242, 0.10) !important;
     border-color: rgba(107, 92, 242, 0.35) !important;
   }
 
-  /* â”€â”€ Light mode calendar scrollbars â€” thinner, purple-tinted â”€â”€ */
+  /* ── Light mode calendar scrollbars — thinner, purple-tinted ── */
   .theme-light .fl-calendar-scroll::-webkit-scrollbar,
   .theme-light .fl-calendar-gutter::-webkit-scrollbar {
     width: 5px;
@@ -3130,7 +3130,7 @@
     background: rgba(124, 108, 242, 0.38);
   }
 
-  /* â”€â”€ Month view event pills â€” same pastel treatment â”€â”€ */
+  /* ── Month view event pills — same pastel treatment ── */
   .theme-light .fl-calendar-month-event {
     background: rgb(var(--fl-block-rgb) / 0.16) !important;
     border-color: rgb(var(--fl-block-rgb) / 0.32) !important;
@@ -3138,7 +3138,7 @@
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
   }
 
-  /* â”€â”€ Summary panel event cards â€” cleaner â”€â”€ */
+  /* ── Summary panel event cards — cleaner ── */
   .theme-light .fl-calendar-summary-event-card {
     border: 1px solid rgba(210, 202, 255, 0.75) !important;
     background: linear-gradient(180deg, #FFFFFF, rgba(250, 248, 255, 0.98)) !important;
@@ -3147,7 +3147,7 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.96) !important;
   }
 
-  /* â”€â”€ Main calendar panel â€” slightly richer background â”€â”€ */
+  /* ── Main calendar panel — slightly richer background ── */
   .theme-light .fl-calendar-main {
     background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(252,250,255,0.98) 100%) !important;
     border-color: rgba(210, 202, 255, 0.80) !important;
@@ -3250,8 +3250,8 @@
   }
 
   /* Two-layer backgrounds in light mode: gradient on top + solid base beneath.
-     Raises effective block opacity to ~88â€“93% so grid lines cannot bleed through.
-     Formula: effective_opacity = 1 - (1 - gradient_stop) Ã— (1 - solid_base) */
+     Raises effective block opacity to ~88–93% so grid lines cannot bleed through.
+     Formula: effective_opacity = 1 - (1 - gradient_stop) × (1 - solid_base) */
   .theme-light .fl-calendar-block {
     background:
       linear-gradient(180deg, rgb(var(--fl-block-rgb) / 0.72), rgb(var(--fl-block-rgb) / 0.62)),
@@ -3278,7 +3278,7 @@
     box-shadow: 0 6px 14px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.24) !important;
   }
 
-  /* Show underlay depth in light mode too â€” using light-appropriate scrim colors */
+  /* Show underlay depth in light mode too — using light-appropriate scrim colors */
   .theme-light .fl-calendar-block--overlay {
     box-shadow: 0 8px 20px rgba(15,23,42,0.14), 0 2px 6px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.50) !important;
   }
@@ -3315,7 +3315,7 @@
     color: #0f172a !important;
   }
 
-  /* Underlay depth scrim â€” light mode uses a subtle white veil instead of dark scrim */
+  /* Underlay depth scrim — light mode uses a subtle white veil instead of dark scrim */
   .theme-light .fl-calendar-block__underlay-depth > div:first-child {
     background: linear-gradient(to left, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.05) 48%, transparent 100%) !important;
   }
@@ -3353,7 +3353,7 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.94), 0 6px 14px rgba(15,23,42,0.04) !important;
   }
 
-  /* â”€â”€â”€ Calendar workspace tabs â€” Tasks / Projects / Clients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ─── Calendar workspace tabs — Tasks / Projects / Clients ─────────────── */
   .theme-light .fl-tasks-workspace,
   .theme-light .fl-tasks-workspace-split,
   .theme-light .fl-tasks-list-pane,
@@ -3412,8 +3412,8 @@
     box-shadow: 0 24px 64px rgba(124,108,242,0.15), inset 0 1px 0 rgba(255,255,255,0.97) !important;
   }
 
-  /* â”€â”€ Consolidate the session popup card light overrides (remove earlier duplicates
-     by making this one definitive rule that wins on source order) â”€â”€ */
+  /* ── Consolidate the session popup card light overrides (remove earlier duplicates
+     by making this one definitive rule that wins on source order) ── */
   .theme-light .fl-session-popup-card {
     background: linear-gradient(160deg, #FFFFFF 0%, #F9F7FF 52%, #F4F1FF 100%) !important;
     border-color: rgba(196, 181, 253, 0.70) !important;
@@ -3425,7 +3425,7 @@
     -webkit-backdrop-filter: none !important;
   }
 
-  /* â”€â”€ Light mode: CalendarView hover tooltip â”€â”€ */
+  /* ── Light mode: CalendarView hover tooltip ── */
   .theme-light .fl-calendar-tooltip {
     background: linear-gradient(160deg, #FFFFFF 0%, #FAF8FF 100%) !important;
     border-color: rgba(196,181,253,0.55) !important;
@@ -3436,18 +3436,18 @@
     color: #1E1B2E !important;
   }
 
-  /* â”€â”€ Light mode: DonutSegTooltip internals â”€â”€ */
+  /* ── Light mode: DonutSegTooltip internals ── */
   .theme-light .fl-calendar-donut-tooltip [style*="rgba(255,255,255,0.06)"] {
     background: rgba(107,92,242,0.08) !important;
   }
 
-  /* â”€â”€ Light mode: week/month view day header text colours â”€â”€ */
+  /* ── Light mode: week/month view day header text colours ── */
   .theme-light .fl-calendar-day-header p[style*="#3D4555"],
   .theme-light .fl-calendar-day-header p[style*="#9D8FF5"] {
     color: #6B7A99 !important;
   }
 
-  /* â”€â”€ Light mode: grid line colours â”€â”€ */
+  /* ── Light mode: grid line colours ── */
   .theme-light .fl-calendar-grid-line {
     border-top-color: rgba(107,92,242,0.10) !important;
   }
@@ -3455,7 +3455,7 @@
     border-top-color: rgba(107,92,242,0.05) !important;
   }
 
-  /* â”€â”€ Light mode: now-line, dot, and label â”€â”€ */
+  /* ── Light mode: now-line, dot, and label ── */
   .theme-light .fl-calendar-now-line {
     background: linear-gradient(90deg, #ef4444CC, #ef444466, #ef444420, transparent) !important;
     box-shadow: 0 0 4px rgba(239,68,68,0.25) !important;
@@ -3470,7 +3470,7 @@
     padding: 1px 3px !important;
   }
 
-  /* â”€â”€ Light mode: month view cell backgrounds â”€â”€ */
+  /* ── Light mode: month view cell backgrounds ── */
   .theme-light .fl-calendar-month-cell {
     background: rgba(255,255,255,0.92) !important;
     border-color: rgba(196,181,253,0.30) !important;
@@ -3695,7 +3695,7 @@
     color: rgba(255,255,255,0.82) !important;
   }
 
-  /* â”€â”€ Tasks: toolbar controls â”€â”€ */
+  /* ── Tasks: toolbar controls ── */
   .theme-light .fl-tasks-toolbar input,
   .theme-light .fl-tasks-toolbar select {
     background: #FFFFFF !important;
@@ -3727,7 +3727,7 @@
     color: #7D769A !important;
   }
 
-  /* â”€â”€ Tasks: filter strip â”€â”€ */
+  /* ── Tasks: filter strip ── */
   .theme-light .fl-tasks-filters {
     background: #F4F1FF !important;
     border-bottom-color: #DDD6FF !important;
@@ -3736,7 +3736,7 @@
   .theme-light .fl-tasks-filters > div[style*="#2A2F3A"] {
     background: #C4BBFF !important;
   }
-  /* Chip inactive hover â†’ lavender */
+  /* Chip inactive hover → lavender */
   .theme-light .fl-task-chip:hover:not(.fl-task-chip-active) {
     color: #4A4570 !important;
     border-color: rgba(124,108,242,0.30) !important;
@@ -3748,14 +3748,14 @@
     color: #7D769A !important;
   }
 
-  /* â”€â”€ Tasks: table header â”€â”€ */
+  /* ── Tasks: table header ── */
   .theme-light .fl-tasks-table-wrap thead {
     background: linear-gradient(to bottom, #F8F5FF, #F2EEFF) !important;
     border-bottom-color: #DDD6FF !important;
     box-shadow: 0 2px 8px rgba(124,108,242,0.07) !important;
   }
 
-  /* â”€â”€ Tasks: row border + done hover â”€â”€ */
+  /* ── Tasks: row border + done hover ── */
   .theme-light .fl-task-done:hover {
     background: rgba(124,108,242,0.04) !important;
     box-shadow: inset 2px 0 0 rgba(63,185,80,0.35) !important;
@@ -3765,7 +3765,7 @@
     background: rgba(124,108,242,0.05) !important;
   }
 
-  /* â”€â”€ Tasks: row text colours â”€â”€ */
+  /* ── Tasks: row text colours ── */
   /* Primary task title */
   .theme-light .fl-task-row td p[style*="color:"],
   .theme-light .fl-task-row td p {
@@ -3799,12 +3799,12 @@
     color: #7D769A !important;
   }
 
-  /* â”€â”€ Tasks: progress bar tracks â”€â”€ */
+  /* ── Tasks: progress bar tracks ── */
   .theme-light .fl-tasks-page div[style*="rgba(42,47,58,0.8)"] {
     background: rgba(124,108,242,0.12) !important;
   }
 
-  /* â”€â”€ Tasks: scrollbar â”€â”€ */
+  /* ── Tasks: scrollbar ── */
   .theme-light .fl-tasks-table-wrap::-webkit-scrollbar-thumb {
     background: rgba(124,108,242,0.20) !important;
   }
@@ -3812,12 +3812,12 @@
     background: rgba(124,108,242,0.35) !important;
   }
 
-  /* â”€â”€ Tasks: sort-header hover â”€â”€ */
+  /* ── Tasks: sort-header hover ── */
   .theme-light .fl-tasks-table-wrap thead th button:hover {
     color: #4A4570 !important;
   }
 
-  /* â”€â”€ Tasks: RowMenu dropdown â”€â”€ */
+  /* ── Tasks: RowMenu dropdown ── */
   .theme-light .fl-tasks-page .fl-row-menu {
     background: #FFFFFF !important;
     border-color: #DDD6FF !important;
@@ -3838,7 +3838,7 @@
     color: #DC2626 !important;
   }
 
-  /* â”€â”€ Tasks: subtask expansion border â”€â”€ */
+  /* ── Tasks: subtask expansion border ── */
   .theme-light tr[style*="rgba(42,47,58,0.75)"] {
     border-bottom-color: #DDD6FF !important;
   }
@@ -3847,7 +3847,7 @@
     border-bottom: none !important;
   }
 
-  /* â”€â”€ Tasks: subtask area container â”€â”€ */
+  /* ── Tasks: subtask area container ── */
   .theme-light .fl-subtask-area {
     background: #F8F5FF !important;
     border-top-color: #DDD6FF !important;
@@ -3866,36 +3866,36 @@
     pointer-events: none;
   }
 
-  /* â”€â”€ Tasks: subtask row â”€â”€ */
+  /* ── Tasks: subtask row ── */
   .theme-light .fl-subtask-row:hover {
     background: rgba(124,108,242,0.06) !important;
   }
 
-  /* â”€â”€ Tasks: subtask checkbox â”€â”€ */
+  /* ── Tasks: subtask checkbox ── */
   .theme-light .fl-subtask-chk {
     border-color: rgba(124,108,242,0.28) !important;
   }
-  /* Done checkbox â€” keep green, slightly adapt bg */
+  /* Done checkbox — keep green, slightly adapt bg */
   .theme-light .fl-subtask-chk[style*="#3fb950"] {
     background: rgba(63,185,80,0.10) !important;
     border-color: #3fb950 !important;
   }
 
-  /* â”€â”€ Tasks: subtask title text â”€â”€ */
+  /* ── Tasks: subtask title text ── */
   .theme-light .fl-subtask-title {
     color: #3A3558 !important;
   }
-  /* Done â†’ muted lavender */
+  /* Done → muted lavender */
   .theme-light .fl-subtask-title[style*="line-through"] {
     color: #A59FC0 !important;
   }
 
-  /* â”€â”€ Tasks: subtask edit input â”€â”€ */
+  /* ── Tasks: subtask edit input ── */
   .theme-light .fl-subtask-edit-input {
     color: #1E1B2E !important;
   }
 
-  /* â”€â”€ Tasks: subtask delete button â”€â”€ */
+  /* ── Tasks: subtask delete button ── */
   .theme-light .fl-subtask-del {
     color: #B5AEDD !important;
   }
@@ -3903,7 +3903,7 @@
     color: #DC2626 !important;
   }
 
-  /* â”€â”€ Tasks: inline add row â”€â”€ */
+  /* ── Tasks: inline add row ── */
   .theme-light .fl-subtask-add-chk {
     border-color: rgba(124,108,242,0.22) !important;
   }
@@ -4053,9 +4053,9 @@
     color: #475569 !important;
   }
 
-  /* â”€â”€ Blocker redesign â€” new element light mode fixes â”€â”€ */
+  /* ── Blocker redesign — new element light mode fixes ── */
 
-  /* Stat cards â€” override remaining dark gradient surfaces */
+  /* Stat cards — override remaining dark gradient surfaces */
   .theme-light .fl-blocker-page .fl-blocker-panel {
     background: #FFFFFF !important;
     border-color: #DDD6FF !important;
@@ -4092,9 +4092,9 @@
     color: #4F46E5 !important;
   }
 
-  /* â”€â”€ Activity: inbox filter pill container â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     Container inherits fl-segmented â†’ grey track.
-     Active tab inherits fl-segment-active â†’ white lift.               */
+  /* ── Activity: inbox filter pill container ────────────────────────────
+     Container inherits fl-segmented → grey track.
+     Active tab inherits fl-segment-active → white lift.               */
   .theme-light .fl-inbox-tabs {
     background: #E8E2FF !important;
     border-color: var(--fl-light-border) !important;
@@ -4105,7 +4105,7 @@
     box-shadow: 0 1px 4px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255,255,255,0.9) !important;
   }
 
-  /* â”€â”€ Clients: fix modal input bg (bg-bg-app â†’ white, not page bg) â”€â”€â”€ */
+  /* ── Clients: fix modal input bg (bg-bg-app → white, not page bg) ─── */
   .theme-light .fl-clients-modal input,
   .theme-light .fl-clients-modal textarea {
     background: #FFFFFF !important;
@@ -4135,7 +4135,7 @@
     color-scheme: light !important;
   }
 
-  /* â”€â”€ Clients: table toolbar select dropdowns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Clients: table toolbar select dropdowns ──────────────────────── */
   .theme-light .fl-clients-page select {
     background: #FFFFFF !important;
     border-color: var(--fl-light-border) !important;
@@ -4156,7 +4156,7 @@
     background: #EEF2FA !important;
   }
 
-  /* â”€â”€ Home card base â€” border/shadow in CSS (not inline) so light mode overrides work.
+  /* ── Home card base — border/shadow in CSS (not inline) so light mode overrides work.
      Transition only transform at base level so border-color/box-shadow resolve instantly.
      border-color/box-shadow transitions are added on :hover only. */
   .fl-home-card {
@@ -4169,12 +4169,12 @@
     transition: transform 150ms cubic-bezier(0.22,1,0.36,1), border-color 150ms ease, box-shadow 180ms ease;
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     HOME DASHBOARD â€” PREMIUM LIGHT MODE
+  /* ═══════════════════════════════════════════════════════════════════
+     HOME DASHBOARD — PREMIUM LIGHT MODE
      Targeting: Linear / Stripe / Arc Browser quality depth & contrast
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  ═══════════════════════════════════════════════════════════════════ */
 
-  /* â”€â”€ Page background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Page background ─────────────────────────────────────────────── */
   .theme-light .fl-home-page {
     background:
       radial-gradient(ellipse at 14% 0%,   rgba(109,97,255,0.07), transparent 36%),
@@ -4184,7 +4184,7 @@
     scrollbar-color: rgba(107,92,242,0.20) transparent;
   }
 
-  /* â”€â”€ Header bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Header bar ──────────────────────────────────────────────────── */
   .theme-light .fl-home-header {
     background: linear-gradient(180deg, #FFFFFF 0%, #FAFBFD 100%) !important;
     border-bottom: 1px solid rgba(15,23,42,0.07) !important;
@@ -4195,7 +4195,7 @@
   .theme-light .fl-header-glow { opacity: 0 !important; }
   .theme-light .fl-home-header-ambient { opacity: 0 !important; }
 
-  /* Top hairline in header â€” subtle purple tint */
+  /* Top hairline in header — subtle purple tint */
   .theme-light .fl-home-header > .pointer-events-none.absolute.inset-x-0.top-0.h-px {
     background: linear-gradient(90deg, transparent 10%, rgba(91,76,240,0.18) 40%, rgba(91,76,240,0.28) 50%, rgba(91,76,240,0.18) 60%, transparent 90%) !important;
     opacity: 0.9 !important;
@@ -4262,7 +4262,7 @@
     color: #B91C1C !important;
   }
 
-  /* â”€â”€ KPI strip cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── KPI strip cards ─────────────────────────────────────────────── */
   .theme-light .fl-kpi-card,
   .theme-light .fl-home-kpi {
     background: #FFFFFF !important;
@@ -4318,7 +4318,7 @@
   /* Suppress dark glow blobs */
   .theme-light .fl-kpi-glow,
   .theme-light .fl-kpi-card > .pointer-events-none.rounded-full { opacity: 0 !important; }
-  /* Top shimmer line â€” show at reduced opacity for visual anchor */
+  /* Top shimmer line — show at reduced opacity for visual anchor */
   .theme-light .fl-kpi-card > .pointer-events-none.h-px { opacity: 0.45 !important; filter: brightness(0.6) saturate(1.4) !important; }
 
   /* KPI value and label colors */
@@ -4331,7 +4331,7 @@
   .theme-light .fl-kpi-card .text-tx-secondary,
   .theme-light .fl-home-kpi .text-tx-secondary { color: #4B5563 !important; }
 
-  /* â”€â”€ Main content cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Main content cards ──────────────────────────────────────────── */
   /* CSS custom properties on the element propagate into the inline var() calls,
      cleanly overriding the dark-mode defaults without needing to fight !important */
   .theme-light .fl-home-page .fl-home-card {
@@ -4340,7 +4340,7 @@
     border: 1px solid rgba(15,23,42,0.08) !important;
     box-shadow: 0 1px 0 #fff inset, 0 1px 3px rgba(15,23,42,0.07), 0 6px 20px rgba(15,23,42,0.05) !important;
     border-radius: 18px !important;
-    /* Override fl-home-surface transition â€” removes border-color/box-shadow animation so
+    /* Override fl-home-surface transition — removes border-color/box-shadow animation so
        light mode values resolve immediately instead of transitioning from the dark base */
     transition: transform 180ms cubic-bezier(0.22,1,0.36,1) !important;
   }
@@ -4348,7 +4348,7 @@
     border-color: rgba(91,76,240,0.16) !important;
     box-shadow: 0 1px 0 #fff inset, 0 2px 8px rgba(15,23,42,0.09), 0 14px 36px rgba(15,23,42,0.07) !important;
   }
-  /* Accent top shimmer line on content cards â€” subtle, per accent color */
+  /* Accent top shimmer line on content cards — subtle, per accent color */
   .theme-light .fl-home-page .fl-home-card > .pointer-events-none.h-px {
     opacity: 0.4 !important;
     filter: brightness(0.55) saturate(1.6) !important;
@@ -4368,7 +4368,7 @@
     stroke: rgba(15,23,42,0.08) !important;
   }
 
-  /* â”€â”€ Progress / bar tracks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Progress / bar tracks ───────────────────────────────────────── */
   .fl-bar-track { background: rgba(255,255,255,0.05); }
   .theme-light .fl-bar-track { background: rgba(15,23,42,0.07) !important; }
 
@@ -4385,7 +4385,7 @@
     background: rgba(15,23,42,0.05) !important;
   }
 
-  /* â”€â”€ Row / block surface backgrounds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Row / block surface backgrounds ─────────────────────────────── */
   .theme-light .fl-home-page [style*="rgba(255,255,255,0.018)"],
   .theme-light .fl-home-page [style*="rgba(255,255,255,0.016)"],
   .theme-light .fl-home-page [style*="rgba(255,255,255,0.02)"],
@@ -4400,7 +4400,7 @@
   }
   .theme-light .fl-home-page .animate-pulse { --tw-bg-opacity: 1; }
 
-  /* â”€â”€ Tailwind border overrides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Tailwind border overrides ───────────────────────────────────── */
   .theme-light .fl-home-page .border-white\/\[0\.04\],
   .theme-light .fl-home-page .border-white\/\[0\.05\],
   .theme-light .fl-home-page .border-white\/\[0\.06\],
@@ -4409,7 +4409,7 @@
     border-color: rgba(15,23,42,0.08) !important;
   }
 
-  /* â”€â”€ Hover states â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Hover states ────────────────────────────────────────────────── */
   .theme-light .fl-home-page .hover\:border-white\/\[0\.10\]:hover,
   .theme-light .fl-home-page .hover\:border-white\/\[0\.11\]:hover {
     border-color: rgba(91,76,240,0.20) !important;
@@ -4420,7 +4420,7 @@
     background: rgba(15,23,42,0.04) !important;
   }
 
-  /* â”€â”€ Focus session rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Focus session rows ──────────────────────────────────────────── */
   .theme-light .fl-home-page .group\/sess {
     background: #FAFBFD !important;
     border-color: rgba(15,23,42,0.07) !important;
@@ -4450,7 +4450,7 @@
     color: #047857 !important;
   }
 
-  /* â”€â”€ InsightCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── InsightCard ─────────────────────────────────────────────────── */
   .theme-light .fl-home-page .group\/insight {
     background: #F8F9FC !important;
     border-color: rgba(15,23,42,0.07) !important;
@@ -4479,7 +4479,7 @@
     color: #3730A3 !important;
   }
 
-  /* â”€â”€ Project rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Project rows ────────────────────────────────────────────────── */
   .theme-light .fl-home-page .group\/proj {
     background: #FAFBFD !important;
     border-color: rgba(15,23,42,0.07) !important;
@@ -4490,26 +4490,26 @@
     box-shadow: 0 2px 10px rgba(15,23,42,0.06) !important;
   }
 
-  /* â”€â”€ Meeting rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Meeting rows ────────────────────────────────────────────────── */
   .theme-light .fl-home-page [style*="rgba(255,255,255,0.018)"][style*="borderColor"] {
     background: #FAFBFD !important;
   }
-  /* Meeting row â€” future (purple border) */
+  /* Meeting row — future (purple border) */
   .theme-light .fl-home-page [style*="rgba(167,139,250,0.18)"] {
     border-color: rgba(124,58,237,0.18) !important;
     background: rgba(124,58,237,0.025) !important;
   }
-  /* Meeting row â€” ongoing (red border) */
+  /* Meeting row — ongoing (red border) */
   .theme-light .fl-home-page [style*="rgba(248,113,113,0.30)"] {
     border-color: rgba(220,38,38,0.22) !important;
     background: rgba(220,38,38,0.025) !important;
   }
-  /* Meeting row â€” past */
+  /* Meeting row — past */
   .theme-light .fl-home-page [style*="rgba(255,255,255,0.05)"][class*="rounded-\[10px\]"] {
     border-color: rgba(15,23,42,0.07) !important;
   }
 
-  /* â”€â”€ Quick action buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Quick action buttons ────────────────────────────────────────── */
   .theme-light .fl-home-page .group\/qa {
     background: #F8F9FC !important;
     border-color: rgba(15,23,42,0.07) !important;
@@ -4518,7 +4518,7 @@
     color: #6B7280 !important;
   }
 
-  /* â”€â”€ App usage section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── App usage section ───────────────────────────────────────────── */
   .theme-light .fl-home-page .fl-home-app-row {
     background: #F8F9FC !important;
     border-color: rgba(15,23,42,0.07) !important;
@@ -4540,7 +4540,7 @@
     border-top-color: rgba(15,23,42,0.07) !important;
   }
 
-  /* â”€â”€ Section dividers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Section dividers ────────────────────────────────────────────── */
   .theme-light .fl-home-page [style*="border-top"][style*="rgba(255,255,255,0.05)"],
   .theme-light .fl-home-page [style*="borderTop"][style*="rgba(255,255,255,0.05)"],
   .theme-light .fl-home-page [style*="border-top"][style*="rgba(255,255,255,0.06)"],
@@ -4548,7 +4548,7 @@
     border-top-color: rgba(15,23,42,0.07) !important;
   }
 
-  /* â”€â”€ Behavioral intelligence strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Behavioral intelligence strip ──────────────────────────────── */
   /* Card backgrounds */
   .theme-light .fl-home-page [style*="rgba(52,211,153,0.05)"] {
     background: rgba(5,150,105,0.06) !important;
@@ -4571,39 +4571,39 @@
   .theme-light .fl-home-page [style*="rgba(129,140,248,0.2)"] {
     border-color: rgba(79,70,229,0.22) !important;
   }
-  /* Sub-text (#5A6A88 hardcoded in JSX) â†’ legible gray */
+  /* Sub-text (#5A6A88 hardcoded in JSX) → legible gray */
   .theme-light .fl-home-page [style*="#5A6A88"] { color: #6B7280 !important; }
   /* Bold value text in the strip (uses text-white) */
   .theme-light .fl-home-page [style*="rgba(52,211,153,0.05)"] .text-white,
   .theme-light .fl-home-page [style*="rgba(251,191,36,0.05)"] .text-white,
   .theme-light .fl-home-page [style*="rgba(129,140,248,0.05)"] .text-white { color: #111827 !important; }
 
-  /* â”€â”€ Color vibrancy â€” richer accent shades for light mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-  /* Green (#34d399 â†’ #047857) */
+  /* ── Color vibrancy — richer accent shades for light mode ────────── */
+  /* Green (#34d399 → #047857) */
   .theme-light .fl-home-page [style*="color: #34D399"],
   .theme-light .fl-home-page [style*="color:#34D399"],
   .theme-light .fl-home-page [style*="color: #34d399"],
   .theme-light .fl-home-page [style*="color:#34d399"] { color: #047857 !important; }
-  /* Amber (#fbbf24 â†’ #B45309) */
+  /* Amber (#fbbf24 → #B45309) */
   .theme-light .fl-home-page [style*="color: #FBBF24"],
   .theme-light .fl-home-page [style*="color:#FBBF24"],
   .theme-light .fl-home-page [style*="color: #fbbf24"],
   .theme-light .fl-home-page [style*="color:#fbbf24"] { color: #B45309 !important; }
-  /* Purple (#7c6cf2 â†’ #4C3FD4) */
+  /* Purple (#7c6cf2 → #4C3FD4) */
   .theme-light .fl-home-page [style*="color: #7c6cf2"],
   .theme-light .fl-home-page [style*="color:#7c6cf2"] { color: #4C3FD4 !important; }
-  /* Indigo (#818cf8 â†’ #4338CA) */
+  /* Indigo (#818cf8 → #4338CA) */
   .theme-light .fl-home-page [style*="color: #818CF8"],
   .theme-light .fl-home-page [style*="color:#818CF8"],
   .theme-light .fl-home-page [style*="color: #818cf8"],
   .theme-light .fl-home-page [style*="color:#818cf8"] { color: #4338CA !important; }
-  /* Blue (#60a5fa â†’ #1D4ED8) */
+  /* Blue (#60a5fa → #1D4ED8) */
   .theme-light .fl-home-page [style*="color: #60a5fa"],
   .theme-light .fl-home-page [style*="color:#60a5fa"] { color: #1D4ED8 !important; }
-  /* Lavender (#a78bfa â†’ #6D28D9) */
+  /* Lavender (#a78bfa → #6D28D9) */
   .theme-light .fl-home-page [style*="color: #a78bfa"],
   .theme-light .fl-home-page [style*="color:#a78bfa"] { color: #6D28D9 !important; }
-  /* Red (#f87171 â†’ #B91C1C) */
+  /* Red (#f87171 → #B91C1C) */
   .theme-light .fl-home-page [style*="color: #f87171"],
   .theme-light .fl-home-page [style*="color:#f87171"] { color: #B91C1C !important; }
   /* Amber for ScoreBar #f59e0b */
@@ -4623,7 +4623,7 @@
   .theme-light .fl-home-page polyline[stroke="#34d399"] { stroke: #059669 !important; }
   .theme-light .fl-home-page polyline[stroke="#f87171"] { stroke: #DC2626 !important; }
 
-  /* â”€â”€ TrendPill â€” ensure pill borders are visible â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── TrendPill — ensure pill borders are visible ─────────────────── */
   .theme-light .fl-home-page .rounded-full[style*="rgba(52,211,153,0.10)"] {
     background: rgba(5,150,105,0.09) !important;
     border-color: rgba(5,150,105,0.22) !important;
@@ -4640,21 +4640,21 @@
     color: #9CA3AF !important;
   }
 
-  /* â”€â”€ ScoreBar & sub-labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── ScoreBar & sub-labels ───────────────────────────────────────── */
   .theme-light .fl-home-page .text-emerald-400 { color: #047857 !important; }
   .theme-light .fl-home-page .text-red-400     { color: #B91C1C !important; }
 
   /* ScoreBar label text */
   .theme-light .fl-home-page .text-tx-faint { color: #9CA3AF !important; }
 
-  /* â”€â”€ AI badge pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── AI badge pill ───────────────────────────────────────────────── */
   .theme-light .fl-home-page [style*="rgba(124,108,242,0.12)"][style*="rgba(167,139,250"] {
     background: rgba(79,70,229,0.08) !important;
     border-color: rgba(79,70,229,0.18) !important;
     color: #4338CA !important;
   }
 
-  /* â”€â”€ SectionHeader icon containers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── SectionHeader icon containers ──────────────────────────────── */
   .theme-light .fl-home-page [style*="rgba(124,108,242,0.14)"] {
     background: rgba(76,63,212,0.08) !important;
   }
@@ -4662,7 +4662,7 @@
     border-color: rgba(76,63,212,0.18) !important;
   }
 
-  /* â”€â”€ Action button pills (SectionHeader "Details", "Timer" etc.) â”€â”€â”€ */
+  /* ── Action button pills (SectionHeader "Details", "Timer" etc.) ─── */
   .theme-light .fl-home-page [style*="rgba(124,108,242,0.12)"] {
     background: rgba(76,63,212,0.07) !important;
   }
@@ -4671,7 +4671,7 @@
     border-color: rgba(76,63,212,0.20) !important;
   }
 
-  /* â”€â”€ Various accent-colored background chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Various accent-colored background chips ─────────────────────── */
   /* Green chip bg (e.g., "Live" badge, focus badge) */
   .theme-light .fl-home-page [style*="rgba(52,211,153,0.14)"] {
     background: rgba(5,150,105,0.09) !important;
@@ -4711,7 +4711,7 @@
     color: #1D4ED8 !important;
   }
 
-  /* â”€â”€ Active session banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Active session banner ───────────────────────────────────────── */
   .theme-light .fl-home-page [style*="rgba(52,211,153,0.07)"] {
     background: linear-gradient(135deg, rgba(5,150,105,0.07) 0%, rgba(5,150,105,0.04) 100%) !important;
     border-color: rgba(5,150,105,0.22) !important;
@@ -4724,14 +4724,14 @@
   /* Active session banner "Live" pulse dot */
   .theme-light .fl-home-page .bg-emerald-400 { background-color: #059669 !important; }
 
-  /* â”€â”€ Section header labels (uppercase small caps) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Section header labels (uppercase small caps) ────────────────── */
   .theme-light .fl-home-page span[class*="tracking-"][class*="text-tx-faint"] {
     color: #8B92A8 !important;
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     PROFITABILITY PAGE â€” LIGHT MODE
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  /* ══════════════════════════════════════════════════════════════════
+     PROFITABILITY PAGE — LIGHT MODE
+  ══════════════════════════════════════════════════════════════════ */
 
   /* Page header bar */
   .theme-light .fl-profit-page-header {
@@ -4757,7 +4757,7 @@
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
   }
 
-  /* KpiCard & SectionCard â€” inline dark gradients â†’ white cards
+  /* KpiCard & SectionCard — inline dark gradients → white cards
      (catches any remaining inline rgba backgrounds not covered by fl-profit-kpi / fl-profit-card) */
   .theme-light .fl-profit-page [style*="rgba(22,26,38"],
   .theme-light .fl-profit-page [style*="rgba(20,24,36"],
@@ -4770,7 +4770,7 @@
     box-shadow: 0 4px 16px rgba(124, 108, 242, 0.08), inset 0 1px 0 rgba(255,255,255,0.96) !important;
   }
 
-  /* Small inline cells & stats using rgba(255,255,255,0.03â€“0.06) â†’ light bg */
+  /* Small inline cells & stats using rgba(255,255,255,0.03–0.06) → light bg */
   .theme-light .fl-profit-page [style*="rgba(255,255,255,0.03)"],
   .theme-light .fl-profit-page [style*="rgba(255,255,255,0.025)"],
   .theme-light .fl-profit-page [style*="rgba(255,255,255,0.02)"] {
@@ -4778,7 +4778,7 @@
     border-color: var(--fl-light-border) !important;
   }
 
-  /* SVG ring (DonutRing) â€” track circle: near-invisible white â†’ soft lavender */
+  /* SVG ring (DonutRing) — track circle: near-invisible white → soft lavender */
   .theme-light .fl-profit-page [style*="rotate(-90deg)"] circle:first-child {
     stroke: rgba(124, 108, 242, 0.15) !important;
   }
@@ -4851,13 +4851,13 @@
     box-shadow: inset 2px 0 0 var(--color-accent-a22);
   }
 
-  /* â”€â”€ Recharts: chart axis tick text (SVG fill, not CSS color) â”€â”€ */
+  /* ── Recharts: chart axis tick text (SVG fill, not CSS color) ── */
   .theme-light .fl-profit-page .recharts-cartesian-axis-tick text,
   .theme-light .fl-profit-page .recharts-cartesian-axis-tick-value {
     fill: #64748b !important;
   }
 
-  /* â”€â”€ Recharts: tooltip popup â€” override dark inline styles â”€â”€ */
+  /* ── Recharts: tooltip popup — override dark inline styles ── */
   .theme-light .fl-profit-page .recharts-tooltip-wrapper .recharts-default-tooltip {
     background: #FFFFFF !important;
     border: 1px solid #D8D0F4 !important;
@@ -4876,12 +4876,12 @@
     color: #475569 !important;
   }
 
-  /* â”€â”€ Recharts: bar chart hover cursor (background rectangle) â”€â”€ */
+  /* ── Recharts: bar chart hover cursor (background rectangle) ── */
   .theme-light .fl-profit-page .recharts-bar-rectangle.recharts-bar-background-rectangle {
     fill: rgba(124,108,242,0.05) !important;
   }
 
-  /* â”€â”€ KPI card text hierarchy â”€â”€ */
+  /* ── KPI card text hierarchy ── */
   .theme-light .fl-profit-page .fl-kpi-label {
     color: #475569 !important;
   }
@@ -4893,35 +4893,35 @@
     color: #64748b !important;
   }
 
-  /* â”€â”€ Active tab / range button text (inline white on lavender â†’ dark purple) â”€â”€ */
+  /* ── Active tab / range button text (inline white on lavender → dark purple) ── */
   .theme-light .fl-profit-page .fl-tab-active,
   .theme-light .fl-profit-page .fl-range-active {
     color: #3730a3 !important;
   }
 
-  /* â”€â”€ Insight card body text â”€â”€ */
+  /* ── Insight card body text ── */
   .theme-light .fl-profit-page .insight-body {
     color: #475569 !important;
   }
 
-  /* â”€â”€ Adaptive block inline muted text (inline style color) â”€â”€ */
+  /* ── Adaptive block inline muted text (inline style color) ── */
   .theme-light .fl-profit-page [style*="#5A6A88"] {
     color: #64748b !important;
   }
 
-  /* â”€â”€ Export button idle state â”€â”€ */
+  /* ── Export button idle state ── */
   .theme-light .fl-profit-page .fl-profit-export {
     background: rgba(0,0,0,0.03) !important;
     border-color: var(--fl-light-border) !important;
     color: #475569 !important;
   }
 
-  /* â”€â”€ Revenue values stay green (readable on white) â”€â”€ */
+  /* ── Revenue values stay green (readable on white) ── */
   .theme-light .fl-profit-page [class*="text-[#34D399]"] {
     color: #059669 !important;
   }
 
-  /* â”€â”€ KPI card hover: white text rules must be overridden in light mode â”€â”€ */
+  /* ── KPI card hover: white text rules must be overridden in light mode ── */
   .theme-light .fl-profit-page .fl-kpi-card:hover .fl-profit-label,
   .theme-light .fl-profit-page .fl-kpi-card:hover .fl-profit-value,
   .theme-light .fl-profit-page .fl-kpi-card:hover .fl-profit-support,
@@ -4943,9 +4943,9 @@
     color: var(--color-accent) !important;
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     PRODUCTIVITY PAGE â€” LIGHT MODE
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  /* ══════════════════════════════════════════════════════════════════
+     PRODUCTIVITY PAGE — LIGHT MODE
+  ══════════════════════════════════════════════════════════════════ */
 
   /* Page header bar */
   .theme-light .fl-product-page-header {
@@ -4969,7 +4969,7 @@
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
   }
 
-  /* KpiCard & SCard â€” inline dark gradients â†’ white cards */
+  /* KpiCard & SCard — inline dark gradients → white cards */
   .theme-light .fl-product-page [style*="rgba(20,24,36"],
   .theme-light .fl-product-page [style*="rgba(18,22,34"],
   .theme-light .fl-product-page [style*="rgba(14,18,28"],
@@ -5007,7 +5007,7 @@
     background-color: rgba(124, 108, 242, 0.10) !important;
   }
 
-  /* Peak hours bar chart â€” low-activity bar fill */
+  /* Peak hours bar chart — low-activity bar fill */
   .theme-light .fl-product-page [style*="background: #1a2035"],
   .theme-light .fl-product-page [style*="background:#1a2035"] {
     background: rgba(15, 23, 42, 0.07) !important;
@@ -5037,7 +5037,7 @@
     color: var(--fl-light-text) !important;
   }
 
-  /* InsightPill â€” subtle inset border */
+  /* InsightPill — subtle inset border */
   .theme-light .fl-product-page .border-white\/\[0\.05\] {
     border-color: var(--fl-light-border) !important;
   }
@@ -5047,19 +5047,19 @@
     scrollbar-color: rgba(124, 108, 242, 0.22) transparent;
   }
 
-  /* â”€â”€ Active tab / range text â€” same pattern as profitability â”€â”€ */
+  /* ── Active tab / range text — same pattern as profitability ── */
   .theme-light .fl-product-page .fl-tab-active,
   .theme-light .fl-product-page .fl-range-active {
     color: #3730a3 !important;
   }
 
-  /* â”€â”€ insight body text â”€â”€ */
+  /* ── insight body text ── */
   .theme-light .fl-product-page .insight-body { color: #475569 !important; }
 
-  /* â”€â”€ text-white: all white text in page â†’ dark on light bg (non-hover) â”€â”€ */
+  /* ── text-white: all white text in page → dark on light bg (non-hover) ── */
   .theme-light .fl-product-page .text-white { color: var(--fl-light-text) !important; }
 
-  /* â”€â”€ KPI card hover: dark purple gradient bg â†’ white text â”€â”€ */
+  /* ── KPI card hover: dark purple gradient bg → white text ── */
   .theme-light .fl-product-page .fl-product-kpi:hover .fl-product-title,
   .theme-light .fl-product-page .fl-product-kpi:hover .fl-product-value,
   .theme-light .fl-product-page .fl-product-kpi:hover .fl-product-support,
@@ -5077,7 +5077,7 @@
     box-shadow: none !important;
   }
 
-  /* â”€â”€ Recharts: tooltip popup â”€â”€ */
+  /* ── Recharts: tooltip popup ── */
   .theme-light .fl-product-page .recharts-tooltip-wrapper .recharts-default-tooltip {
     background: #FFFFFF !important;
     border: 1px solid #D8D0F4 !important;
@@ -5090,44 +5090,44 @@
   .theme-light .fl-product-page .recharts-tooltip-item-value { color: #475569 !important; }
   .theme-light .fl-product-page .recharts-bar-rectangle.recharts-bar-background-rectangle { fill: rgba(124,108,242,0.05) !important; }
 
-  /* â”€â”€ Recharts: axis tick SVG fill â”€â”€ */
+  /* ── Recharts: axis tick SVG fill ── */
   .theme-light .fl-product-page .recharts-cartesian-axis-tick text,
   .theme-light .fl-product-page .recharts-cartesian-axis-tick-value { fill: #64748b !important; }
 
-  /* â”€â”€ EmptyState: icon bg + dark-navy placeholder text â†’ mid-gray â”€â”€ */
+  /* ── EmptyState: icon bg + dark-navy placeholder text → mid-gray ── */
   .theme-light .fl-product-page [class*="text-[#3a4558]"] { color: #94a3b8 !important; }
   .theme-light .fl-product-page [class*="text-[#2d3748]"] { color: #94a3b8 !important; }
   .theme-light .fl-product-page .bg-white\/\[0\.04\] { background: rgba(124,108,242,0.07) !important; }
 
-  /* â”€â”€ Uncovered muted text hex values â†’ slate tones â”€â”€ */
+  /* ── Uncovered muted text hex values → slate tones ── */
   .theme-light .fl-product-page [class*="text-[#4a5568]"] { color: #64748b !important; }
   .theme-light .fl-product-page [class*="text-[#4a5a72]"] { color: #64748b !important; }
   .theme-light .fl-product-page [class*="text-[#3a4a60]"] { color: #94a3b8 !important; }
   .theme-light .fl-product-page [class*="text-[#6a7a82]"] { color: #64748b !important; }
 
-  /* â”€â”€ Inline color styles from JSX constants â†’ readable on white â”€â”€ */
+  /* ── Inline color styles from JSX constants → readable on white ── */
   .theme-light .fl-product-page [style*="#5A6A88"],
   .theme-light .fl-product-page [style*="#6B8099"] { color: #64748b !important; }
 
-  /* â”€â”€ Filterchip hover â†’ dark accent, not white â”€â”€ */
+  /* ── Filterchip hover → dark accent, not white ── */
   .theme-light .fl-product-page .fl-product-filterchip:hover {
     color: #4f46e5 !important;
     background: rgba(124,108,242,0.08) !important;
   }
 
-  /* â”€â”€ App filter active badge (bg-white/[0.12] text-white/70) â”€â”€ */
+  /* ── App filter active badge (bg-white/[0.12] text-white/70) ── */
   .theme-light .fl-product-page [class*="bg-white/[0.12]"] {
     background: rgba(124,108,242,0.10) !important;
     color: #4f46e5 !important;
   }
   .theme-light .fl-product-page [class*="text-white/70"] { color: rgba(79,70,229,0.75) !important; }
 
-  /* â”€â”€ h-[3px] app-list bar track â”€â”€ */
+  /* ── h-[3px] app-list bar track ── */
   .theme-light .fl-product-page [class*="h-[3px]"].overflow-hidden.rounded-full {
     background: rgba(124,108,242,0.08) !important;
   }
 
-  /* â”€â”€ Focus Quality Score card â€” light mode â”€â”€ */
+  /* ── Focus Quality Score card — light mode ── */
   .theme-light .fl-product-page .fl-score-factor-row .fl-product-support {
     color: #475569 !important;
   }
@@ -5135,20 +5135,20 @@
     color: var(--fl-light-text) !important;
   }
   .theme-light .fl-product-page .fl-score-weight-badge {
-    /* color and background set inline via meta.color â€” inherits fine */
+    /* color and background set inline via meta.color — inherits fine */
     opacity: 0.9;
   }
   .theme-light .fl-product-page .fl-score-icon-wrap {
-    /* background is inline meta.color based â€” fine */
+    /* background is inline meta.color based — fine */
   }
   /* divider between ring and factors */
   .theme-light .fl-product-page .bg-white\/\[0\.06\] {
     background: rgba(124,108,242,0.08) !important;
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     HEATMAP PAGE â€” additional light-mode fixes
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  /* ══════════════════════════════════════════════════════════════════
+     HEATMAP PAGE — additional light-mode fixes
+  ══════════════════════════════════════════════════════════════════ */
 
   /* Year nav buttons */
   .theme-light .fl-heatmap-page button[class*="border-white/"] {
@@ -5333,7 +5333,7 @@
     transition: filter 220ms ease, opacity 220ms ease, transform 220ms ease;
   }
 
-  /* Ring/donut: no transform transition â€” prevents GPU compositing layer
+  /* Ring/donut: no transform transition — prevents GPU compositing layer
      boundary artifact (visible box) inside backdrop-filter cards */
   .fl-product-page .fl-product-ring,
   .fl-product-page .fl-product-donut {
@@ -5577,7 +5577,7 @@
     min-width: 0;
   }
 
-  /* App list â€” below analytics, separated by a hairline */
+  /* App list — below analytics, separated by a hairline */
   .fl-home-apps-list {
     display: grid;
     gap: 6px;
@@ -6272,20 +6272,20 @@
     stroke: rgba(255,255,255,0.2) !important;
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     Light Mode â€” Premium Calendar Elevation
+  /* ══════════════════════════════════════════════════════════════════════════
+     Light Mode — Premium Calendar Elevation
      Glassmorphism surfaces, micro-interactions, stronger hierarchy,
      inline-style color corrections, 200ms ease-out transitions.
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  ══════════════════════════════════════════════════════════════════════════ */
 
-  /* â”€â”€ Day header: fix dark inline colors invisible in light mode â”€â”€ */
+  /* ── Day header: fix dark inline colors invisible in light mode ── */
   .theme-light .fl-calendar-day-header p[style*="#3D4555"] {
     color: #7A86A1 !important;
   }
   .theme-light .fl-calendar-day-header span[style*="#9CA3AF"] {
     color: #5E6A85 !important;
   }
-  /* Activity bar track â€” rgba(255,255,255,0.05) is invisible on white */
+  /* Activity bar track — rgba(255,255,255,0.05) is invisible on white */
   .theme-light .fl-calendar-day-header [style*="rgba(255,255,255,0.05)"][style*="height: 2"],
   .theme-light .fl-calendar-day-header [style*="height: 2"][style*="borderRadius: 99"] {
     background: rgba(107,92,242,0.12) !important;
@@ -6296,14 +6296,14 @@
     background: rgba(124,108,242,0.45) !important;
   }
 
-  /* â”€â”€ Day header: glass surface + smooth hover transition â”€â”€ */
+  /* ── Day header: glass surface + smooth hover transition ── */
   .theme-light .fl-calendar-day-header {
     backdrop-filter: blur(10px) saturate(1.25) !important;
     -webkit-backdrop-filter: blur(10px) saturate(1.25) !important;
     transition: background 200ms ease-out !important;
   }
 
-  /* â”€â”€ Event block: smooth hover micro-interaction â”€â”€ */
+  /* ── Event block: smooth hover micro-interaction ── */
   .theme-light .fl-calendar-block {
     transition:
       box-shadow 200ms ease-out,
@@ -6311,7 +6311,7 @@
     will-change: transform;
   }
 
-  /* â”€â”€ Metric cards: glassmorphism + hover lift â”€â”€ */
+  /* ── Metric cards: glassmorphism + hover lift ── */
   .theme-light .fl-calendar-metric-card {
     background:
       linear-gradient(145deg,
@@ -6337,7 +6337,7 @@
       inset 0 1px 0 rgba(255,255,255,1) !important;
     transform: translateY(-1px) !important;
   }
-  /* Metric value â€” higher contrast for readability */
+  /* Metric value — higher contrast for readability */
   .theme-light .fl-calendar-metric-card [style*="fontSize: 20"],
   .theme-light .fl-calendar-metric-card [style*="fontSize:20"],
   .theme-light .fl-calendar-metric-card [style*="fontWeight: 800"],
@@ -6346,7 +6346,7 @@
     text-shadow: 0 1px 2px rgba(255,255,255,0.8) !important;
   }
 
-  /* â”€â”€ Summary activity cards: glass surface + hover lift â”€â”€ */
+  /* ── Summary activity cards: glass surface + hover lift ── */
   .theme-light .fl-calendar-summary-activity-card {
     background:
       linear-gradient(160deg,
@@ -6369,7 +6369,7 @@
     transform: translateY(-1px) !important;
   }
 
-  /* â”€â”€ Summary event cards: hover transition â”€â”€ */
+  /* ── Summary event cards: hover transition ── */
   .theme-light .fl-calendar-summary-event-card {
     backdrop-filter: blur(8px) !important;
     -webkit-backdrop-filter: blur(8px) !important;
@@ -6386,7 +6386,7 @@
     transform: translateY(-1px) !important;
   }
 
-  /* â”€â”€ Summary section: subtle glass layering â”€â”€ */
+  /* ── Summary section: subtle glass layering ── */
   .theme-light .fl-calendar-summary-section {
     background:
       linear-gradient(180deg,
@@ -6401,13 +6401,13 @@
         transparent 100%) !important;
   }
 
-  /* â”€â”€ Summary section header labels â€” stronger contrast â”€â”€ */
+  /* ── Summary section header labels — stronger contrast ── */
   .theme-light .fl-calendar-summary [style*="fontWeight: 700"][style*="textTransform: uppercase"],
   .theme-light .fl-calendar-summary [style*="fontWeight: 700"][style*="letterSpacing"] {
     color: #3D3565 !important;
   }
 
-  /* â”€â”€ Summary goal pill â”€â”€ */
+  /* ── Summary goal pill ── */
   .theme-light .fl-calendar-summary-goal-pill {
     backdrop-filter: blur(6px) !important;
     -webkit-backdrop-filter: blur(6px) !important;
@@ -6416,7 +6416,7 @@
       inset 0 1px 0 rgba(255,255,255,0.80) !important;
   }
 
-  /* â”€â”€ Summary tabs: stronger active indicator â”€â”€ */
+  /* ── Summary tabs: stronger active indicator ── */
   .theme-light .fl-calendar-summary-tab[style*="var(--sp-text)"] {
     font-weight: 600 !important;
     color: #1A1540 !important;
@@ -6427,7 +6427,7 @@
     color: #3D3565 !important;
   }
 
-  /* â”€â”€ Active session banner: glass elevation â”€â”€ */
+  /* ── Active session banner: glass elevation ── */
   .theme-light .fl-calendar-summary-banner {
     backdrop-filter: blur(8px) !important;
     -webkit-backdrop-filter: blur(8px) !important;
@@ -6443,7 +6443,7 @@
       0 4px 14px rgba(16,185,129,0.06) !important;
   }
 
-  /* â”€â”€ Toolbar group buttons and icon buttons: hover transitions â”€â”€ */
+  /* ── Toolbar group buttons and icon buttons: hover transitions ── */
   .theme-light .fl-calendar-toolbar-group,
   .theme-light .fl-calendar-project-trigger,
   .theme-light .fl-calendar-toolbar-icon-btn {
@@ -6468,7 +6468,7 @@
     transform: translateY(-0.5px) !important;
   }
 
-  /* â”€â”€ New event button: smooth lift â”€â”€ */
+  /* ── New event button: smooth lift ── */
   .theme-light .fl-calendar-new-btn {
     transition:
       background 200ms ease-out,
@@ -6480,7 +6480,7 @@
     box-shadow: 0 14px 32px rgba(99,102,241,0.30) !important;
   }
 
-  /* â”€â”€ Summary icon buttons: hover transition â”€â”€ */
+  /* ── Summary icon buttons: hover transition ── */
   .theme-light .fl-calendar-summary-icon-btn {
     transition:
       background 200ms ease-out,
@@ -6491,7 +6491,7 @@
     color: #6B5CE7 !important;
   }
 
-  /* â”€â”€ Summary empty-state button â”€â”€ */
+  /* ── Summary empty-state button ── */
   .theme-light .fl-calendar-summary-empty-btn {
     transition:
       background 200ms ease-out,
@@ -6499,7 +6499,7 @@
       box-shadow 200ms ease-out !important;
   }
 
-  /* â”€â”€ Month view event pills: hover transition â”€â”€ */
+  /* ── Month view event pills: hover transition ── */
   .theme-light .fl-calendar-month-event {
     transition:
       box-shadow 200ms ease-out,
@@ -6510,7 +6510,7 @@
     box-shadow: 0 4px 12px rgba(107,92,242,0.16) !important;
   }
 
-  /* â”€â”€ Month cells: hover transition â”€â”€ */
+  /* ── Month cells: hover transition ── */
   .theme-light .fl-calendar-month-cell {
     transition:
       background 200ms ease-out,
@@ -6518,7 +6518,7 @@
       box-shadow 200ms ease-out !important;
   }
 
-  /* â”€â”€ Calendar main panel: richer ambient glow â”€â”€ */
+  /* ── Calendar main panel: richer ambient glow ── */
   .theme-light .fl-calendar-main {
     box-shadow:
       0 24px 60px rgba(107,92,242,0.10),
@@ -6527,7 +6527,7 @@
       0 0 0 1px rgba(186,174,255,0.28) !important;
   }
 
-  /* â”€â”€ Summary panel: ambient glow â”€â”€ */
+  /* ── Summary panel: ambient glow ── */
   .theme-light .fl-calendar-summary {
     box-shadow:
       0 24px 60px rgba(107,92,242,0.09),
@@ -6535,14 +6535,14 @@
       inset 1px 0 0 rgba(255,255,255,0.94) !important;
   }
 
-  /* â”€â”€ Today column: inner glow ring â”€â”€ */
+  /* ── Today column: inner glow ring ── */
   .theme-light .fl-calendar-week-day.is-today {
     box-shadow:
       inset 0 0 0 1px rgba(107,92,242,0.15),
       0 4px 20px rgba(107,92,242,0.08) !important;
   }
 
-  /* â”€â”€ Today date circle badge: tighter, more premium â”€â”€ */
+  /* ── Today date circle badge: tighter, more premium ── */
   .theme-light .fl-calendar-day-header.is-today
     div[style*="width: 26"][style*="borderRadius: '50%'"],
   .theme-light .fl-calendar-day-header.is-today
@@ -6556,23 +6556,23 @@
       0 0 14px rgba(124,108,242,0.30) !important;
   }
 
-  /* â”€â”€ Drag-range selection: glass tint â”€â”€ */
+  /* ── Drag-range selection: glass tint ── */
   .theme-light .fl-calendar-drag-range {
     backdrop-filter: blur(4px) !important;
     -webkit-backdrop-filter: blur(4px) !important;
   }
 
-  /* â”€â”€ Now pill: polish â”€â”€ */
+  /* ── Now pill: polish ── */
   .theme-light .fl-calendar-now-pill {
     backdrop-filter: blur(8px) !important;
     -webkit-backdrop-filter: blur(8px) !important;
   }
 
-  /* (summary panel redesign moved to end of file â€” outside @layer) */
+  /* (summary panel redesign moved to end of file — outside @layer) */
 
-  /* Panel container â€” moved outside @layer; see end of file */
+  /* Panel container — moved outside @layer; see end of file */
 
-  /* â”€â”€ Summary scrollbar â”€â”€ */
+  /* ── Summary scrollbar ── */
   .theme-light .fl-calendar-summary::-webkit-scrollbar-thumb {
     background: rgba(124,108,242,0.22) !important;
   }
@@ -6622,7 +6622,7 @@
   animation: scale-in 180ms ease-out;
 }
 
-/* â”€â”€â”€ CustomSelect component â€” dark-mode base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── CustomSelect component — dark-mode base ──────────────────────────────── */
 .fl-csel-trigger {
   background: #1A1D24;
   border: 1px solid #2D3242;
@@ -6680,7 +6680,7 @@
   animation: scale-in 120ms ease-out;
 }
 
-/* â”€â”€ Activity timeline tooltip â€” appear animation â”€â”€ */
+/* ── Activity timeline tooltip — appear animation ── */
 /* Default (tooltip above track): slides up into view */
 @keyframes fl-tooltip-appear {
   from {
@@ -6711,7 +6711,7 @@
   animation-name: fl-tooltip-appear-below;
 }
 
-/* â”€â”€ Week activity bar chart tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Week activity bar chart tooltip ──────────────────────────────────────── */
 @keyframes fl-week-bar-tip-in {
   from {
     opacity: 0;
@@ -6722,7 +6722,7 @@
     transform: translateY(0) scale(1);
   }
 }
-/* Centered variant â€” translateX(-50%) must be preserved alongside the Y */
+/* Centered variant — translateX(-50%) must be preserved alongside the Y */
 @keyframes fl-week-bar-tip-in-centered {
   from {
     opacity: 0;
@@ -6752,8 +6752,8 @@
     0 0 0 1px rgba(124, 108, 242, 0.10) !important;
 }
 
-/* â”€â”€ Activity page timeline tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* Shared fade-in â€” uses only opacity so it never fights the JS transform */
+/* ── Activity page timeline tooltip ─────────────────────────────────────────── */
+/* Shared fade-in — uses only opacity so it never fights the JS transform */
 @keyframes fl-activity-tip-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -6769,7 +6769,7 @@
   border-color: rgba(124,108,242,0.18) !important;
   box-shadow: 0 16px 44px rgba(124,108,242,0.20), 0 4px 16px rgba(124,108,242,0.12), 0 0 0 1px rgba(124,108,242,0.10) !important;
 }
-/* Accent strip â€” keep segment color, just brighten it for light mode */
+/* Accent strip — keep segment color, just brighten it for light mode */
 .theme-light .fl-activity-timeline-tooltip > div > div:first-child {
   opacity: 0.85;
 }
@@ -6809,9 +6809,9 @@
   border-bottom-color: rgba(124,108,242,0.10) !important;
 }
 
-/* â”€â”€ Focus Session Dock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Focus Session Dock ─────────────────────────────────────────────────────── */
 
-/* Slide-up entrance â€” full-width bar rises from the bottom edge */
+/* Slide-up entrance — full-width bar rises from the bottom edge */
 @keyframes profileDropIn {
   from { opacity: 0; transform: translateY(-6px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
@@ -6881,7 +6881,7 @@
   to   { opacity: 1; transform: translateY(0)   scale(1);    }
 }
 
-/* â”€â”€ Session Notes Modal â€” textarea placeholder colors â”€â”€ */
+/* ── Session Notes Modal — textarea placeholder colors ── */
 .fl-notes-textarea-dark::placeholder  { color: rgba(255,255,255,0.22); }
 .fl-notes-textarea-light::placeholder { color: rgba(26,23,48,0.32); }
 
@@ -6906,7 +6906,7 @@
   60%      { height: 13px; }
 }
 
-/* â”€â”€ Design token defaults (dark mode) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Design token defaults (dark mode) ───────────────────────────────────── */
 .fl-focus-dock-bar {
   /* Text */
   --dock-text-primary:   #EDF0FF;
@@ -6991,11 +6991,11 @@
   color: #FCA5A5 !important;
 }
 
-/* â”€â”€ Light mode â€” CSS custom property token overrides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── Light mode — CSS custom property token overrides ────────────────────────
    Surface backgrounds, borders, and button styles are handled by the
    makeDT() inline theme object in FocusSessionDock.jsx.
    Only CSS custom properties and class-based rules live here.
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+─────────────────────────────────────────────────────────────────────────── */
 .theme-light .fl-focus-dock-bar {
   --dock-text-primary:   #1A1830;
   --dock-text-task:      #2D2B45;
@@ -7012,7 +7012,7 @@
   --dock-dot-inactive:   rgba(124,108,242,0.20);
 }
 
-/* Dropdown menu items â€” light mode */
+/* Dropdown menu items — light mode */
 .theme-light .fl-focus-dock-menu-item {
   color: #2E2A4A !important;
 }
@@ -7021,12 +7021,12 @@
   color: #1A1730 !important;
 }
 
-/* Pulse ring in light mode â€” softer violet */
+/* Pulse ring in light mode — softer violet */
 .theme-light .fl-dock-pulse-ring {
   border-color: rgba(124, 108, 242, 0.35) !important;
 }
 
-/* Timer glow animation â€” disable on light bg (no dark canvas to glow against) */
+/* Timer glow animation — disable on light bg (no dark canvas to glow against) */
 .theme-light .fl-dock-timer-live { animation: none; text-shadow: none; }
 .theme-light .fl-dock-icon-live  { animation: none; }
 
@@ -7048,7 +7048,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0;
-  padding-right: 12px;
+  padding-right: 20px;
   margin-left: auto;
   flex-shrink: 0;
   box-sizing: border-box;
@@ -7057,8 +7057,20 @@
 .fl-topnav-utility-row {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+/* Productivity score widget — collapses to just the ring on narrow windows */
+@media (max-width: 1040px) {
+  .fl-prodscore-text {
+    display: none;
+  }
+  .fl-prodscore-widget {
+    background: transparent !important;
+    border-color: transparent !important;
+    padding: 0 !important;
+  }
 }
 
 .fl-topnav-profile-wrap {
@@ -7081,12 +7093,12 @@
   flex-shrink: 0;
 }
 
-/* Tasks split panel â€” subtask row delete button reveal on hover */
+/* Tasks split panel — subtask row delete button reveal on hover */
 .fl-subtask-row:hover .fl-subtask-del {
   opacity: 1 !important;
 }
 
-/* â”€â”€ Top navbar â€” light mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Top navbar — light mode ───────────────────────────────────────────── */
 .theme-light .fl-topnav {
   background: linear-gradient(180deg,#faf9ff 0%,#f4f1ff 100%) !important;
   border-bottom-color: rgba(124,108,242,0.14) !important;
@@ -7110,7 +7122,7 @@
   background: rgba(124,108,242,0.15) !important;
 }
 
-/* â”€â”€ Profile pill â€” light mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Profile pill — light mode ─────────────────────────────────────────── */
 .theme-light .fl-profile-pill {
   background: rgba(255,255,255,0.82) !important;
   border-color: rgba(124,108,242,0.18) !important;
@@ -7157,10 +7169,10 @@
   color: #7c6cf2 !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════════════════════════
    SETTINGS PAGE
    Two-column: sidebar nav (228px) + scrollable content area
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ══════════════════════════════════════════════════════════════ */
 
 .fl-settings-page {
   background:
@@ -7169,13 +7181,13 @@
     linear-gradient(180deg, rgba(11,14,22,0.99), rgba(9,12,18,1));
 }
 
-/* â”€â”€ Save toast entry animation â”€â”€ */
+/* ── Save toast entry animation ── */
 @keyframes settingsToastIn {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0)   scale(1); }
 }
 
-/* â”€â”€ Setting card glass surface â”€â”€ */
+/* ── Setting card glass surface ── */
 .fl-setting-card {
   transition: border-color 0.20s ease, box-shadow 0.20s ease;
 }
@@ -7184,9 +7196,9 @@
   box-shadow: 0 16px 50px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.05) !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SETTINGS PAGE â€” LIGHT MODE
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ══════════════════════════════════════════════════════════════
+   SETTINGS PAGE — LIGHT MODE
+   ══════════════════════════════════════════════════════════════ */
 
 .theme-light .fl-settings-page {
   background:
@@ -7220,7 +7232,7 @@
   border-color: rgba(107,92,242,0.16) !important;
 }
 
-/* Nav item hover / active handled via inline styles â€” extend here for keyboard focus */
+/* Nav item hover / active handled via inline styles — extend here for keyboard focus */
 .theme-light .fl-settings-page button:focus-visible {
   outline: 2px solid rgba(124,108,242,0.55) !important;
   outline-offset: 2px !important;
@@ -7255,7 +7267,7 @@
 /* Setting row separator */
 .theme-light .fl-setting-card .border-white\/\[0\.05\] { border-color: rgba(107,92,242,0.10) !important; }
 
-/* Toggle â€” light mode: resting state slightly visible */
+/* Toggle — light mode: resting state slightly visible */
 .theme-light .fl-settings-page button[style*="width: 40"][style*="height: 22"]:not([style*="linear-gradient"]) {
   background: rgba(107,92,242,0.16) !important;
 }
@@ -7326,13 +7338,13 @@
   border-color: rgba(107,92,242,0.20) !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SETTINGS PAGE â€” LIGHT MODE EXTENDED
+/* ══════════════════════════════════════════════════════════════
+   SETTINGS PAGE — LIGHT MODE EXTENDED
    Covers: seg controls, tag chips, kbd badges, duration pickers,
    nav icons, content header, danger zone, cal dialog, and more
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ══════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ Content header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Content header ─────────────────────────────────────────── */
 .theme-light .fl-settings-hdr {
   background: linear-gradient(180deg, rgba(244,241,255,0.98), rgba(237,233,255,0.92)) !important;
   border-bottom-color: rgba(107,92,242,0.16) !important;
@@ -7345,7 +7357,7 @@
 /* Section title */
 .theme-light .fl-settings-hdr h1 { color: #1a1640 !important; }
 
-/* â”€â”€ Sidebar nav icon (inactive) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Sidebar nav icon (inactive) ────────────────────────────── */
 .theme-light .fl-nav-icon--idle {
   background: rgba(107,92,242,0.08) !important;
   border-color: rgba(107,92,242,0.16) !important;
@@ -7362,12 +7374,12 @@
   background: rgba(107,92,242,0.07) !important;
 }
 
-/* â”€â”€ Sidebar footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Sidebar footer ─────────────────────────────────────────── */
 .theme-light .fl-settings-page > aside > div[style*="borderTop"] {
   border-top-color: rgba(107,92,242,0.16) !important;
 }
 
-/* â”€â”€ Segmented control â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Segmented control ──────────────────────────────────────── */
 .theme-light .fl-seg {
   background: rgba(107,92,242,0.07) !important;
   border-color: rgba(107,92,242,0.16) !important;
@@ -7388,7 +7400,7 @@
   color: #3a3060 !important;
 }
 
-/* â”€â”€ Tag / chip input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Tag / chip input ───────────────────────────────────────── */
 .theme-light .fl-tag-chip {
   background: rgba(107,92,242,0.08) !important;
   border-color: rgba(107,92,242,0.20) !important;
@@ -7403,7 +7415,7 @@
   background: rgba(107,92,242,0.24) !important;
 }
 
-/* â”€â”€ Duration picker presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Duration picker presets ────────────────────────────────── */
 .theme-light .fl-dur-preset--idle {
   background: rgba(107,92,242,0.07) !important;
   border-color: rgba(107,92,242,0.16) !important;
@@ -7415,7 +7427,7 @@
   color: #5842d6 !important;
 }
 
-/* â”€â”€ Keyboard shortcut badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Keyboard shortcut badges ───────────────────────────────── */
 .theme-light .fl-kbd {
   background: #FFFFFF !important;
   border-color: rgba(107,92,242,0.28) !important;
@@ -7423,7 +7435,7 @@
   color: #3a3060 !important;
 }
 
-/* â”€â”€ Accent color swatch ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Accent color swatch ring ───────────────────────────────── */
 .theme-light .fl-accent-swatch--active {
   box-shadow: 0 0 0 2.5px #F4F1FF, 0 0 0 4.5px currentColor !important;
 }
@@ -7434,7 +7446,7 @@
   outline-offset: 2px !important;
 }
 
-/* â”€â”€ Account section divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Account section divider ────────────────────────────────── */
 .theme-light .fl-settings-page div[style*="borderBottom: '1px solid rgba(255,255,255,0.06)'"],
 .theme-light .fl-settings-page div[style*="borderBottom:\"1px solid rgba(255,255,255,0.06)\""] {
   border-bottom-color: rgba(107,92,242,0.14) !important;
@@ -7445,7 +7457,7 @@
   color: #3a3560 !important;
 }
 
-/* â”€â”€ Tracker status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Tracker status badge ───────────────────────────────────── */
 .theme-light .fl-settings-page div[style*="rgba(255,255,255,0.06)"][style*="border"] {
   background: rgba(107,92,242,0.07) !important;
   border-color: rgba(107,92,242,0.18) !important;
@@ -7456,26 +7468,26 @@
   color: #7a6fa8 !important;
 }
 
-/* â”€â”€ Tracker running/stopped panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Tracker running/stopped panel ─────────────────────────── */
 .theme-light .fl-settings-page div[style*="rgba(255,255,255,0.03)"][style*="rgba(255,255,255,0.07)"] {
   background: rgba(107,92,242,0.04) !important;
   border-color: rgba(107,92,242,0.14) !important;
 }
 
-/* â”€â”€ Idle threshold pills â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Idle threshold pills ───────────────────────────────────── */
 .theme-light .fl-settings-page button[style*="rgba(255,255,255,0.08)"] {
   background: rgba(107,92,242,0.07) !important;
   border-color: rgba(107,92,242,0.18) !important;
   color: #5a4e90 !important;
 }
 
-/* â”€â”€ Supabase step items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Supabase step items ────────────────────────────────────── */
 .theme-light .fl-settings-page div[style*="rgba(255,255,255,0.04)"][style*="rgba(255,255,255,0.07)"] {
   background: rgba(107,92,242,0.04) !important;
   border-color: rgba(107,92,242,0.12) !important;
 }
 
-/* â”€â”€ Category type buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Category type buttons ──────────────────────────────────── */
 .theme-light .fl-settings-page button[style*="rgba(255,255,255,0.04)"][style*="rgba(255,255,255,0.08)"] {
   background: rgba(107,92,242,0.06) !important;
   border-color: rgba(107,92,242,0.15) !important;
@@ -7488,7 +7500,7 @@
   border-color: rgba(107,92,242,0.12) !important;
 }
 
-/* â”€â”€ Search results items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Search results items ───────────────────────────────────── */
 .theme-light .fl-settings-page div[style*="linear-gradient(145deg,rgba(18,22,34"] button {
   color: #1a1640 !important;
 }
@@ -7499,7 +7511,7 @@
   border-bottom-color: rgba(107,92,242,0.10) !important;
 }
 
-/* â”€â”€ Back button in cal dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Back button in cal dialog ──────────────────────────────── */
 .theme-light .fl-cal-dialog button[style*="rgba(255,255,255,0.05)"] {
   background: rgba(107,92,242,0.07) !important;
   border-color: rgba(107,92,242,0.18) !important;
@@ -7537,7 +7549,7 @@
   color: #1a1640 !important;
 }
 
-/* â”€â”€ Danger zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Danger zone ────────────────────────────────────────────── */
 .theme-light .fl-danger-zone {
   background: linear-gradient(145deg, #FFF8F8, #FFF1F2) !important;
   border-color: rgba(220,38,38,0.22) !important;
@@ -7566,7 +7578,7 @@
   border-color: rgba(239,68,68,0.16) !important;
 }
 
-/* â”€â”€ Daily summary time picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Daily summary time picker ──────────────────────────────── */
 .theme-light .fl-settings-page input[type="time"] {
   background: #FFFFFF !important;
   border-color: rgba(107,92,242,0.22) !important;
@@ -7574,32 +7586,32 @@
   color-scheme: light !important;
 }
 
-/* â”€â”€ Shortcut "Configure" buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Shortcut "Configure" buttons ───────────────────────────── */
 .theme-light .fl-settings-page button[style*="rgba(255,255,255,0.05)"][style*="rgba(255,255,255,0.10)"] {
   background: rgba(107,92,242,0.06) !important;
   border-color: rgba(107,92,242,0.18) !important;
   color: #5a4e90 !important;
 }
 
-/* â”€â”€ Privacy guarantee items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Privacy guarantee items ────────────────────────────────── */
 .theme-light .fl-settings-page div[style*="rgba(16,185,129,0.07)"][style*="rgba(16,185,129,0.14)"] p {
   color: #1a1640 !important;
 }
 
-/* â”€â”€ Focus Intelligence card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Focus Intelligence card ────────────────────────────────── */
 .theme-light .fl-settings-page div[style*="rgba(99,102,241,0.07)"],
 .theme-light .fl-settings-page div[style*="rgba(99,102,241,0.06)"] {
   background: rgba(99,102,241,0.06) !important;
   border-color: rgba(99,102,241,0.18) !important;
 }
 
-/* â”€â”€ Supabase status dot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Supabase status dot ─────────────────────────────────────── */
 .theme-light .fl-settings-page span[style*="background:'#6a7a98'"],
 .theme-light .fl-settings-page span.bg-\[#6a7a98\] {
   background-color: #b0a8d0 !important;
 }
 
-/* â”€â”€ Catch-all: hardcoded dark inline text colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Catch-all: hardcoded dark inline text colors ───────────── */
 .theme-light .fl-settings-page p[style*="color:'#6a7a98'"],
 .theme-light .fl-settings-page span[style*="color:'#6a7a98'"],
 .theme-light .fl-settings-page div[style*="color:'#6a7a98'"] {
@@ -7611,23 +7623,23 @@
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   CALENDAR EVENT BLOCKS â€” LIGHT MODE REFINED
+/* ════════════════════════════════════════════════════════════════════
+   CALENDAR EVENT BLOCKS — LIGHT MODE REFINED
    Appended last so cascade wins over all earlier block overrides.
-   Design system: macOS-style tinted-white cards Â· dark text Â·
-   colored accent stripe Â· soft hued shadows Â· clear visual hierarchy
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   Design system: macOS-style tinted-white cards · dark text ·
+   colored accent stripe · soft hued shadows · clear visual hierarchy
+   ════════════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ Base card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* White surface + very gentle category color wash (10â€“13%).
-   Far less saturated than the old 60â€“72% fills. */
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   LIGHT MODE â€” CLASSIC VIVID EVENT BLOCKS
+/* ── Base card ──────────────────────────────────────────────────── */
+/* White surface + very gentle category color wash (10–13%).
+   Far less saturated than the old 60–72% fills. */
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE — CLASSIC VIVID EVENT BLOCKS
    Solid, fully-saturated colour fills like Google Calendar / Apple Calendar.
    Technique: solid var(--fl-block-color) base + dark-to-transparent overlay
    gradient gives the subtle depth without needing color-mix().
    White text on coloured backgrounds; white glass inset highlight.
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ══════════════════════════════════════════════════════════════════════════════ */
 
 .theme-light .fl-calendar-block {
   background:
@@ -7654,7 +7666,7 @@
   transform: translateY(-1px) translateZ(0) !important;
 }
 
-/* â”€â”€ Overlay card (elevated above underlay) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Overlay card (elevated above underlay) ─────────────────── */
 .theme-light .fl-calendar-block--overlay {
   background:
     linear-gradient(160deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.18) 100%),
@@ -7677,7 +7689,7 @@
   filter: brightness(1.10) saturate(1.08) !important;
 }
 
-/* â”€â”€ Underlay card (sits behind the overlay â€” slightly lighter) â”€ */
+/* ── Underlay card (sits behind the overlay — slightly lighter) ─ */
 .theme-light .fl-calendar-block--underlay {
   background:
     linear-gradient(160deg, rgba(255,255,255,0.20) 0%, rgba(0,0,0,0.08) 100%),
@@ -7691,7 +7703,7 @@
   filter: none !important;
 }
 
-/* â”€â”€ Text on vivid coloured background â†’ white â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Text on vivid coloured background → white ───────────────── */
 .theme-light .fl-calendar-block,
 .theme-light .fl-calendar-block p,
 .theme-light .fl-calendar-block span {
@@ -7718,13 +7730,13 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22) !important;
 }
 
-/* â”€â”€ Type icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Type icon ──────────────────────────────────────────────── */
 .theme-light .fl-calendar-block__icon {
   color: rgba(255, 255, 255, 0.85) !important;
   opacity: 1;
 }
 
-/* â”€â”€ Duration badge: white-glass chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Duration badge: white-glass chip ──────────────────────── */
 .theme-light .fl-calendar-block__badge {
   background: rgba(0, 0, 0, 0.20) !important;
   border: 1px solid rgba(255, 255, 255, 0.32) !important;
@@ -7733,7 +7745,7 @@
   box-shadow: none !important;
 }
 
-/* â”€â”€ Underlay stacking layer: white veil + edge details â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Underlay stacking layer: white veil + edge details ─────── */
 .theme-light .fl-calendar-block__underlay-depth > div:first-child {
   background: linear-gradient(
     to left,
@@ -7771,13 +7783,13 @@
   text-shadow: none !important;
 }
 
-/* â”€â”€ Alternating hour-row fills â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* Near-invisible white on white bg â†’ swap for a subtle lavender tint */
+/* ── Alternating hour-row fills ─────────────────────────────── */
+/* Near-invisible white on white bg → swap for a subtle lavender tint */
 .theme-light .fl-calendar-timeline > div[style*="rgba(255,255,255,0.009)"] {
   background: rgba(237, 233, 255, 0.22) !important;
 }
 
-/* â”€â”€ Draft (drag-creating) block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Draft (drag-creating) block ───────────────────────────── */
 .theme-light .fl-calendar-draft-block {
   background:
     linear-gradient(165deg, rgba(124, 108, 242, 0.14), rgba(124, 108, 242, 0.09)),
@@ -7794,7 +7806,7 @@
   text-shadow: none !important;
 }
 
-/* â”€â”€ Workspace event rows (schedule list in summary panel) â”€â”€â”€â”€ */
+/* ── Workspace event rows (schedule list in summary panel) ──── */
 .theme-light .fl-calendar-workspace-event-row {
   padding: 9px 12px !important;
   margin-bottom: 5px;
@@ -7815,7 +7827,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 1) !important;
 }
 
-/* â”€â”€ Summary panel event cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Summary panel event cards ──────────────────────────────── */
 .theme-light .fl-calendar-summary-event-card {
   border: 1px solid #e2e8f0 !important;
   background: #FFFFFF !important;
@@ -7825,9 +7837,9 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.98) !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Export Modal â€” dark/light adaptive classes
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Export Modal — dark/light adaptive classes
+   ════════════════════════════════════════════════════════════════════════ */
 
 .fl-export-modal-card {
   background: rgba(9, 10, 20, 0.98);
@@ -7937,10 +7949,10 @@
 }
 .theme-light .fl-export-section-label { color: rgba(100, 116, 139, 0.80) !important; }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   fl-compact â€” Compact interface density
+/* ═══════════════════════════════════════════════════════════════════════════
+   fl-compact — Compact interface density
    Applied by Dashboard.jsx when prefs.density === 'compact'
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Sidebar nav items: shorten vertical padding */
 html.fl-compact .nav-item.py-3 {
@@ -7966,13 +7978,13 @@ html.fl-compact .fl-setting-card .px-5.py-5 {
   padding-bottom: 12px !important;
 }
 
-/* Settings rows â€” standard row */
+/* Settings rows — standard row */
 html.fl-compact .fl-settings-page .py-3\.5 {
   padding-top: 8px !important;
   padding-bottom: 8px !important;
 }
 
-/* Settings rows â€” full-width row */
+/* Settings rows — full-width row */
 html.fl-compact .fl-settings-page .py-4 {
   padding-top: 10px !important;
   padding-bottom: 10px !important;
@@ -8001,11 +8013,11 @@ html.fl-compact .fl-settings-page aside nav button {
 }
 
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   fl-reduce-motion â€” Disable all transitions & animations
+/* ═══════════════════════════════════════════════════════════════════════════
+   fl-reduce-motion — Disable all transitions & animations
    Applied by Dashboard.jsx when prefs.reduceMotion === true
    Mirrors the @media (prefers-reduced-motion) browser standard.
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 html.fl-reduce-motion *,
 html.fl-reduce-motion *::before,
@@ -8017,11 +8029,11 @@ html.fl-reduce-motion *::after {
   scroll-behavior: auto !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   CALENDAR â€” Premium Glassmorphism Redesign
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ═══════════════════════════════════════════════════════════════════════════
+   CALENDAR — Premium Glassmorphism Redesign
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ Shell â”€â”€ */
+/* ── Shell ── */
 .fl-calendar-shell {
   background:
     radial-gradient(ellipse at 18% 0%,   rgba(124,108,242,0.07) 0%, transparent 52%),
@@ -8029,7 +8041,7 @@ html.fl-reduce-motion *::after {
     #0C0F17 !important;
 }
 
-/* â”€â”€ Toolbar â”€â”€ */
+/* ── Toolbar ── */
 .fl-calendar-toolbar {
   height: 54px !important;
   background: linear-gradient(180deg,
@@ -8041,7 +8053,7 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 1px 0 rgba(255,255,255,0.022), 0 4px 20px rgba(0,0,0,0.14) !important;
 }
 
-/* â”€â”€ Toolbar nav group (chevron buttons) â”€â”€ */
+/* ── Toolbar nav group (chevron buttons) ── */
 .fl-calendar-toolbar-group {
   background: rgba(255,255,255,0.04) !important;
   border: 1px solid rgba(255,255,255,0.07) !important;
@@ -8050,7 +8062,7 @@ html.fl-reduce-motion *::after {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04) !important;
 }
 
-/* â”€â”€ Toolbar icon buttons (refresh, etc.) â”€â”€ */
+/* ── Toolbar icon buttons (refresh, etc.) ── */
 .fl-calendar-toolbar-icon-btn {
   transition: background 0.16s ease-out, border-color 0.16s ease-out,
               color 0.16s ease-out, box-shadow 0.16s ease-out !important;
@@ -8062,7 +8074,7 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 4px 12px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.07) !important;
 }
 
-/* â”€â”€ Secondary tabbar (Time entries / Tasks / Projects / Clients) â”€â”€ */
+/* ── Secondary tabbar (Time entries / Tasks / Projects / Clients) ── */
 .fl-calendar-tabbar {
   background: rgba(9,11,18,0.90) !important;
   backdrop-filter: blur(8px) !important;
@@ -8071,18 +8083,18 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 1px 0 rgba(255,255,255,0.018) !important;
 }
 
-/* â”€â”€ Hour gutter â”€â”€ */
+/* ── Hour gutter ── */
 .fl-calendar-gutter {
   background: rgba(9,11,18,0.80) !important;
   border-right: 1px solid rgba(255,255,255,0.042) !important;
 }
 
-/* â”€â”€ Grid lines (hour + half-hour already inline, these just handle the class) â”€â”€ */
+/* ── Grid lines (hour + half-hour already inline, these just handle the class) ── */
 .fl-calendar-grid-line {
   transition: opacity 0.1s ease;
 }
 
-/* â”€â”€ Scroll area â”€â”€ */
+/* ── Scroll area ── */
 .fl-calendar-scroll {
   scrollbar-gutter: stable;
 }
@@ -8096,12 +8108,12 @@ html.fl-reduce-motion *::after {
   background: rgba(124,108,242,0.32);
 }
 
-/* â”€â”€ Week column separators â”€â”€ */
+/* ── Week column separators ── */
 .fl-calendar-week-day {
   border-left-color: rgba(255,255,255,0.042) !important;
 }
 
-/* Today column â€” very subtle full-height tint */
+/* Today column — very subtle full-height tint */
 .fl-calendar-week-day.is-today {
   background: linear-gradient(180deg,
     rgba(124,108,242,0.035) 0%,
@@ -8109,7 +8121,7 @@ html.fl-reduce-motion *::after {
     transparent 70%) !important;
 }
 
-/* â”€â”€ Day headers (week view) â”€â”€ */
+/* ── Day headers (week view) ── */
 .fl-calendar-day-header {
   border-bottom: 1px solid rgba(255,255,255,0.042) !important;
   transition: background 0.16s ease-out !important;
@@ -8126,7 +8138,7 @@ html.fl-reduce-motion *::after {
   box-shadow: inset 0 1px 0 rgba(124,108,242,0.12) !important;
 }
 
-/* â”€â”€ Current-time indicator â”€â”€ */
+/* ── Current-time indicator ── */
 .fl-calendar-now-dot {
   box-shadow:
     0 0 0 2.5px rgba(239,68,68,0.16),
@@ -8158,7 +8170,7 @@ html.fl-reduce-motion *::after {
   border: 1px solid rgba(239,68,68,0.22) !important;
 }
 
-/* â”€â”€ Calendar + session blocks â”€â”€ */
+/* ── Calendar + session blocks ── */
 .fl-calendar-block {
   transition:
     filter      0.14s ease-out,
@@ -8189,7 +8201,7 @@ html.fl-reduce-motion *::after {
   -webkit-backdrop-filter: blur(4px) !important;
 }
 
-/* â”€â”€ Month grid cells â”€â”€ */
+/* ── Month grid cells ── */
 .fl-calendar-month-cell {
   border-radius: 12px !important;
   transition:
@@ -8211,7 +8223,7 @@ html.fl-reduce-motion *::after {
     0 4px 18px rgba(124,108,242,0.12) !important;
 }
 
-/* â”€â”€ Tooltip â”€â”€ */
+/* ── Tooltip ── */
 .fl-calendar-tooltip {
   backdrop-filter: blur(18px) saturate(1.5) !important;
   -webkit-backdrop-filter: blur(18px) saturate(1.5) !important;
@@ -8221,9 +8233,9 @@ html.fl-reduce-motion *::after {
   -webkit-backdrop-filter: blur(22px) saturate(1.5) !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SUMMARY PANEL â€” Premium Glass Redesign
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ══════════════════════════════════════════════════════
+   SUMMARY PANEL — Premium Glass Redesign
+   ══════════════════════════════════════════════════════ */
 
 .fl-calendar-summary {
   width: 284px !important;
@@ -8253,7 +8265,7 @@ html.fl-reduce-motion *::after {
   background: rgba(124,108,242,0.32);
 }
 
-/* â”€â”€ Summary header â”€â”€ */
+/* ── Summary header ── */
 .fl-calendar-summary-header {
   background: linear-gradient(180deg,
     rgba(18,20,32,0.94) 0%,
@@ -8268,12 +8280,12 @@ html.fl-reduce-motion *::after {
   height: 52px !important;
 }
 
-/* â”€â”€ Section dividers â”€â”€ */
+/* ── Section dividers ── */
 .fl-calendar-summary-section {
   border-bottom: 1px solid rgba(255,255,255,0.042) !important;
 }
 
-/* â”€â”€ Hero section (work hours + score ring) â”€â”€ */
+/* ── Hero section (work hours + score ring) ── */
 .fl-calendar-summary-hero {
   background: linear-gradient(180deg,
     rgba(124,108,242,0.05) 0%,
@@ -8281,7 +8293,7 @@ html.fl-reduce-motion *::after {
     transparent 100%) !important;
 }
 
-/* â”€â”€ Activity / chart cards â”€â”€ */
+/* ── Activity / chart cards ── */
 .fl-calendar-summary-activity-card {
   border-radius: 14px !important;
   background: linear-gradient(145deg,
@@ -8306,7 +8318,7 @@ html.fl-reduce-motion *::after {
     inset 0 1px 0 rgba(255,255,255,0.07) !important;
 }
 
-/* â”€â”€ KPI metric cards â”€â”€ */
+/* ── KPI metric cards ── */
 .fl-calendar-metric-card {
   border-radius: 14px !important;
   background: linear-gradient(145deg,
@@ -8333,7 +8345,7 @@ html.fl-reduce-motion *::after {
   transform: translateY(-1px) !important;
 }
 
-/* â”€â”€ Schedule / event cards â”€â”€ */
+/* ── Schedule / event cards ── */
 .fl-calendar-summary-event-card {
   border-radius: 14px !important;
   background: linear-gradient(145deg,
@@ -8358,7 +8370,7 @@ html.fl-reduce-motion *::after {
   transform: translateY(-1px) !important;
 }
 
-/* â”€â”€ Insight / banner blocks â”€â”€ */
+/* ── Insight / banner blocks ── */
 .fl-calendar-summary-banner {
   border-radius: 13px !important;
   backdrop-filter: blur(8px) !important;
@@ -8370,7 +8382,7 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 6px 20px rgba(124,108,242,0.10) !important;
 }
 
-/* â”€â”€ Goal pill â”€â”€ */
+/* ── Goal pill ── */
 .fl-calendar-summary-goal-pill {
   transition: transform 0.16s ease-out, box-shadow 0.16s ease-out !important;
 }
@@ -8378,12 +8390,12 @@ html.fl-reduce-motion *::after {
   transform: scale(1.05) !important;
 }
 
-/* â”€â”€ Mini timeline â”€â”€ */
+/* ── Mini timeline ── */
 .fl-calendar-mini-timeline {
   border-radius: 10px !important;
 }
 
-/* â”€â”€ Light mode overrides â”€â”€ */
+/* ── Light mode overrides ── */
 .theme-light .fl-calendar-shell {
   background:
     radial-gradient(ellipse at 18% 0%,   rgba(124,108,242,0.08) 0%, transparent 50%),
@@ -8447,7 +8459,7 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 1px 0 rgba(124,108,242,0.05) !important;
 }
 
-/* â”€â”€ Timer page â€” light mode â”€â”€ */
+/* ── Timer page — light mode ── */
 .theme-light .fl-card {
   transition: box-shadow 0.18s ease-out, transform 0.18s ease-out;
 }
@@ -8455,7 +8467,7 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 4px 20px rgba(124,108,242,0.08), 0 1px 4px rgba(15,23,42,0.06) !important;
 }
 
-/* AI Intelligence panel â€” light mode overlay */
+/* AI Intelligence panel — light mode overlay */
 .theme-light [class*="ai-fade"],
 .theme-light [style*="rgba(12,15,26"],
 .theme-light [style*="rgba(10,12,22"] {
@@ -8498,13 +8510,13 @@ html.fl-reduce-motion *::after {
     0 4px 16px rgba(124,108,242,0.12) !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   SUMMARY PANEL â€” Premium Light Mode
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUMMARY PANEL — Premium Light Mode
    All selectors use classNames added to SummaryPanel.jsx or correct DOM-style
    [style*="..."] attribute selectors (hyphenated props, no quotes around values)
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ Panel background (already handled above, reinforce depth) â”€â”€ */
+/* ── Panel background (already handled above, reinforce depth) ── */
 .theme-light .fl-calendar-summary {
   width: 284px !important;
   min-width: 284px !important;
@@ -8518,7 +8530,7 @@ html.fl-reduce-motion *::after {
     rgba(244,241,255,0.96) 100%) !important;
 }
 
-/* â”€â”€ Header â”€â”€ */
+/* ── Header ── */
 .theme-light .fl-calendar-summary-header {
   background: linear-gradient(180deg, #FFFFFF 0%, #FAF8FF 100%) !important;
   border-bottom: 1px solid rgba(196,181,253,0.30) !important;
@@ -8552,7 +8564,7 @@ html.fl-reduce-motion *::after {
   color: #C2410C !important;
 }
 
-/* â”€â”€ Section label (SL component) â”€â”€ */
+/* ── Section label (SL component) ── */
 .theme-light .fl-sp-sh-label {
   color: #4A4270 !important;
 }
@@ -8565,7 +8577,7 @@ html.fl-reduce-motion *::after {
   color: #6B5CE7 !important;
 }
 
-/* â”€â”€ Section dividers â”€â”€ */
+/* ── Section dividers ── */
 .theme-light .fl-calendar-summary-section {
   border-bottom: 1px solid rgba(196,181,253,0.22) !important;
 }
@@ -8575,7 +8587,7 @@ html.fl-reduce-motion *::after {
   border-bottom-color: rgba(196,181,253,0.28) !important;
 }
 
-/* â”€â”€ Hero section (work hours) â”€â”€ */
+/* ── Hero section (work hours) ── */
 .theme-light .fl-calendar-summary-hero {
   background: linear-gradient(160deg,
     rgba(124,108,242,0.06) 0%,
@@ -8616,7 +8628,7 @@ html.fl-reduce-motion *::after {
   background: rgba(196,181,253,0.28) !important;
 }
 
-/* â”€â”€ Tab group pill â”€â”€ */
+/* ── Tab group pill ── */
 .theme-light .fl-sp-tab-group {
   background: rgba(237,233,255,0.72) !important;
   border-color: rgba(196,181,253,0.30) !important;
@@ -8646,7 +8658,7 @@ html.fl-reduce-motion *::after {
   background: rgba(255,255,255,0.55) !important;
 }
 
-/* â”€â”€ Percentage/count chips â”€â”€ */
+/* ── Percentage/count chips ── */
 .theme-light .fl-calendar-summary [style*="var(--sp-bg-cell)"][style*="border-radius: 99px"],
 .theme-light .fl-calendar-summary [style*="var(--sp-bg-cell)"][style*="border-radius: 10px"] {
   background: rgba(237,233,255,0.82) !important;
@@ -8666,7 +8678,7 @@ html.fl-reduce-motion *::after {
   color: #5B5780 !important;
 }
 
-/* â”€â”€ Key Metrics 2Ã—2 grid â”€â”€ */
+/* ── Key Metrics 2×2 grid ── */
 .theme-light .fl-calendar-metric-card {
   background: linear-gradient(145deg, #FFFFFF 0%, rgba(248,245,255,0.96) 100%) !important;
   border: 1px solid rgba(196,181,253,0.30) !important;
@@ -8679,21 +8691,21 @@ html.fl-reduce-motion *::after {
   color: #6E6B8E !important;
 }
 
-/* â”€â”€ Behavior prompt items â”€â”€ */
+/* ── Behavior prompt items ── */
 .theme-light .fl-sp-prompt-item {
   background: rgba(124,108,242,0.05) !important;
   border-color: rgba(196,181,253,0.28) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.70) !important;
 }
 
-/* â”€â”€ Behavior banner â”€â”€ */
+/* ── Behavior banner ── */
 .theme-light .fl-calendar-summary-banner {
   background: linear-gradient(135deg, rgba(124,108,242,0.07), rgba(124,108,242,0.03)) !important;
   border: 1px solid rgba(124,108,242,0.18) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 2px 8px rgba(107,92,242,0.05) !important;
 }
 
-/* â”€â”€ Active session banner â”€â”€ */
+/* ── Active session banner ── */
 .theme-light .fl-calendar-summary-banner-active {
   background: linear-gradient(135deg, rgba(5,150,105,0.08), rgba(16,185,129,0.04)) !important;
   border: 1px solid rgba(5,150,105,0.22) !important;
@@ -8716,14 +8728,14 @@ html.fl-reduce-motion *::after {
   background: rgba(220,38,38,0.14) !important;
 }
 
-/* â”€â”€ Calendar event cards â”€â”€ */
+/* ── Calendar event cards ── */
 .theme-light .fl-calendar-summary-event-card {
   background: linear-gradient(180deg, #FFFFFF 0%, rgba(249,247,255,0.98) 100%) !important;
   border: 1px solid rgba(196,181,253,0.30) !important;
   box-shadow: 0 2px 8px rgba(107,92,242,0.06), inset 0 1px 0 rgba(255,255,255,0.96) !important;
 }
 
-/* â”€â”€ AI panel â”€â”€ */
+/* ── AI panel ── */
 
 /* AI hero narrative card */
 .theme-light .fl-sp-ai-hero {
@@ -8831,7 +8843,7 @@ html.fl-reduce-motion *::after {
   border-color: rgba(196,181,253,0.30) !important;
 }
 
-/* "Other" productivity bar segment â€” darken for light mode */
+/* "Other" productivity bar segment — darken for light mode */
 .theme-light .fl-calendar-summary [style*="linear-gradient(90deg, #4B5563, #374151)"] {
   background: linear-gradient(90deg, #9CA3AF, #6B7280) !important;
 }
@@ -8855,7 +8867,7 @@ html.fl-reduce-motion *::after {
   border-color: rgba(5,150,105,0.22) !important;
 }
 
-/* SL_COLOR (#96A3B5) catch-all â€” any element using this hardcoded color in summary panel */
+/* SL_COLOR (#96A3B5) catch-all — any element using this hardcoded color in summary panel */
 .theme-light .fl-calendar-summary [style*="color: #96A3B5"] {
   color: #4A4270 !important;
 }
@@ -8868,18 +8880,18 @@ html.fl-reduce-motion *::after {
   color: #4A4270 !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   AI SECTION â€” Premium Light Mode Redesign
+/* ═══════════════════════════════════════════════════════════════════════════
+   AI SECTION — Premium Light Mode Redesign
    Systematic redesign of every card, label, and interactive element in the
    AI tab. Targets correct DOM-rendered property names throughout.
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ AI section root: subtle page separation â”€â”€ */
+/* ── AI section root: subtle page separation ── */
 .theme-light .fl-sp-ai-section {
   gap: 10px !important;
 }
 
-/* â”€â”€ Loading skeleton â”€â”€ */
+/* ── Loading skeleton ── */
 .theme-light .fl-sp-ai-section [style*="rgba(124,108,242,0.07)"][style*="height: 72px"] {
   background: linear-gradient(135deg, rgba(107,92,242,0.07) 0%, rgba(107,92,242,0.03) 100%) !important;
   border-color: rgba(196,181,253,0.30) !important;
@@ -8890,7 +8902,7 @@ html.fl-reduce-motion *::after {
   border-color: rgba(196,181,253,0.22) !important;
 }
 
-/* â”€â”€ 1. HERO NARRATIVE CARD â”€â”€ */
+/* ── 1. HERO NARRATIVE CARD ── */
 .theme-light .fl-sp-ai-hero {
   background: linear-gradient(135deg,
     rgba(255,255,255,0.98) 0%,
@@ -8920,7 +8932,7 @@ html.fl-reduce-motion *::after {
 /* Hero body text */
 .theme-light .fl-sp-ai-hero [style*="color: var(--sp-text-sec)"] { color: #2D2A5E !important; }
 
-/* â”€â”€ 2. STATE + WORKFLOW ROW â”€â”€ */
+/* ── 2. STATE + WORKFLOW ROW ── */
 /* State chip: white glass with color-tinted border */
 .theme-light .fl-sp-ai-state {
   background: rgba(255,255,255,0.95) !important;
@@ -8931,7 +8943,7 @@ html.fl-reduce-motion *::after {
   backdrop-filter: blur(6px) !important;
   -webkit-backdrop-filter: blur(6px) !important;
 }
-/* "State" uppercase label inside state chip â€” keep the dynamic pState.color */
+/* "State" uppercase label inside state chip — keep the dynamic pState.color */
 /* Workflow chip */
 .theme-light .fl-sp-ai-workflow {
   background: rgba(255,255,255,0.95) !important;
@@ -8942,7 +8954,7 @@ html.fl-reduce-motion *::after {
 }
 .theme-light .fl-sp-ai-workflow [style*="color: #5A6A88"] { color: #6158A0 !important; }
 
-/* â”€â”€ 3. SESSION RECAP CARD â”€â”€ */
+/* ── 3. SESSION RECAP CARD ── */
 .theme-light .fl-sp-ai-recap {
   background: linear-gradient(135deg,
     rgba(255,255,255,0.97) 0%,
@@ -8971,7 +8983,7 @@ html.fl-reduce-motion *::after {
   color: #3D3862 !important;
 }
 
-/* â”€â”€ 4. PERFORMANCE METRICS CARD â”€â”€ */
+/* ── 4. PERFORMANCE METRICS CARD ── */
 .theme-light .fl-sp-ai-perf {
   background: linear-gradient(145deg,
     rgba(255,255,255,0.98) 0%,
@@ -8987,7 +8999,7 @@ html.fl-reduce-motion *::after {
 /* Total label / deep pct */
 .theme-light .fl-sp-ai-perf [style*="color: #7c6cf2"] { color: #5B4DCE !important; }
 .theme-light .fl-sp-ai-perf [style*="color: #34D399"] { color: #059669 !important; }
-/* Progress bar tracks (height 3px) â€” make visible */
+/* Progress bar tracks (height 3px) — make visible */
 .theme-light .fl-sp-ai-perf [style*="height: 3px"][style*="rgba(255,255,255,0.07)"] {
   background: rgba(196,181,253,0.30) !important;
   height: 5px !important;
@@ -9003,7 +9015,7 @@ html.fl-reduce-motion *::after {
 }
 .theme-light .fl-sp-ai-perf [style*="color: #5A6A88"][style*="font-size: 7.5px"] { color: #6158A0 !important; }
 
-/* â”€â”€ 5. WORKFLOW INTELLIGENCE CARD â”€â”€ */
+/* ── 5. WORKFLOW INTELLIGENCE CARD ── */
 .theme-light .fl-sp-ai-workflow-intel {
   background: linear-gradient(145deg,
     rgba(255,255,255,0.98) 0%,
@@ -9028,7 +9040,7 @@ html.fl-reduce-motion *::after {
 /* AI workspace usage value */
 .theme-light .fl-sp-ai-workflow-intel [style*="color: #60A5FA"] { color: #2563EB !important; }
 
-/* â”€â”€ 6. AI RECOMMENDATIONS â”€â”€ */
+/* ── 6. AI RECOMMENDATIONS ── */
 .theme-light .fl-sp-ai-rec-item {
   background: rgba(255,255,255,0.96) !important;
   box-shadow: 0 2px 10px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,1.0) !important;
@@ -9062,7 +9074,7 @@ html.fl-reduce-motion *::after {
 .theme-light .fl-sp-ai-rec-item [style*="color: #34D399"] { color: #059669 !important; }
 .theme-light .fl-sp-ai-rec-item [style*="color: #FBBF24"] { color: #B45309 !important; }
 
-/* â”€â”€ 7. RECOVERY INTELLIGENCE â”€â”€ */
+/* ── 7. RECOVERY INTELLIGENCE ── */
 .theme-light .fl-sp-ai-recovery {
   box-shadow: 0 2px 10px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.85) !important;
 }
@@ -9084,7 +9096,7 @@ html.fl-reduce-motion *::after {
 .theme-light .fl-sp-ai-recovery [style*="color: #F87171"] { filter: brightness(0.82) !important; }
 .theme-light .fl-sp-ai-recovery [style*="color: #FBBF24"] { color: #B45309 !important; }
 
-/* â”€â”€ 7b. LEARNED PATTERNS CARD â”€â”€ */
+/* ── 7b. LEARNED PATTERNS CARD ── */
 .theme-light .fl-sp-ai-learned {
   background: linear-gradient(135deg,
     rgba(255,255,255,0.98) 0%,
@@ -9107,7 +9119,7 @@ html.fl-reduce-motion *::after {
 /* Forecast line */
 .theme-light .fl-sp-ai-learned [style*="color: rgba(52,211,153,0.7)"] { color: #059669 !important; }
 
-/* â”€â”€ 8. SCHEDULE INTELLIGENCE â”€â”€ */
+/* ── 8. SCHEDULE INTELLIGENCE ── */
 .theme-light .fl-sp-ai-schedule {
   box-shadow: 0 3px 14px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.85) !important;
 }
@@ -9174,7 +9186,7 @@ html.fl-reduce-motion *::after {
   background: rgba(220,38,38,0.18) !important;
 }
 
-/* â”€â”€ 9. PEAK COGNITIVE WINDOW CARD â”€â”€ */
+/* ── 9. PEAK COGNITIVE WINDOW CARD ── */
 .theme-light .fl-sp-ai-peak {
   background: linear-gradient(145deg,
     rgba(255,255,255,0.98) 0%,
@@ -9199,14 +9211,14 @@ html.fl-reduce-motion *::after {
   border-top-color: rgba(196,181,253,0.20) !important;
 }
 
-/* â”€â”€ GLOBAL: all dark dividers inside AI section â”€â”€ */
+/* ── GLOBAL: all dark dividers inside AI section ── */
 .theme-light .fl-sp-ai-section [style*="background: rgba(255,255,255,0.04)"],
 .theme-light .fl-sp-ai-section [style*="background: rgba(255,255,255,0.05)"],
 .theme-light .fl-sp-ai-section [style*="background: rgba(255,255,255,0.06)"] {
   background: rgba(196,181,253,0.18) !important;
 }
 
-/* â”€â”€ GLOBAL: color corrections throughout AI section â”€â”€ */
+/* ── GLOBAL: color corrections throughout AI section ── */
 .theme-light .fl-sp-ai-section [style*="color: #9b8ff8"] { color: #5B4DCE !important; }
 .theme-light .fl-sp-ai-section [style*="color: #b8acff"] { color: #7C6CF2 !important; }
 .theme-light .fl-sp-ai-section [style*="color: #7c6cf2"] { color: #5B4DCE !important; }
@@ -9217,7 +9229,7 @@ html.fl-reduce-motion *::after {
 .theme-light .fl-sp-ai-section [style*="color: #60A5FA"] { color: #2563EB !important; }
 .theme-light .fl-sp-ai-section [style*="color: rgba(255,255,255,0.3)"] { color: #9188C0 !important; }
 
-/* â”€â”€ AI Command Bar cards â”€â”€ */
+/* ── AI Command Bar cards ── */
 /* Command preview card */
 .theme-light .fl-sp-ai-section [style*="rgba(52,211,153,0.07)"][style*="border-left"] {
   background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(245,255,252,0.96) 100%) !important;
@@ -9271,7 +9283,7 @@ html.fl-reduce-motion *::after {
 /* "Available times" label */
 .theme-light .fl-sp-ai-section [style*="color: #9b8ff8"][style*="font-size: 8.5px"] { color: #5B4DCE !important; }
 
-/* â”€â”€ Hover elevation for all fl-sp-ai-* cards â”€â”€ */
+/* ── Hover elevation for all fl-sp-ai-* cards ── */
 .theme-light .fl-sp-ai-hero,
 .theme-light .fl-sp-ai-recap,
 .theme-light .fl-sp-ai-perf,
@@ -9297,13 +9309,13 @@ html.fl-reduce-motion *::after {
     inset 0 1px 0 rgba(255,255,255,1.0) !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   ACTIVITY PAGE â€” THEME TOKENS
+/* ═══════════════════════════════════════════════════════════
+   ACTIVITY PAGE — THEME TOKENS
    Semantic CSS variables for dark + light mode
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ═══════════════════════════════════════════════════════════ */
 
 :root {
-  /* â”€â”€ Dashboard surfaces â”€â”€ */
+  /* ── Dashboard surfaces ── */
   --act-dash-bg:              #0d0d14;
   --act-dash-surface-bg:      #101018;
   --act-dash-surface-brd:     rgba(255,255,255,0.07);
@@ -9316,7 +9328,7 @@ html.fl-reduce-motion *::after {
   --act-dash-range-brd:       rgba(255,255,255,0.07);
   --act-dash-active-bg:       #2d2b38;
   --act-dash-grid-brd:        rgba(255,255,255,0.06);
-  /* â”€â”€ Detail panel / BlockDetail â”€â”€ */
+  /* ── Detail panel / BlockDetail ── */
   --act-detail-border:        rgba(255,255,255,0.07);
   --act-detail-section-div:   rgba(255,255,255,0.05);
   --act-detail-metric-bg:     rgba(255,255,255,0.03);
@@ -9332,9 +9344,9 @@ html.fl-reduce-motion *::after {
   --act-detail-action-hover:  rgba(255,255,255,0.09);
   --act-detail-action-hbrd:   rgba(255,255,255,0.16);
   --act-detail-ring-track:    rgba(255,255,255,0.06);
-  /* â”€â”€ KPI stat bar â”€â”€ */
+  /* ── KPI stat bar ── */
   --act-kpi-cell-border:      rgba(255,255,255,0.05);
-  /* â”€â”€ Interactive states (tabs, filters, row hovers) â”€â”€ */
+  /* ── Interactive states (tabs, filters, row hovers) ── */
   --act-hover-bg:             rgba(255,255,255,0.04);
   --act-hover-bg-sm:          rgba(255,255,255,0.025);
   --act-selected-bg:          rgba(255,255,255,0.07);
@@ -9344,7 +9356,7 @@ html.fl-reduce-motion *::after {
   --act-filter-active-text:   #eaeaf0;
   --act-inbox-active-bg:      #1a1d24;
   --act-inbox-active-text:    #eaeaf0;
-  /* â”€â”€ Light-tone surfaces (modals, panels) â”€â”€ */
+  /* ── Light-tone surfaces (modals, panels) ── */
   --act-surface-sm-bg:        rgba(255,255,255,0.025);
   --act-surface-sm-brd:       rgba(255,255,255,0.06);
   --act-surface-md-bg:        rgba(255,255,255,0.03);
@@ -9354,7 +9366,7 @@ html.fl-reduce-motion *::after {
 }
 
 :root.theme-light {
-  /* â”€â”€ Dashboard surfaces â”€â”€ */
+  /* ── Dashboard surfaces ── */
   --act-dash-bg:              #f4f1ff;
   --act-dash-surface-bg:      #ffffff;
   --act-dash-surface-brd:     rgba(124,108,242,0.14);
@@ -9367,7 +9379,7 @@ html.fl-reduce-motion *::after {
   --act-dash-range-brd:       rgba(124,108,242,0.15);
   --act-dash-active-bg:       rgba(124,108,242,0.14);
   --act-dash-grid-brd:        rgba(124,108,242,0.10);
-  /* â”€â”€ Detail panel / BlockDetail â”€â”€ */
+  /* ── Detail panel / BlockDetail ── */
   --act-detail-border:        rgba(124,108,242,0.12);
   --act-detail-section-div:   rgba(124,108,242,0.09);
   --act-detail-metric-bg:     rgba(255,255,255,0.75);
@@ -9383,9 +9395,9 @@ html.fl-reduce-motion *::after {
   --act-detail-action-hover:  rgba(124,108,242,0.10);
   --act-detail-action-hbrd:   rgba(124,108,242,0.22);
   --act-detail-ring-track:    rgba(124,108,242,0.09);
-  /* â”€â”€ KPI stat bar â”€â”€ */
+  /* ── KPI stat bar ── */
   --act-kpi-cell-border:      rgba(124,108,242,0.11);
-  /* â”€â”€ Interactive states â”€â”€ */
+  /* ── Interactive states ── */
   --act-hover-bg:             rgba(124,108,242,0.05);
   --act-hover-bg-sm:          rgba(124,108,242,0.03);
   --act-selected-bg:          rgba(124,108,242,0.09);
@@ -9395,7 +9407,7 @@ html.fl-reduce-motion *::after {
   --act-filter-active-text:   #1e1a3a;
   --act-inbox-active-bg:      rgba(124,108,242,0.09);
   --act-inbox-active-text:    #1e1a3a;
-  /* â”€â”€ Light-tone surfaces â”€â”€ */
+  /* ── Light-tone surfaces ── */
   --act-surface-sm-bg:        rgba(124,108,242,0.03);
   --act-surface-sm-brd:       rgba(124,108,242,0.10);
   --act-surface-md-bg:        rgba(124,108,242,0.025);
@@ -9404,7 +9416,7 @@ html.fl-reduce-motion *::after {
   --act-kw-btn-hover:         rgba(124,108,242,0.14);
 }
 
-/* â”€â”€ Reusable activity utility classes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Reusable activity utility classes ────────────────────── */
 
 /* Dashboard panel surface */
 .act-dash-surface {
@@ -9460,7 +9472,7 @@ html.fl-reduce-motion *::after {
   border-color:  var(--act-detail-action-hbrd);
 }
 
-/* â”€â”€ Tab / filter / inbox interactive button states â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Tab / filter / inbox interactive button states ─────── */
 .act-tab-btn { transition: background 0.15s ease, color 0.15s ease; }
 .act-tab-btn:hover:not(.is-active) { background: var(--act-hover-bg); }
 .act-tab-btn.is-active { background: var(--act-tab-active-bg); color: var(--act-tab-active-text); }
@@ -9493,7 +9505,7 @@ html.fl-reduce-motion *::after {
 .act-nav-btn { transition: background 0.12s ease, color 0.12s ease; }
 .act-nav-btn:hover { background: var(--act-hover-bg); }
 
-/* Inline-surface containers (previously bg-white/[0.025â€“0.08]) */
+/* Inline-surface containers (previously bg-white/[0.025–0.08]) */
 .act-surface-sm { background: var(--act-surface-sm-bg); border: 1px solid var(--act-surface-sm-brd); }
 .act-surface-md { background: var(--act-surface-md-bg); border: 1px solid var(--act-surface-md-brd); }
 .act-surface-sm-sel { background: var(--act-selected-bg); border: 1px solid var(--act-surface-md-brd); }
@@ -9506,12 +9518,12 @@ html.fl-reduce-motion *::after {
 }
 .act-kw-btn:hover { background: var(--act-kw-btn-hover); }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════
    PREMIUM LOADING SYSTEM
-   AppLoader Â· Skeleton Â· LoadingSpinner Â· PageTransition
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   AppLoader · Skeleton · LoadingSpinner · PageTransition
+   ═══════════════════════════════════════════════════════════ */
 
-/* â”€â”€ Skeleton shimmer (dark default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Skeleton shimmer (dark default) ──────────────────────── */
 .fl-skeleton {
   --sk-base:  #1A1D24;
   --sk-shine: #21263a;
@@ -9531,47 +9543,47 @@ html.fl-reduce-motion *::after {
   --sk-shine: #F8FAFC;
 }
 
-/* â”€â”€ Spinner rotation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Spinner rotation ──────────────────────────────────────── */
 @keyframes fl-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
 
-/* â”€â”€ Skeleton sweep â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Skeleton sweep ────────────────────────────────────────── */
 @keyframes fl-shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -100% 0; }
 }
 
-/* â”€â”€ Dot bounce (loader dots) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Dot bounce (loader dots) ──────────────────────────────── */
 @keyframes fl-dot-bounce {
   0%, 80%, 100% { transform: translateY(0);    opacity: 0.5; }
   40%            { transform: translateY(-4px); opacity: 1;   }
 }
 
-/* â”€â”€ Ambient glow pulse (AppLoader bg) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Ambient glow pulse (AppLoader bg) ─────────────────────── */
 @keyframes fl-glow-pulse {
   0%, 100% { transform: translate(-50%, -50%) scale(1);     opacity: 1;   }
   50%       { transform: translate(-50%, -50%) scale(1.15);  opacity: 0.65; }
 }
 
-/* â•â• Projects / Clients / Tasks â€” Premium UI polish â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ══ Projects / Clients / Tasks — Premium UI polish ════════════════════════ */
 
-/* â”€â”€ Table head: glass depth (dark mode) â”€â”€ */
+/* ── Table head: glass depth (dark mode) ── */
 .fl-table-head {
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   box-shadow: 0 4px 18px rgba(0,0,0,0.18), inset 0 -1px 0 rgba(255,255,255,0.035);
 }
 
-/* â”€â”€ Page toolbar: subtle depth (dark mode) â”€â”€ */
+/* ── Page toolbar: subtle depth (dark mode) ── */
 .fl-page-toolbar {
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
   box-shadow: 0 4px 14px rgba(0,0,0,0.12), inset 0 -1px 0 rgba(255,255,255,0.025);
 }
 
-/* â”€â”€ KPI metric card: lift micro-interaction â”€â”€ */
+/* ── KPI metric card: lift micro-interaction ── */
 .fl-kpi-card {
   transition:
     transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -9583,30 +9595,30 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 10px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.07) !important;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   LIGHT MODE â€” COMPREHENSIVE NEUTRAL PALETTE
+/* ═══════════════════════════════════════════════════════════════════
+   LIGHT MODE — COMPREHENSIVE NEUTRAL PALETTE
    Inspired by Linear / Stripe / Notion / Raycast
    All rules use !important to override purple-tinted cascade
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════════ */
 
-/* â”€â”€ Tasks page: neutral background (replace forced purple gradient) â”€â”€ */
+/* ── Tasks page: neutral background (replace forced purple gradient) ── */
 .theme-light .fl-tasks-page {
   background: linear-gradient(180deg, #F6F7F9 0%, #F4F6FA 100%) !important;
 }
 
-/* â”€â”€ Tasks work surface: clean card with neutral border â”€â”€ */
+/* ── Tasks work surface: clean card with neutral border ── */
 .theme-light .fl-tasks-page .fl-work-surface {
   border-color: #E2E8F0 !important;
   box-shadow: 0 4px 24px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.95) !important;
 }
 
-/* â”€â”€ Tasks toolbar â”€â”€ */
+/* ── Tasks toolbar ── */
 .theme-light .fl-tasks-toolbar {
   background: #FFFFFF !important;
   border-bottom-color: #E2E8F0 !important;
 }
 
-/* â”€â”€ Tasks toolbar: search + select inputs â”€â”€ */
+/* ── Tasks toolbar: search + select inputs ── */
 .theme-light .fl-tasks-toolbar input,
 .theme-light .fl-tasks-toolbar select {
   background: #FFFFFF !important;
@@ -9617,7 +9629,7 @@ html.fl-reduce-motion *::after {
   color: #94A3B8 !important;
 }
 
-/* â”€â”€ Tasks toolbar: secondary buttons (Export / Import) â”€â”€ */
+/* ── Tasks toolbar: secondary buttons (Export / Import) ── */
 .theme-light .fl-tasks-toolbar .fl-toolbar-secondary {
   background: #F9FAFB !important;
   border-color: #E2E8F0 !important;
@@ -9635,7 +9647,7 @@ html.fl-reduce-motion *::after {
   color: #64748B !important;
 }
 
-/* â”€â”€ Stats row cards â”€â”€ */
+/* ── Stats row cards ── */
 .theme-light .fl-stats-row > button {
   background: #FFFFFF !important;
   border-color: #E2E8F0 !important;
@@ -9646,7 +9658,7 @@ html.fl-reduce-motion *::after {
   border-color: rgba(124,108,242,0.22) !important;
   box-shadow: 0 4px 16px rgba(15,23,42,0.08), 0 0 0 1px rgba(124,108,242,0.10) !important;
 }
-/* Stats value number (near-white in dark â†’ near-black in light) */
+/* Stats value number (near-white in dark → near-black in light) */
 .theme-light .fl-stats-row > button > div:last-child > p:first-child {
   color: #111827 !important;
 }
@@ -9655,7 +9667,7 @@ html.fl-reduce-motion *::after {
   color: #64748B !important;
 }
 
-/* â”€â”€ Task list: sticky column header â”€â”€ */
+/* ── Task list: sticky column header ── */
 .theme-light .fl-task-list-header {
   background: #FFFFFF !important;
   border-bottom-color: #E2E8F0 !important;
@@ -9666,7 +9678,7 @@ html.fl-reduce-motion *::after {
   color: #94A3B8 !important;
 }
 
-/* â”€â”€ Task rows: borders + hover â”€â”€ */
+/* ── Task rows: borders + hover ── */
 .theme-light .fl-task-row {
   border-bottom-color: #EEF2F7 !important;
 }
@@ -9679,7 +9691,7 @@ html.fl-reduce-motion *::after {
   box-shadow: inset 3px 0 0 rgba(52,211,153,0.28), 0 1px 6px rgba(15,23,42,0.03) !important;
 }
 
-/* â”€â”€ Task title: critical â€” was near-white (#E4E8F4) on white bg â”€â”€ */
+/* ── Task title: critical — was near-white (#E4E8F4) on white bg ── */
 .theme-light .fl-task-row .fl-task-title {
   color: #111827 !important;
 }
@@ -9687,34 +9699,34 @@ html.fl-reduce-motion *::after {
   color: #94A3B8 !important;
 }
 
-/* â”€â”€ Project name in task rows: was faded #B0BAD0 â”€â”€ */
+/* ── Project name in task rows: was faded #B0BAD0 ── */
 .theme-light .fl-task-row .fl-proj-name {
   color: #475569 !important;
 }
 
-/* â”€â”€ Task row: tracked time value (was near-white #C4C4D4) â”€â”€ */
+/* ── Task row: tracked time value (was near-white #C4C4D4) ── */
 .theme-light .fl-task-row > div[style*="flex-end"] span:first-of-type {
   color: #374151 !important;
 }
 
-/* â”€â”€ Task row: empty dash placeholders â”€â”€ */
+/* ── Task row: empty dash placeholders ── */
 .theme-light .fl-task-row span[style*="rgb(42"] {
   color: #CBD5E1 !important;
 }
 
-/* â”€â”€ Task row: progress bar tracks (subtask + time) â”€â”€ */
+/* ── Task row: progress bar tracks (subtask + time) ── */
 .theme-light .fl-task-row div[style*="border-radius: 99px"][style*="overflow: hidden"] {
   background: #EEF2F7 !important;
 }
 
-/* â”€â”€ Filters bar â”€â”€ */
+/* ── Filters bar ── */
 .theme-light .fl-tasks-filters {
   background: #F9FAFB !important;
   border-bottom-color: #E2E8F0 !important;
   box-shadow: none !important;
 }
 
-/* â”€â”€ Filter chips: inactive state â”€â”€ */
+/* ── Filter chips: inactive state ── */
 .theme-light .fl-task-chip:not(.fl-task-chip-active) {
   background: transparent !important;
   border-color: #E2E8F0 !important;
@@ -9738,12 +9750,12 @@ html.fl-reduce-motion *::after {
   border-color: rgba(124,108,242,0.30) !important;
 }
 
-/* â”€â”€ Filter bar divider line (was near-black rgba(42,47,58)) â”€â”€ */
+/* ── Filter bar divider line (was near-black rgba(42,47,58)) ── */
 .theme-light .fl-tasks-filters [style*="rgba(42"] {
   background: #CBD5E1 !important;
 }
 
-/* â”€â”€ Sort buttons â”€â”€ */
+/* ── Sort buttons ── */
 .theme-light .fl-tasks-filters button:not(.fl-task-chip) {
   color: #64748B !important;
 }
@@ -9759,7 +9771,7 @@ html.fl-reduce-motion *::after {
   color: #5B4DCE !important;
 }
 
-/* â”€â”€ Subtask expansion area (was rgba(7,9,14,0.5) near-black) â”€â”€ */
+/* ── Subtask expansion area (was rgba(7,9,14,0.5) near-black) ── */
 .theme-light .fl-tasks-page .subtask-expand > div > div {
   background: #F8FAFC !important;
   border-top-color: #E2E8F0 !important;
@@ -9768,12 +9780,12 @@ html.fl-reduce-motion *::after {
   border-left-color: #E2E8F0 !important;
 }
 
-/* â”€â”€ Quick action icon buttons â”€â”€ */
+/* ── Quick action icon buttons ── */
 .theme-light .fl-tasks-page .fl-qa-btn {
   color: #94A3B8 !important;
 }
 
-/* â”€â”€ Scrollbar â”€â”€ */
+/* ── Scrollbar ── */
 .theme-light .fl-tasks-table-wrap::-webkit-scrollbar-thumb {
   background: rgba(15,23,42,0.14) !important;
 }
@@ -9781,11 +9793,11 @@ html.fl-reduce-motion *::after {
   background: rgba(124,108,242,0.32) !important;
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   LIGHT MODE â€” Projects & Clients pages
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─────────────────────────────────────────────────────────────────
+   LIGHT MODE — Projects & Clients pages
+───────────────────────────────────────────────────────────────── */
 
-/* â”€â”€ Table heads: crisp white with neutral bottom border â”€â”€ */
+/* ── Table heads: crisp white with neutral bottom border ── */
 .theme-light .fl-projects-page .fl-table-head,
 .theme-light .fl-clients-page .fl-table-head {
   background: #FFFFFF !important;
@@ -9794,7 +9806,7 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 1px 0 #E2E8F0, 0 4px 12px rgba(15,23,42,0.04) !important;
 }
 
-/* â”€â”€ Page toolbars: clean white â”€â”€ */
+/* ── Page toolbars: clean white ── */
 .theme-light .fl-clients-page .fl-page-toolbar,
 .theme-light .fl-projects-page .fl-page-toolbar {
   background: rgba(255,255,255,0.99) !important;
@@ -9802,7 +9814,7 @@ html.fl-reduce-motion *::after {
   box-shadow: 0 1px 0 #E2E8F0, 0 2px 8px rgba(15,23,42,0.04) !important;
 }
 
-/* â”€â”€ KPI strip: premium white cards with neutral shadow â”€â”€ */
+/* ── KPI strip: premium white cards with neutral shadow ── */
 .theme-light .fl-projects-page .fl-kpi-card {
   background: #FFFFFF !important;
   border-color: #E2E8F0 !important;
@@ -9825,7 +9837,7 @@ html.fl-reduce-motion *::after {
   color: #64748B !important;
 }
 
-/* â”€â”€ Table row text: strong dark hierarchy â”€â”€ */
+/* ── Table row text: strong dark hierarchy ── */
 .theme-light .fl-projects-page .fl-table-row .text-white,
 .theme-light .fl-clients-page .fl-table-row .text-white {
   color: #111827 !important;
@@ -9843,7 +9855,7 @@ html.fl-reduce-motion *::after {
   color: #64748B !important;
 }
 
-/* â”€â”€ Table row hover: clean neutral surface â”€â”€ */
+/* ── Table row hover: clean neutral surface ── */
 .theme-light .fl-projects-page .fl-table-row:hover {
   background: #F8FAFC !important;
 }
@@ -9851,7 +9863,7 @@ html.fl-reduce-motion *::after {
   background: #F8FAFC !important;
 }
 
-/* â”€â”€â”€ Analytics Page (ProjectAnalyticsPage) â€” Light Mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Analytics Page (ProjectAnalyticsPage) — Light Mode ──────────────────── */
 
 /* KPI card border */
 .theme-light .fl-report-page .fl-kpi-card {
@@ -9906,7 +9918,7 @@ html.fl-reduce-motion *::after {
 .theme-light .fl-report-page .text-green-300 { color: #16A34A !important; }
 .theme-light .fl-report-page .text-red-300   { color: #DC2626 !important; }
 
-/* â”€â”€â”€ Tasks workspace â€” unlayered overrides (highest specificity) â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Tasks workspace — unlayered overrides (highest specificity) ──────── */
 .theme-light .fl-tasks-workspace {
   background: #F6F7F9 !important;
 }
@@ -9942,7 +9954,7 @@ html.fl-reduce-motion *::after {
   background: #F6F7F9 !important;
 }
 
-/* Text colours â€” override dark-mode inline colour values in tasks/subtasks */
+/* Text colours — override dark-mode inline colour values in tasks/subtasks */
 .theme-light .fl-subtasks-panel [style*="color: rgb(234, 234, 240)"],
 .theme-light .fl-subtasks-panel [style*="color: rgba(234, 234, 240"],
 .theme-light .fl-subtasks-panel [style*="color:#EAEAF0"],

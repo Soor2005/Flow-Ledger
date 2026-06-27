@@ -1498,7 +1498,7 @@ export default function ProductivityPage({ user }) {
           const title    = 'Flow Ledger — Focus & Deep Work Analytics';
           const filename = `flow-ledger-productivity-${mod}-${range}d-${new Date().toISOString().split('T')[0]}.csv`;
           if (format === 'csv') exportAsCSV(title, meta, sections, filename);
-          else exportAsPDF(title, meta, sections);
+          else await exportAsPDF(title, meta, sections);
         }}
       />
     </div>

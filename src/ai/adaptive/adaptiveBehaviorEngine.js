@@ -54,7 +54,13 @@ function save(key, value) {
 
 // ─── Math helpers ─────────────────────────────────────────────────────────────
 
-function ewma(prev, next, alpha = EWMA_A) {
+// Per-session temporal decay weight, applied to every ewma() call made while
+// learning a given session (see learn() below) so older sessions pull the
+// running averages less strongly than recent ones — without threading an
+// `alpha` argument through every individual learn*Patterns() call site.
+let _currentAlpha = EWMA_A;
+
+function ewma(prev, next, alpha = _currentAlpha) {
   return prev == null ? next : alpha * next + (1 - alpha) * prev;
 }
 
@@ -814,8 +820,14 @@ export function learn(sessions = [], autoSessions = [], asOf = new Date()) {
   const newLearnedKeys = [];
 
   for (const session of allSessions) {
-    const sessionKey = session.id || `${session.started_at}|${session.ended_at}`;
-    if (learnedKeys.has(sessionKey)) continue; // already learned — skip
+    // Fold in the fields that actually change what gets learned (category,
+    // deep-work flag, title) so that re-categorizing or re-titling a session
+    // after the fact produces a new key and gets re-learned with the
+    // corrected data, instead of being permanently skipped just because the
+    // same session id/time-range was already seen once.
+    const idPart = session.id || `${session.started_at}|${session.ended_at}`;
+    const sessionKey = `${idPart}|${session.ai_category || session.category || ''}|${!!session.is_deep_work}|${session.title || session.window_title || ''}`;
+    if (learnedKeys.has(sessionKey)) continue; // already learned with this exact data — skip
     newLearnedKeys.push(sessionKey);
 
     const features = extractSessionFeatures(session);
@@ -838,15 +850,22 @@ export function learn(sessions = [], autoSessions = [], asOf = new Date()) {
     const energy  = computeEnergyScore(features, P);
     const flow    = detectFlowState(features, P);
 
-    // Apply temporal weight to learning rates
-    const alpha = EWMA_A * weight;
-
-    learnFocusPatterns(P, features, score);
-    learnEnergyPatterns(P, features, energy);
-    learnWorkflowMemory(P, features);
-    learnContextSwitchPatterns(P, features);
-    learnBurnoutTracker(P, features);
-    learnSchedulingPatterns(P, features);
+    // Apply temporal weight to learning rates — older sessions move the
+    // running EWMAs less than recent ones. _currentAlpha is module-scoped
+    // and read by every ewma() call inside the learn*Patterns functions
+    // below; always reset it afterward so unrelated ewma() callers (e.g.
+    // outside this loop) aren't left using a decayed rate.
+    _currentAlpha = EWMA_A * weight;
+    try {
+      learnFocusPatterns(P, features, score);
+      learnEnergyPatterns(P, features, energy);
+      learnWorkflowMemory(P, features);
+      learnContextSwitchPatterns(P, features);
+      learnBurnoutTracker(P, features);
+      learnSchedulingPatterns(P, features);
+    } finally {
+      _currentAlpha = EWMA_A;
+    }
 
     updateDailyHistory(
       P, features.date, score,
@@ -1118,22 +1137,29 @@ export function forecastProductivity(hoursAhead = 4) {
     const fatiguePenalty = P.burnout.fatigue * 0.25;
     const predicted = clamp(blended - fatiguePenalty);
 
-    const isBestWindow = predicted >= 70 && (P.focus.peakWindow
-      ? hour >= (P.focus.bestHour || 9) && hour <= (P.focus.bestHour || 9) + 3
-      : false);
-
     forecast.push({
       hour,
       label:          fmtHour(hour),
       predictedScore: Math.round(predicted),
       confidence:     Math.round(conf * 100),
-      isBestWindow,
       energyLevel:    Math.round(energy),
       recommendation: predicted >= 75 ? 'Schedule deep work here'
         : predicted >= 55 ? 'Good for focused tasks'
         : predicted >= 35 ? 'Better for shallow work or meetings'
         : 'Consider a break — low energy window',
     });
+  }
+
+  // isBestWindow used to be based on a fixed `bestHour..bestHour+3` window
+  // from historical learning, so it could point at a stale hour (e.g. one
+  // depressed by current fatigue) while ignoring an actually-higher-scoring
+  // hour elsewhere in *this* forecast. Mark the real best-scoring entry/
+  // entries instead, once the full forecast is built.
+  const maxPredicted = forecast.reduce((m, f) => Math.max(m, f.predictedScore), -Infinity);
+  if (maxPredicted >= 70) {
+    for (const f of forecast) f.isBestWindow = f.predictedScore === maxPredicted;
+  } else {
+    for (const f of forecast) f.isBestWindow = false;
   }
 
   return forecast;

@@ -5,6 +5,7 @@ import {
   Square, ChevronDown, ChevronUp,
   Volume2, VolumeX, Music, Pause, Play,
   Trash2, Coffee, CheckCircle, X, Zap, PenLine,
+  EyeOff, Eye,
 } from 'lucide-react';
 import SessionNotesModal from './SessionNotesModal';
 
@@ -437,6 +438,10 @@ export default function FocusSessionDock({ activeSession, scheduledSession, side
   const [editingTask,  setEditingTask] = useState(false);
   const [taskEditVal,  setTaskEditVal] = useState('');
 
+  // ── Auto-tracker (app & website tracking) state ─────────────────────────────
+  const [autoFocusState, setAutoFocusState] = useState(null);
+  const isTrackingPaused = autoFocusState === 'user_paused';
+
   const prevRef          = useRef(null);
   const elapsedRef       = useRef(0);
   const endTimer         = useRef(null);
@@ -501,6 +506,16 @@ export default function FocusSessionDock({ activeSession, scheduledSession, side
     return () => window.removeEventListener('fl-session-note', h);
   }, []);
 
+  // ── Sync auto-tracker state (app & website tracking on/off) ────────────────
+  useEffect(() => {
+    const unsub = api.onAutoFocusState?.((data) => {
+      if (!data) return;
+      setAutoFocusState(data.state);
+    });
+    api.getAutoFocusState?.().then(s => { if (s) setAutoFocusState(s.state); }).catch(() => {});
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, []);
+
   // ── Outside click closes dropdown ───────────────────────────────────────────
   useEffect(() => {
     if (!dropOpen) return;
@@ -535,6 +550,17 @@ export default function FocusSessionDock({ activeSession, scheduledSession, side
     pauseStartMsRef.current = null;
     setIsPaused(false);
     setElapsed(e => e);
+  }, []);
+
+  // Stops/resumes the global auto-tracker (app & website tracking) — independent
+  // of any manually-started focus session above.
+  const handleStopTracking = useCallback(() => {
+    setDropOpen(false);
+    api.pauseAutoSession?.().catch(() => {});
+  }, []);
+  const handleResumeTracking = useCallback(() => {
+    setDropOpen(false);
+    api.resumeAutoTracking?.().catch(() => {});
   }, []);
 
   const ms       = musicState;
@@ -692,6 +718,14 @@ export default function FocusSessionDock({ activeSession, scheduledSession, side
       <DropItem icon={<Music size={12} style={{ color: '#A89CF7' }} />} label="Change Sound"
         onClick={() => { setDropOpen(false); onOpenMusic?.(); }} />
       <div style={{ height: 1, background: DT.dropDivider, margin: '3px 0' }} />
+      {isTrackingPaused ? (
+        <DropItem icon={<Eye size={12} style={{ color: '#34D399' }} />} label="Resume Tracking"
+          onClick={handleResumeTracking} />
+      ) : (
+        <DropItem icon={<EyeOff size={12} style={{ color: '#F87171' }} />} label="Stop Tracking"
+          onClick={handleStopTracking} />
+      )}
+      <div style={{ height: 1, background: DT.dropDivider, margin: '3px 0' }} />
       {!discardConf ? (
         <DropItem icon={<Trash2 size={12} style={{ color: '#F87171' }} />} label="Discard Session" danger
           onClick={() => setDiscardConf(true)} />
@@ -828,6 +862,19 @@ export default function FocusSessionDock({ activeSession, scheduledSession, side
                     {aiState.label}
                   </span>
                 ) : null)}
+                {isTrackingPaused && (
+                  <span title="App & website tracking is stopped" style={{
+                    fontSize: 8, fontWeight: 700, textTransform: 'uppercase',
+                    letterSpacing: '0.07em', lineHeight: 1,
+                    padding: '2.5px 6px', borderRadius: 5,
+                    background: 'rgba(248,113,113,0.12)',
+                    border: '1px solid rgba(248,113,113,0.24)',
+                    color: '#F87171', flexShrink: 0, display: 'flex',
+                    alignItems: 'center', gap: 3,
+                  }}>
+                    <EyeOff size={8} /> Tracking Off
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1111,6 +1158,20 @@ export default function FocusSessionDock({ activeSession, scheduledSession, side
                 }} />
               )}
             </div>
+
+            {/* Stop / Resume auto-tracking (app & website) */}
+            <GhostBtn
+              onClick={isTrackingPaused ? handleResumeTracking : handleStopTracking}
+              title={isTrackingPaused ? 'Resume app & website tracking' : 'Stop app & website tracking'}
+              size={30}
+              hoverColor={isTrackingPaused ? '#34D399' : '#F87171'}
+              hoverBg={isTrackingPaused ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.11)'}
+              hoverBorderColor={isTrackingPaused ? 'rgba(52,211,153,0.20)' : 'rgba(248,113,113,0.20)'}
+            >
+              {isTrackingPaused
+                ? <Eye size={12} style={{ color: '#34D399' }} />
+                : <EyeOff size={12} />}
+            </GhostBtn>
 
             {/* More / overflow chevron */}
             <button

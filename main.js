@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, Notification, session: electronSession, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, Notification, nativeImage, session: electronSession, screen, dialog } = require('electron');
 
 // ─── GPU workaround: relaunch with sandbox disabled on first run ──────────────
 // On Windows + NVIDIA, Electron's GPU *sandbox process* crashes silently,
@@ -18,8 +18,14 @@ const { exec } = require('child_process');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { AutoTracker }     = require('./tracker');
+const {
+  trackingWorkflowManager,
+  WORKFLOW_EVENTS,
+  normalizeToolName,
+} = require('./workflow/workflowEngine');
 const { createTray, destroyTray } = require('./tray');
 const { FlowLedgerAI, WORKFLOW_NAMES } = require('./ai-engine');
+const { parseTitleHistory, pushTitleHistory } = require('./windowTitleAnalyzer');
 const { setupUpdater }    = require('./updater');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 
@@ -28,9 +34,16 @@ const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 // so the main process can read SUPABASE_SERVICE_ROLE without exposing it to the
 // renderer (never put the service-role key in a REACT_APP_ variable).
 try {
-  const envPath = path.join(__dirname, '..', '.env');
-  if (fs.existsSync(envPath)) {
-    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+  const envCandidates = [
+    path.join(__dirname, '..', '.env'),
+    path.join(process.resourcesPath || '', 'config', '.env'),
+    path.join(process.resourcesPath || '', '.env'),
+    path.join(path.dirname(process.execPath || ''), '.env'),
+  ].filter(Boolean);
+
+  const loadedEnvPath = envCandidates.find(candidate => fs.existsSync(candidate));
+  if (loadedEnvPath) {
+    fs.readFileSync(loadedEnvPath, 'utf8').split('\n').forEach(line => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) return;
       const eqIdx = trimmed.indexOf('=');
@@ -39,8 +52,13 @@ try {
       const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
       if (key && !process.env[key]) process.env[key] = val;
     });
+    console.log('[env] Loaded main-process env from:', loadedEnvPath);
+  } else {
+    console.warn('[env] No .env file found for main process. Checked:', envCandidates);
   }
-} catch {}
+} catch (err) {
+  console.error('[env] Failed to load main-process env:', err);
+}
 
 // ─── Supabase admin client (service-role, main process only) ─────────────────
 let supabaseAdmin = null;
@@ -63,6 +81,17 @@ function getSupabaseAdmin() {
 // when the PowerShell bridge pipe closes unexpectedly (process killed, restarted
 // by Windows Update, etc.).  We log it and let the bridge auto-restart; we
 // never want the whole app to die over a broken pipe.
+// console.error/warn alone are not enough in a packaged Windows GUI app —
+// there is no attached console, so anything logged only to console is
+// invisible and the user just sees a frozen/blank app with zero diagnostics.
+// Mirror fatal errors to a crash.log in userData so they're actually findable.
+function logFatal(label, err) {
+  try {
+    const line = `[${new Date().toISOString()}] ${label}: ${err && err.stack ? err.stack : err}\n`;
+    fs.appendFileSync(path.join(app.getPath('userData'), 'crash.log'), line);
+  } catch (_) { /* best effort — never let logging itself crash the app */ }
+}
+
 process.on('uncaughtException', (err) => {
   if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') {
     // Benign — broken pipe from the PowerShell tracker child process.
@@ -72,15 +101,156 @@ process.on('uncaughtException', (err) => {
   }
   // For any other uncaught error log it but do NOT crash — keeps the app alive.
   console.error('[main] Uncaught exception:', err);
+  logFatal('uncaughtException', err);
 });
 
 process.on('unhandledRejection', (reason) => {
   // Suppress noisy but harmless promise rejections (network, tracker, etc.)
   console.warn('[main] Unhandled rejection:', reason);
+  logFatal('unhandledRejection', reason);
 });
 
 const isDev   = !!process.env.ELECTRON_START_URL;
 const DB_PATH = path.join(app.getPath('userData'), 'flow-ledger-v4.db');
+const LOGS_DIR = path.join(app.getPath('userData'), 'logs');
+const ACTIVATION_LOG_PATH = path.join(LOGS_DIR, 'activation.log');
+
+function ensureActivationLogDir() {
+  try {
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+  } catch (err) {
+    console.error('[activation] Failed to create logs directory:', err);
+  }
+}
+
+function serializeActivationLogValue(value) {
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+      code: value.code,
+      status: value.status,
+    };
+  }
+  if (Array.isArray(value)) {
+    return value.map(serializeActivationLogValue);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, serializeActivationLogValue(nestedValue)])
+    );
+  }
+  return value;
+}
+
+function writeActivationLog(level, step, details = {}) {
+  const payload = {
+    timestamp: new Date().toISOString(),
+    level,
+    step,
+    details: serializeActivationLogValue(details),
+  };
+  const line = `[activation] ${JSON.stringify(payload)}`;
+  const consoleMethod = typeof console[level] === 'function' ? console[level] : console.log;
+  consoleMethod(line);
+  try {
+    ensureActivationLogDir();
+    fs.appendFileSync(ACTIVATION_LOG_PATH, `${line}\n`, 'utf8');
+  } catch (err) {
+    console.error('[activation] Failed to write activation log file:', err);
+  }
+}
+
+function maskActivationKey(rawKey) {
+  const normalised = String(rawKey || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  if (!normalised) return '';
+  if (normalised.length <= 4) return normalised;
+  return `${'*'.repeat(Math.max(normalised.length - 4, 0))}${normalised.slice(-4)}`;
+}
+
+function createActivationDebugState(userId) {
+  return {
+    currentUserId: userId || null,
+    supabaseConnectionStatus: 'not_checked',
+    activationKeyLookupStatus: 'not_started',
+    exactActivationError: '',
+    logFile: ACTIVATION_LOG_PATH,
+  };
+}
+
+function activationFailure(code, message, debug = {}) {
+  return {
+    success: false,
+    error: code,
+    message,
+    debug: {
+      ...debug,
+      exactActivationError: message,
+    },
+  };
+}
+
+function classifySupabaseError(error, fallbackCode = 'activation_failed', fallbackMessage = 'Activation failed') {
+  const rawMessage = String(
+    error?.message ||
+    error?.error_description ||
+    error?.details ||
+    error?.hint ||
+    error ||
+    fallbackMessage
+  );
+  const lower = rawMessage.toLowerCase();
+  const status = error?.status;
+  const code = String(error?.code || '').toLowerCase();
+
+  if (lower.includes('supabase_service_role')) {
+    return { code: 'missing_supabase_service_role', message: 'Missing SUPABASE_SERVICE_ROLE' };
+  }
+  if (lower.includes('supabase_url')) {
+    return { code: 'missing_supabase_url', message: 'Missing SUPABASE_URL' };
+  }
+  if (
+    lower.includes('invalid api key') ||
+    lower.includes('apikey is invalid') ||
+    lower.includes('no api key found') ||
+    lower.includes('invalid jwt') ||
+    status === 401
+  ) {
+    return { code: 'invalid_api_key', message: 'Invalid API Key' };
+  }
+  if (
+    lower.includes('row level security') ||
+    lower.includes('row-level security') ||
+    lower.includes('permission denied') ||
+    code === '42501'
+  ) {
+    return { code: 'rls_access_denied', message: 'RLS policy denied access' };
+  }
+  if (
+    lower.includes('network request failed') ||
+    lower.includes('fetch failed') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('getaddrinfo') ||
+    lower.includes('econnrefused') ||
+    lower.includes('enotfound')
+  ) {
+    return { code: 'network_request_failed', message: 'Network request failed' };
+  }
+  if (
+    lower.includes('failed to connect') ||
+    lower.includes('connection refused') ||
+    lower.includes('connection terminated') ||
+    status === 503
+  ) {
+    return { code: 'failed_to_connect_supabase', message: 'Failed to connect to Supabase' };
+  }
+  if (fallbackCode === 'profile_update_failed') {
+    return { code: 'profile_update_failed', message: 'Profile update failed' };
+  }
+
+  return { code: fallbackCode, message: rawMessage || fallbackMessage };
+}
 
 function getAppIconPath() {
   // Prefer .ico on Windows — better integration with Action Center
@@ -94,6 +264,23 @@ function getAppIconPath() {
     path.join(__dirname, '..', 'public', 'logo.png'),
   ];
   return candidates.find(p => fs.existsSync(p)) || candidates[0];
+}
+
+// Native OS notifications (esp. Windows toast) are rendered by a separate OS
+// shell process that reads the icon file directly off disk — it can't see
+// inside the app.asar archive the way Electron's own patched fs/nativeImage
+// loader can. Loading the icon into a NativeImage here (asar-aware) and
+// handing Notification the decoded bitmap — instead of a path string —
+// sidesteps that entirely, so the icon (and the notification itself) keeps
+// working in packaged/production builds, not just `npm run` dev mode.
+let _notifIcon = null;
+function getNotifIcon() {
+  if (_notifIcon) return _notifIcon;
+  try {
+    const img = nativeImage.createFromPath(getAppIconPath());
+    if (!img.isEmpty()) _notifIcon = img;
+  } catch {}
+  return _notifIcon || undefined;
 }
 
 // ── Branding: ensures Windows notifications show "Flow Ledger" not "Electron"
@@ -149,20 +336,109 @@ let afSession     = null;           // { id, title, category, started_at } | nul
 let afBufferStart = null;           // Date.now() ms when buffering started
 let afBufferTick  = null;           // setInterval handle for buffer progress
 let afIdleTimer   = null;           // setTimeout handle for idle-stop
+let afLastExtendLogAt = 0;          // throttles active-session heartbeat logs
+
+function getAfWorkflowId() {
+  try {
+    return afSession?.workflowId || trackingWorkflowManager.getActiveWorkflow()?.id || null;
+  } catch {
+    return afSession?.workflowId || null;
+  }
+}
+
+function logAF(event, reason, extra = {}) {
+  console.debug('[AF]', event, {
+    timestamp: new Date().toISOString(),
+    afState,
+    sessionId: afSession?.id || null,
+    workflowId: getAfWorkflowId(),
+    reason: reason || null,
+    ...extra,
+  });
+}
+
+function setAfState(nextState, reason) {
+  if (afState === nextState) return;
+  const previousState = afState;
+  afState = nextState;
+  logAF('AF_STATE_CHANGE', reason, { previousState, nextState });
+}
+
+function clearAfBuffer(reason) {
+  const hadBuffer = !!(afBufferTick || afBufferStart);
+  if (afBufferTick) {
+    clearInterval(afBufferTick);
+    afBufferTick = null;
+  }
+  afBufferStart = null;
+  if (reason && hadBuffer) logAF('AF_INVALID_STATE_RESET', reason);
+}
+
+function hasActiveAfSession() {
+  return !!afSession;
+}
+
+function ensureActiveAfTracking(reason) {
+  if (!hasActiveAfSession()) return false;
+  if (afState !== 'tracking') {
+    clearAfBuffer(reason || 'active_session_state_repair');
+    setAfState('tracking', reason || 'active_session_state_repair');
+    logAF('AF_INVALID_STATE_RESET', reason || 'active_session_state_repair');
+  }
+  return true;
+}
+
+function hydrateActiveAfSessionFromDb(reason) {
+  if (afSession || !db || !currentUserId) return false;
+  try {
+    const active = get(
+      `SELECT id, title, category, started_at
+         FROM sessions
+        WHERE user_id=? AND ended_at IS NULL AND title LIKE 'Auto:%'
+        ORDER BY started_at DESC LIMIT 1`,
+      [currentUserId]
+    );
+    if (!active?.id) return false;
+    afSession = {
+      id: active.id,
+      title: active.title || 'Auto: Focus',
+      category: active.category || 'Focus',
+      started_at: active.started_at,
+      appName: (active.title || '').replace(/^Auto:\s*/i, '') || 'Focus',
+      workflowId: getAfWorkflowId(),
+    };
+    setAfState('tracking', reason || 'hydrate_active_session');
+    clearAfBuffer(reason || 'hydrate_active_session');
+    logAF('AF_SESSION_REUSED', reason || 'hydrate_active_session');
+    return true;
+  } catch (e) {
+    console.error('[AF] Active session hydrate failed:', e.message);
+    return false;
+  }
+}
 
 function afReset() {
-  afState = 'watching'; afSession = null; afBufferStart = null;
+  const previousSessionId = afSession?.id || null;
+  afSession = null; afBufferStart = null;
+  setAfState('watching', 'reset');
+  afLastExtendLogAt = 0;
   clearInterval(afBufferTick); afBufferTick = null;
   clearTimeout(afIdleTimer);  afIdleTimer  = null;
+  logAF('AF_INVALID_STATE_RESET', 'reset', { previousSessionId });
 }
 
 function afBroadcast(reason) {
   if (!mainWindow) return;
-  const bufferPct = (afState === 'buffering' && afBufferStart)
+  if (ensureActiveAfTracking(reason || 'broadcast_active_session_guard')) {
+    clearAfBuffer(reason || 'broadcast_active_session_guard');
+  }
+  const broadcastState = hasActiveAfSession() ? 'tracking' : afState;
+  const bufferPct = (broadcastState === 'buffering' && afBufferStart)
     ? Math.min(100, Math.round(((Date.now() - afBufferStart) / 1000 / AF_THRESHOLD_SECS) * 100))
     : 0;
+  logAF('AF_BROADCAST_STATE', reason, { broadcastState, bufferPct });
   mainWindow.webContents.send('tracker:afState', {
-    state: afState, session: afSession, bufferPct, reason: reason || null,
+    state: broadcastState, session: afSession, bufferPct, reason: reason || null,
   });
 }
 
@@ -182,7 +458,15 @@ function runAutoFocusMachine(appName, liveAI) {
   if (afIdleTimer) { clearTimeout(afIdleTimer); afIdleTimer = null; }
 
   // Session already running — keep it alive across all app switches
-  if (afState === 'tracking') return;
+  hydrateActiveAfSessionFromDb('heartbeat_db_active_session');
+  if (ensureActiveAfTracking('active_session_heartbeat')) {
+    const now = Date.now();
+    if (now - afLastExtendLogAt >= 30000) {
+      afLastExtendLogAt = now;
+      logAF('AF_SESSION_EXTENDED', 'active_session_heartbeat', { appName });
+    }
+    return;
+  }
 
   const appLower      = (appName || '').toLowerCase();
   const isProductive  = !!(liveAI?.deepWork
@@ -195,9 +479,10 @@ function runAutoFocusMachine(appName, liveAI) {
   if (afState === 'watching' || afState === 'paused') {
     if (isProductive && !isDistraction) {
       if (!afBufferStart) afBufferStart = Date.now();
-      afState = 'buffering';
+      setAfState('buffering', 'productive_activity_buffering');
       if (!afBufferTick) {
         afBufferTick = setInterval(() => {
+          if (ensureActiveAfTracking('buffer_tick_active_session_guard')) return;
           const elapsed = Math.floor((Date.now() - (afBufferStart || Date.now())) / 1000);
           afBroadcast();
           if (elapsed >= AF_THRESHOLD_SECS) {
@@ -212,8 +497,8 @@ function runAutoFocusMachine(appName, liveAI) {
   }
 
   if (afState === 'buffering' && isDistraction) {
-    clearInterval(afBufferTick); afBufferTick = null;
-    afBufferStart = null; afState = 'watching';
+    clearAfBuffer('distraction_during_buffer');
+    setAfState('watching', 'distraction_during_buffer');
     afBroadcast();
   }
 }
@@ -221,6 +506,13 @@ function runAutoFocusMachine(appName, liveAI) {
 // Creates a focus session in the DB and transitions to 'tracking'.
 function launchAutoFocusSession(appName, liveAI) {
   if (!db || !currentUserId) return;
+  hydrateActiveAfSessionFromDb('launch_db_active_session');
+  if (ensureActiveAfTracking('launch_guard_existing_session')) {
+    logAF('AF_SESSION_CREATION_BLOCKED', 'active_session_exists', { appName });
+    logAF('AF_SESSION_REUSED', 'active_session_exists', { appName });
+    afBroadcast('active_session_reused');
+    return;
+  }
   try {
     const cats = all('SELECT name FROM categories WHERE user_id=? ORDER BY rowid', [currentUserId]);
     // Prefer AI-matched category; fall back to first user category
@@ -246,12 +538,16 @@ function launchAutoFocusSession(appName, liveAI) {
     run('INSERT INTO sessions (id,user_id,category,title,started_at,is_deep_work,session_type) VALUES (?,?,?,?,?,?,?)',
       [id, currentUserId, categoryName, title, now, deep, 'focus']);
 
-    afSession = { id, title, category: categoryName, started_at: now, appName: appName || 'Focus' };
-    afState   = 'tracking';
+    let workflowId = null;
+    try { workflowId = trackingWorkflowManager.getActiveWorkflow()?.id || null; } catch {}
+    afSession = { id, title, category: categoryName, started_at: now, appName: appName || 'Focus', workflowId };
+    setAfState('tracking', 'session_created');
+    afLastExtendLogAt = Date.now();
+    logAF('AF_SESSION_CREATED', 'session_created', { appName, title });
     afBroadcast('started');
   } catch (e) {
     console.error('[AF] Session create failed:', e.message);
-    afState = 'watching';
+    setAfState('watching', 'session_create_failed');
     afBroadcast();
   }
 }
@@ -262,8 +558,10 @@ function closeAutoFocusSession(reason) {
   const sessStart = afSession?.started_at;
   const rawApp    = afSession?.appName || 'Focus';
   const category  = afSession?.category || 'Focus';
+  const workflowId = getAfWorkflowId();
   afSession = null;
-  afState   = 'watching';
+  setAfState('watching', reason || 'session_closed');
+  afLastExtendLogAt = 0;
 
   let aiTitle = null;
   let durSecs = 0;
@@ -344,6 +642,7 @@ function closeAutoFocusSession(reason) {
   }
 
   afBroadcast(reason || null);
+  logAF('AF_SESSION_CLOSED', reason || 'session_closed', { sessionId: sessId || null, workflowId, durationSeconds: durSecs });
 }
 
 // ─── STARTUP SESSION RECOVERY ────────────────────────────────────────────────
@@ -768,6 +1067,14 @@ function createSchema() {
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_confidence REAL DEFAULT 0');
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_is_deep_work INTEGER DEFAULT 0');
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_workflow_name TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN workflow_id TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN supporting_tools TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_recommended_title TEXT');
+  tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_recommended_description TEXT');
+  // Distinct window titles seen across a merged/extended session block — without
+  // this, window_title gets overwritten on every extend and the narrative writer
+  // only ever sees the LATEST title, losing everything else done during the block.
+  tryAlter("ALTER TABLE auto_sessions ADD COLUMN title_history TEXT DEFAULT '[]'");
 
   save();
 }
@@ -813,6 +1120,83 @@ function matchProjectClient(userId, appName, title, url) {
 // ─── APP NAME ALIAS MAP ───────────────────────────────────────────────────────
 // Maps user-friendly app names to their actual OS process names (Windows-first).
 // Keys are lowercase; values are pipe-separated regex alternatives.
+function logWorkflowPersistence(event, payload = {}) {
+  console.debug('[WORKFLOW]', event, { ts: Date.now(), event, ...payload });
+}
+
+function parseSupportingTools(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return String(raw).split(',').map(s => s.trim()).filter(Boolean);
+  }
+}
+
+function mergeSupportingTools(existingRaw, activeWorkflow, appName) {
+  const tools = new Set(parseSupportingTools(existingRaw).map(normalizeToolName).filter(Boolean));
+  for (const tool of activeWorkflow?.supportingTools || []) {
+    const normalized = normalizeToolName(tool);
+    if (normalized) tools.add(normalized);
+  }
+  const current = normalizeToolName(appName);
+  if (current) tools.add(current);
+  return JSON.stringify([...tools]);
+}
+
+function findWorkflowSessionToExtend(userId, workflowId) {
+  if (!workflowId) return null;
+  return get(
+    `SELECT id, started_at, ended_at, duration_seconds, project_id, client_id, supporting_tools
+       FROM auto_sessions
+      WHERE user_id=? AND workflow_id=?
+      ORDER BY ended_at DESC
+      LIMIT 1`,
+    [userId, workflowId]
+  );
+}
+
+function shouldInsertWorkflowSession({ ownership, existingWorkflowSession, workflowSplit, flushReason }) {
+  if (existingWorkflowSession) return false;
+  if (workflowSplit) return true;
+  if (ownership?.extendSession) return true; // first persisted segment for this workflow
+  if (ownership?.createNewSession) return true;
+  return ownership?.reason === 'no_active_workflow' && !flushReason;
+}
+
+function getProjectClientNames(projectId, clientId) {
+  let projectName = null;
+  let clientName = null;
+  try {
+    if (projectId) projectName = get('SELECT name FROM projects WHERE id=?', [projectId])?.name || null;
+    if (clientId) clientName = get('SELECT name FROM clients WHERE id=?', [clientId])?.name || null;
+  } catch (_) {}
+  return { projectName, clientName };
+}
+
+function buildAutoSessionNarrative(rows = [], { projectId = null, clientId = null, fallbackTitle = null } = {}) {
+  if (!aiEngine || !rows.length) return { title: fallbackTitle || null, description: null };
+  try {
+    const mapped = rows
+      .filter(Boolean)
+      .map(row => ({
+        ...row,
+        category_key: row.category_key || row.ai_category || row.ai_session_type || 'focus',
+        duration: row.duration || row.duration_seconds || 0,
+      }));
+    const { projectName, clientName } = getProjectClientNames(projectId, clientId);
+    const summary = aiEngine.summarizeSession(mapped, projectName, clientName);
+    return {
+      title: summary?.name || summary?.workflowName || fallbackTitle || null,
+      description: summary?.description || null,
+    };
+  } catch (e) {
+    console.error('[AI] Auto-session narrative failed:', e.message);
+    return { title: fallbackTitle || null, description: null };
+  }
+}
+
 const APP_NAME_ALIASES = {
   // Microsoft Office — Office apps use internal codenames as process names
   'powerpoint':     'powerpnt|powerpoint',
@@ -927,7 +1311,11 @@ function all(sql, params = []) {
 // ─── AUTO-TRACKER SETUP ──────────────────────────────────────────────────────
 function startAutoTracker(userId) {
   if (tracker) { tracker.stop(); tracker = null; }
-  afReset();              // always start the AF machine fresh
+  if (afSession) {
+    ensureActiveAfTracking('tracker_restart_active_session');
+  } else {
+    afReset();
+  }
   currentUserId = userId;
 
   tracker = new AutoTracker({
@@ -965,7 +1353,7 @@ function startAutoTracker(userId) {
       });
     },
 
-    onActivity: ({ appName, title, url, duration, flush }) => {
+    onActivity: ({ appName, title, url, duration, flush, workflowId, workflowName, workflowSplit, flushReason }) => {
       if (!userId) return;
       const now     = Math.floor(Date.now() / 1000);
       // Use session START time for date bucketing — prevents late-night sessions
@@ -1018,10 +1406,10 @@ function startAutoTracker(userId) {
         // ── Persistent auto-focus state machine ──────────────────────────────
         // Suppress buffering/tracking while a confirmed calendar event is live.
         if (activeCalEvent) {
-          if (afState === 'tracking' && afSession) closeAutoFocusSession('cal_event');
+          if (afSession) closeAutoFocusSession('cal_event');
           else if (afState === 'buffering') {
-            clearInterval(afBufferTick); afBufferTick = null;
-            afBufferStart = null; afState = 'watching';
+            clearAfBuffer('cal_event');
+            setAfState('watching', 'cal_event');
             afBroadcast();
           }
         } else {
@@ -1046,7 +1434,8 @@ function startAutoTracker(userId) {
         );
         if (overlappingEvent) {
           // Drop this auto-session — it falls inside a scheduled calendar event.
-          // App-usage aggregates are also skipped to keep metrics clean.
+          // End active workflow — calendar interruption is a hard workflow split.
+          trackingWorkflowManager.endActiveWorkflow('calendar_interruption');
           if (mainWindow) {
             mainWindow.webContents.send('tracker:activity', { appName, title, url, duration, dateKey, skipped: true });
           }
@@ -1085,8 +1474,11 @@ function startAutoTracker(userId) {
 
         // ── AI classification ──────────────────────────────────────────────
         let aiLabel = null, aiCategory = null, aiSessionType = null;
-        let aiConfidence = 0, aiIsDeepWork = 0, aiWorkflowName = null;
+        let aiConfidence = 0, aiIsDeepWork = 0;
         let aiSignals = null;
+        const activeWorkflow = trackingWorkflowManager.getActiveWorkflow();
+        const resolvedWorkflowId = workflowId || activeWorkflow?.id || null;
+        const aiWorkflowName = workflowName || activeWorkflow?.name || null;
 
         if (aiEngine) {
           try {
@@ -1119,17 +1511,159 @@ function startAutoTracker(userId) {
           }
         }
 
-        const id = uuidv4();
-        run(
-          `INSERT INTO auto_sessions
-             (id,user_id,app_name,window_title,url,started_at,ended_at,duration_seconds,
-              date_key,project_id,client_id,
-              ai_label,ai_category,ai_session_type,ai_confidence,ai_is_deep_work,ai_workflow_name)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [id, userId, appName, title || '', url || null, now - duration, now, duration,
-           dateKey, finalProjectId, finalClientId,
-           aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName]
+        const ownership = trackingWorkflowManager.resolveSessionOwnership(
+          {
+            appName,
+            title,
+            url: url || '',
+            timestamp: now * 1000,
+            duration_seconds: duration,
+          },
+          finalProjectId ? { id: finalProjectId } : null,
+          {
+            workflowId: resolvedWorkflowId,
+            workflowSplit: !!workflowSplit,
+            workflowMerged: /WORKFLOW_MERGED/i.test(String(flushReason || '')),
+            flushReason: flushReason || null,
+          }
         );
+        const existingWorkflowSession = resolvedWorkflowId && !workflowSplit
+          ? findWorkflowSessionToExtend(userId, resolvedWorkflowId)
+          : null;
+        const shouldInsertSession = shouldInsertWorkflowSession({
+          ownership,
+          existingWorkflowSession,
+          workflowSplit: !!workflowSplit,
+          flushReason,
+        });
+
+        let id = existingWorkflowSession?.id || uuidv4();
+        if (existingWorkflowSession) {
+          const supportingTools = mergeSupportingTools(existingWorkflowSession.supporting_tools, activeWorkflow, appName);
+
+          // window_title gets overwritten below on every extend, so without this the
+          // narrative writer would only ever see the LATEST title and lose everything
+          // else done earlier in this merged session block. title_history recovers it.
+          const existingRow = get('SELECT * FROM auto_sessions WHERE id=?', [id]);
+          const priorTitles = parseTitleHistory(existingRow?.title_history)
+            .filter(t => t.toLowerCase() !== (title || '').toLowerCase());
+          // No exact per-title timing is tracked, so split the session's elapsed
+          // duration evenly across prior titles as a reasonable approximation —
+          // enough for the time-weighted phrase ranking to consider them.
+          const nominalDur = priorTitles.length
+            ? Math.max(30, Math.floor((existingRow?.duration_seconds || 0) / (priorTitles.length + 1)))
+            : 0;
+          const historyRows = priorTitles.map(t => ({
+            app_name: existingRow?.app_name || appName,
+            window_title: t,
+            duration_seconds: nominalDur,
+            ai_category: existingRow?.ai_category,
+          }));
+
+          const narrativeRows = historyRows.concat([existingRow].filter(Boolean)).concat({
+            app_name: appName,
+            window_title: title || '',
+            url: url || null,
+            duration_seconds: duration,
+            ai_category: aiCategory,
+            ai_session_type: aiSessionType,
+            ai_label: aiLabel,
+          });
+          const narrative = buildAutoSessionNarrative(narrativeRows, {
+            projectId: finalProjectId || existingWorkflowSession.project_id || null,
+            clientId: finalClientId || existingWorkflowSession.client_id || null,
+            fallbackTitle: aiWorkflowName || aiLabel || appName,
+          });
+          const newTitleHistory = pushTitleHistory(existingRow?.title_history, title || '', 10);
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_BLOCKED, {
+            sessionId: id,
+            workflowId: resolvedWorkflowId,
+            appName,
+            reason: ownership.reason || flushReason || 'workflow_continuity',
+            confidence: ownership.confidence,
+          });
+          run(
+            `UPDATE auto_sessions
+                SET ended_at=?,
+                    duration_seconds=duration_seconds+?,
+                    window_title=?,
+                    url=COALESCE(?, url),
+                    project_id=COALESCE(project_id, ?),
+                    client_id=COALESCE(client_id, ?),
+                    ai_label=COALESCE(?, ai_label),
+                    ai_category=COALESCE(?, ai_category),
+                    ai_session_type=COALESCE(?, ai_session_type),
+                    ai_confidence=MAX(COALESCE(ai_confidence,0), ?),
+                    ai_is_deep_work=MAX(COALESCE(ai_is_deep_work,0), ?),
+                    ai_workflow_name=COALESCE(?, ai_workflow_name),
+                    workflow_id=?,
+                    supporting_tools=?,
+                    ai_recommended_title=COALESCE(?, ai_recommended_title),
+                    ai_recommended_description=COALESCE(?, ai_recommended_description),
+                    title_history=?
+              WHERE id=?`,
+            [now, duration, title || '', url || null, finalProjectId, finalClientId,
+             aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName,
+             resolvedWorkflowId, supportingTools, narrative.title, narrative.description,
+             newTitleHistory, id]
+          );
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_EXTENDED, {
+            sessionId: id,
+            workflowId: resolvedWorkflowId,
+            appName,
+            duration,
+            confidence: ownership.confidence,
+          });
+          logWorkflowPersistence(WORKFLOW_EVENTS.EXTENDED, {
+            workflowId: resolvedWorkflowId,
+            sessionId: id,
+            appName,
+            supportingTools: JSON.parse(supportingTools),
+          });
+        } else if (shouldInsertSession) {
+          const supportingTools = mergeSupportingTools(null, activeWorkflow, appName);
+          const narrative = buildAutoSessionNarrative([{
+            app_name: appName,
+            window_title: title || '',
+            url: url || null,
+            duration_seconds: duration,
+            ai_category: aiCategory,
+            ai_session_type: aiSessionType,
+            ai_label: aiLabel,
+          }], {
+            projectId: finalProjectId,
+            clientId: finalClientId,
+            fallbackTitle: aiWorkflowName || aiLabel || appName,
+          });
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_ALLOWED, {
+            workflowId: resolvedWorkflowId,
+            appName,
+            reason: workflowSplit
+              ? 'workflow_split'
+              : (ownership.reason === 'no_active_workflow' ? 'first_session_without_active_workflow' : 'first_session_for_workflow'),
+            confidence: ownership.confidence,
+          });
+          run(
+            `INSERT INTO auto_sessions
+               (id,user_id,app_name,window_title,url,started_at,ended_at,duration_seconds,
+                date_key,project_id,client_id,
+                ai_label,ai_category,ai_session_type,ai_confidence,ai_is_deep_work,ai_workflow_name,workflow_id,supporting_tools,
+                ai_recommended_title,ai_recommended_description,title_history)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [id, userId, appName, title || '', url || null, now - duration, now, duration,
+             dateKey, finalProjectId, finalClientId,
+             aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName, resolvedWorkflowId, supportingTools,
+             narrative.title, narrative.description, JSON.stringify(title ? [title] : [])]
+          );
+        } else {
+          logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_BLOCKED, {
+            workflowId: resolvedWorkflowId,
+            appName,
+            reason: ownership.reason || flushReason || 'workflow_owned_without_insert',
+            confidence: ownership.confidence,
+          });
+          return;
+        }
 
         // Persist AI session metadata separately for rich queries
         if (aiEngine && aiLabel) {
@@ -1160,24 +1694,49 @@ function startAutoTracker(userId) {
         }
 
         if (mainWindow) {
-          mainWindow.webContents.send('tracker:activity', { appName, title, url, duration, dateKey });
+          mainWindow.webContents.send('tracker:activity', {
+            appName, title, url, duration, dateKey,
+            workflowId: resolvedWorkflowId,
+            workflowName: aiWorkflowName,
+            workflowSplit: !!workflowSplit,
+            flushReason: flushReason || null,
+          });
         }
       }
+    },
+
+    getProject: () => {
+      if (!userId || !db) return null;
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        const calEvent = get(
+          `SELECT project_id FROM calendar_events
+           WHERE user_id=? AND project_id IS NOT NULL
+           AND start_time<=? AND end_time>=?
+           ORDER BY start_time DESC LIMIT 1`,
+          [userId, now, now]
+        );
+        if (calEvent?.project_id) {
+          const p = get('SELECT id, name FROM projects WHERE id=?', [calEvent.project_id]);
+          if (p) return p;
+        }
+      } catch (_) {}
+      return null;
     },
 
     onIdle: () => {
       if (mainWindow) mainWindow.webContents.send('tracker:idle', {});
 
       // AF: buffer was pending but user went idle — just reset, no session yet
-      if (afState === 'buffering') {
-        clearInterval(afBufferTick); afBufferTick = null;
-        afBufferStart = null; afState = 'watching';
+      if (afState === 'buffering' && !afSession) {
+        clearAfBuffer('idle_before_session');
+        setAfState('watching', 'idle_before_session');
         afBroadcast();
       // AF: session running — arm the idle-stop countdown
-      } else if (afState === 'tracking' && afSession && !afIdleTimer) {
+      } else if (ensureActiveAfTracking('idle_active_session') && !afIdleTimer) {
         afIdleTimer = setTimeout(() => {
           afIdleTimer = null;
-          if (afState !== 'tracking' || !afSession) return;
+          if (!ensureActiveAfTracking('idle_timeout_guard')) return;
           closeAutoFocusSession('idle');
         }, AF_IDLE_STOP_SECS * 1000);
       }
@@ -1188,7 +1747,12 @@ function startAutoTracker(userId) {
 
       // AF: user came back — cancel any pending idle-stop immediately
       if (afIdleTimer) { clearTimeout(afIdleTimer); afIdleTimer = null; }
-      if (afState === 'paused') { afState = 'watching'; afBroadcast(); }
+      if (ensureActiveAfTracking('resume_active_session')) {
+        afBroadcast('resume_active_session');
+      } else if (afState === 'paused') {
+        setAfState('watching', 'resume_without_session');
+        afBroadcast();
+      }
     },
 
     onBlocked: (appName) => {
@@ -1226,7 +1790,7 @@ function startAutoTracker(userId) {
         new Notification({
           title: '🚫 Distraction Blocked',
           body: `${appName} is blocked during Focus Mode. Stay focused!`,
-          icon: getAppIconPath(),
+          icon: getNotifIcon(),
           silent: false,
         }).show();
       } catch {}
@@ -1399,7 +1963,7 @@ function scheduleFlowState(sessionTitle) {
     const body  = `${title} — 25 minutes in. Deep focus mode active. Keep going!`;
     // Native OS notification
     try {
-      new Notification({ title: '🌊 Flow State Reached', body, icon: getAppIconPath() }).show();
+      new Notification({ title: '🌊 Flow State Reached', body, icon: getNotifIcon() }).show();
     } catch (e) { /* notifications unavailable */ }
     // Also push to in-app notification centre
     if (mainWindow) {
@@ -1409,11 +1973,13 @@ function scheduleFlowState(sessionTitle) {
 }
 
 // ─── BREAK REMINDER ───────────────────────────────────────────────────────────
-function scheduleBreakReminder(userId) {
+// snoozeMs lets a caller (e.g. the "Snooze 10m" button) override the normal
+// work-interval delay with a short one-off wait instead.
+function scheduleBreakReminder(userId, snoozeMs = null) {
   clearTimeout(breakReminderTimeout);
   const settings = get('SELECT * FROM break_settings WHERE user_id=?', [userId]);
   if (!settings || !settings.enabled) return;
-  const intervalMs = (settings.work_interval_mins || 52) * 60 * 1000;
+  const intervalMs = snoozeMs || (settings.work_interval_mins || 52) * 60 * 1000;
   breakReminderTimeout = setTimeout(() => {
     // Smart: only fire if user has actually been working (>=50% active in window)
     const windowSecs = (settings.work_interval_mins || 52) * 60;
@@ -1503,6 +2069,11 @@ function createWindow() {
       mainWindow.hide();
     }
   });
+
+  // Push maximize/restore state so the custom titlebar can swap its icon —
+  // mirrors the native OS window-control behavior (maximize <-> restore icon).
+  mainWindow.on('maximize',   () => mainWindow.webContents.send('window:maximizedChange', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximizedChange', false));
 }
 
 // Disable GPU hardware acceleration. Electron's GPU compositor crashes silently
@@ -1571,10 +2142,11 @@ app.whenReady().then(async () => {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;" +
-          " connect-src 'self' https://*.supabase.co wss://*.supabase.co https://supabase.io;" +
+          " connect-src 'self' https://*.supabase.co wss://*.supabase.co https://supabase.io https://*.somafm.com https://somafm.com;" +
           " script-src 'self' 'unsafe-inline' 'unsafe-eval';" +
           " style-src 'self' 'unsafe-inline';" +
           " img-src 'self' data: blob: https:;" +
+          " media-src 'self' data: blob: https: http:;" +
           " font-src 'self' data:;",
         ],
       },
@@ -1624,6 +2196,19 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
     else showMainWindow();
   });
+}).catch((err) => {
+  // Without this, a thrown error anywhere in startup (e.g. initDatabase()
+  // failing) left the app running with zero window, zero tray icon, and
+  // zero visible diagnostics — just a silently hung process. Now it's both
+  // logged to crash.log and surfaced to the user instead of failing invisibly.
+  console.error('[main] Fatal startup error:', err);
+  logFatal('startup', err);
+  dialog.showErrorBox(
+    'Flow Ledger failed to start',
+    `An error occurred during startup:\n\n${err?.message || err}\n\n` +
+    `Details were written to: ${path.join(app.getPath('userData'), 'crash.log')}`
+  );
+  app.exit(1);
 });
 
 // ─── AI PERIODIC ANALYSIS JOB ────────────────────────────────────────────────
@@ -1811,7 +2396,7 @@ function checkTaskReminders(userId) {
       if (_notifiedReminderKeys.has(key)) continue;
       _notifiedReminderKeys.add(key);
       try {
-        new Notification({ title: 'Task Reminder', body: task.title, icon: getAppIconPath() }).show();
+        new Notification({ title: 'Task Reminder', body: task.title, icon: getNotifIcon() }).show();
       } catch (_) {}
       mainWindow.webContents.send('tasks:reminder', { task, sentAt: Date.now() });
       run('UPDATE tasks SET reminder_at=NULL WHERE id=?', [task.id]);
@@ -1944,6 +2529,7 @@ app.on('window-all-closed', () => {
 ipcMain.on('window-minimize', () => mainWindow?.minimize());
 ipcMain.on('window-maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize());
 ipcMain.on('window-close',    () => mainWindow?.hide());   // hide to tray
+ipcMain.handle('window-isMaximized', () => !!mainWindow?.isMaximized());
 
 
 // ─── NATIVE APP ICON ─────────────────────────────────────────────────────────
@@ -2231,53 +2817,187 @@ ipcMain.handle('auth:supabaseLogout', () => {
 // Validates an activation key entirely in the main process using the service-role
 // key — the renderer never sees the service-role key and cannot bypass this check.
 ipcMain.handle('auth:validateActivationKey', async (_, { key, userId }) => {
+  const debug = createActivationDebugState(userId);
+  const safeKey = maskActivationKey(key);
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL || '';
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE || '';
+
+  writeActivationLog('log', 'validate-start', {
+    userId: userId || null,
+    key: safeKey,
+  });
+  writeActivationLog('log', 'env-check', {
+    hasSupabaseUrl: Boolean(supabaseUrl),
+    hasSupabaseServiceRole: Boolean(serviceRole),
+  });
+
+  if (!supabaseUrl) {
+    debug.supabaseConnectionStatus = 'missing_url';
+    writeActivationLog('error', 'env-missing-url', { userId: userId || null });
+    return activationFailure('missing_supabase_url', 'Missing SUPABASE_URL', debug);
+  }
+  if (!serviceRole) {
+    debug.supabaseConnectionStatus = 'missing_service_role';
+    writeActivationLog('error', 'env-missing-service-role', { userId: userId || null });
+    return activationFailure('missing_supabase_service_role', 'Missing SUPABASE_SERVICE_ROLE', debug);
+  }
+
   const admin = getSupabaseAdmin();
   if (!admin) {
-    return { success: false, error: 'service_down' };
+    debug.supabaseConnectionStatus = 'client_init_failed';
+    writeActivationLog('error', 'supabase-client-init-failed', { userId: userId || null });
+    return activationFailure('failed_to_connect_supabase', 'Failed to connect to Supabase', debug);
   }
 
   try {
     const normalised = (key || '').replace(/[\s-]/g, '').toUpperCase();
-    if (!normalised) return { success: false, error: 'invalid_key' };
+    writeActivationLog('log', 'key-normalized', {
+      userId: userId || null,
+      key: maskActivationKey(normalised),
+      length: normalised.length,
+    });
+    if (!normalised) {
+      debug.activationKeyLookupStatus = 'invalid_input';
+      return activationFailure('activation_key_not_found', 'Activation key not found', debug);
+    }
+
+    debug.supabaseConnectionStatus = 'checking';
+    writeActivationLog('log', 'supabase-connection-check-start', { userId: userId || null });
+    const { count: connectionCount, error: connectionError } = await admin
+      .from('activation_keys')
+      .select('id', { head: true, count: 'exact' });
+
+    if (connectionError) {
+      const classified = classifySupabaseError(connectionError, 'failed_to_connect_supabase', 'Failed to connect to Supabase');
+      debug.supabaseConnectionStatus = classified.code;
+      writeActivationLog('error', 'supabase-connection-check-failed', {
+        userId: userId || null,
+        error: connectionError,
+        classified,
+      });
+      return activationFailure(classified.code, classified.message, debug);
+    }
+
+    debug.supabaseConnectionStatus = 'connected';
+    writeActivationLog('log', 'supabase-connection-check-success', {
+      userId: userId || null,
+      rowCountVisible: connectionCount,
+    });
 
     // Build all plausible stored formats so the lookup works regardless of
     // whether the key was inserted with dashes (XXXX-XXXX) or without (XXXXXXXX).
     const candidates = [
       normalised,
-      // 4-char groups: FLOW-2024-TEST-0001
       normalised.match(/.{1,4}/g)?.join('-') ?? normalised,
     ];
 
     let keyRow = null;
     for (const candidate of candidates) {
+      debug.activationKeyLookupStatus = 'querying';
+      writeActivationLog('log', 'activation-key-lookup-attempt', {
+        userId: userId || null,
+        candidate: maskActivationKey(candidate),
+      });
       const { data, error } = await admin
         .from('activation_keys')
         .select('*')
         .eq('activation_key', candidate)
         .maybeSingle();
-      if (!error && data) { keyRow = data; break; }
+
+      if (error) {
+        const classified = classifySupabaseError(error, 'activation_lookup_failed', 'Activation key lookup failed');
+        debug.activationKeyLookupStatus = classified.code;
+        writeActivationLog('error', 'activation-key-lookup-error', {
+          userId: userId || null,
+          candidate: maskActivationKey(candidate),
+          error,
+          classified,
+        });
+        return activationFailure(classified.code, classified.message, debug);
+      }
+
+      writeActivationLog('log', 'activation-key-lookup-result', {
+        userId: userId || null,
+        candidate: maskActivationKey(candidate),
+        found: Boolean(data),
+        keyId: data?.id || null,
+        status: data?.status || null,
+        redeemedBy: data?.redeemed_by || null,
+      });
+
+      if (data) {
+        keyRow = data;
+        break;
+      }
     }
 
-    if (!keyRow) return { success: false, error: 'invalid_key' };
+    if (!keyRow) {
+      debug.activationKeyLookupStatus = 'not_found';
+      writeActivationLog('warn', 'activation-key-not-found', {
+        userId: userId || null,
+        candidates: candidates.map(maskActivationKey),
+      });
+      return activationFailure('activation_key_not_found', 'Activation key not found', debug);
+    }
 
-    // Status guards
-    if (keyRow.status === 'Used')     return { success: false, error: 'already_used' };
-    if (keyRow.status === 'Disabled') return { success: false, error: 'disabled_key' };
-    if (keyRow.status === 'Expired')  return { success: false, error: 'expired_key' };
-    if (keyRow.status !== 'Available') return { success: false, error: 'invalid_key' };
+    debug.activationKeyLookupStatus = `found:${keyRow.status}`;
+    writeActivationLog('log', 'activation-key-row-loaded', {
+      userId: userId || null,
+      keyId: keyRow.id,
+      status: keyRow.status,
+      redeemedBy: keyRow.redeemed_by || null,
+      expiresAt: keyRow.expires_at || null,
+    });
+
+    if (keyRow.status === 'Used') {
+      writeActivationLog('warn', 'activation-key-already-used', { userId: userId || null, keyId: keyRow.id });
+      return activationFailure('activation_key_already_used', 'Activation key already used', debug);
+    }
+    if (keyRow.status === 'Disabled') {
+      writeActivationLog('warn', 'activation-key-disabled', { userId: userId || null, keyId: keyRow.id });
+      return activationFailure('disabled_key', 'Activation key is disabled', debug);
+    }
+    if (keyRow.status === 'Expired') {
+      writeActivationLog('warn', 'activation-key-expired', { userId: userId || null, keyId: keyRow.id });
+      return activationFailure('expired_key', 'Activation key has expired', debug);
+    }
+    if (keyRow.status !== 'Available') {
+      writeActivationLog('warn', 'activation-key-invalid-status', {
+        userId: userId || null,
+        keyId: keyRow.id,
+        status: keyRow.status,
+      });
+      return activationFailure('activation_key_not_found', 'Activation key not found', debug);
+    }
 
     // Expiry date guard
     if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
-      await admin.from('activation_keys').update({ status: 'Expired' }).eq('id', keyRow.id);
-      return { success: false, error: 'expired_key' };
+      const { error: expireErr } = await admin.from('activation_keys').update({ status: 'Expired' }).eq('id', keyRow.id);
+      writeActivationLog(expireErr ? 'error' : 'log', 'activation-key-expiry-sync', {
+        userId: userId || null,
+        keyId: keyRow.id,
+        updated: !expireErr,
+        error: expireErr || null,
+      });
+      return activationFailure('expired_key', 'Activation key has expired', debug);
     }
 
     // Check this user hasn't already activated with a different key
     if (keyRow.redeemed_by && keyRow.redeemed_by !== userId) {
-      return { success: false, error: 'already_used' };
+      writeActivationLog('warn', 'activation-key-redeemed-by-other-user', {
+        userId: userId || null,
+        keyId: keyRow.id,
+        redeemedBy: keyRow.redeemed_by,
+      });
+      return activationFailure('activation_key_already_used', 'Activation key already used', debug);
     }
 
     const now = new Date().toISOString();
+    writeActivationLog('log', 'activation-key-update-start', {
+      userId: userId || null,
+      keyId: keyRow.id,
+      redeemedAt: now,
+    });
 
     // Atomically mark key as used — extra .eq('status','Available') guard means
     // this only matches if another request hasn't already redeemed the key.
@@ -2289,13 +3009,28 @@ ipcMain.handle('auth:validateActivationKey', async (_, { key, userId }) => {
       .select('id');
 
     if (updateKeyErr) {
-      console.error('[validateActivationKey] key update error:', updateKeyErr.message);
-      return { success: false, error: 'activation_failed' };
+      const classified = classifySupabaseError(updateKeyErr, 'activation_update_failed', 'Activation key update failed');
+      writeActivationLog('error', 'activation-key-update-error', {
+        userId: userId || null,
+        keyId: keyRow.id,
+        error: updateKeyErr,
+        classified,
+      });
+      return activationFailure(classified.code, classified.message, debug);
     }
     if (!updatedRows || updatedRows.length === 0) {
-      // Row was already updated by a concurrent request
-      return { success: false, error: 'already_used' };
+      writeActivationLog('warn', 'activation-key-update-no-rows', {
+        userId: userId || null,
+        keyId: keyRow.id,
+      });
+      return activationFailure('activation_key_already_used', 'Activation key already used', debug);
     }
+
+    writeActivationLog('log', 'activation-key-update-success', {
+      userId: userId || null,
+      keyId: keyRow.id,
+      updatedRows: updatedRows.length,
+    });
 
     // Update profile to active
     const { error: profileErr } = await admin
@@ -2308,18 +3043,52 @@ ipcMain.handle('auth:validateActivationKey', async (_, { key, userId }) => {
       .eq('user_id', userId);
 
     if (profileErr) {
-      console.error('[validateActivationKey] profile update error:', profileErr.message);
-      // Rollback key to Available so user can retry
-      await admin.from('activation_keys')
+      const classified = classifySupabaseError(profileErr, 'profile_update_failed', 'Profile update failed');
+      writeActivationLog('error', 'profile-update-error', {
+        userId: userId || null,
+        keyId: keyRow.id,
+        error: profileErr,
+        classified,
+      });
+      const { error: rollbackErr } = await admin.from('activation_keys')
         .update({ status: 'Available', redeemed_by: null, redeemed_at: null })
         .eq('id', keyRow.id);
-      return { success: false, error: 'activation_failed' };
+      writeActivationLog(rollbackErr ? 'error' : 'log', 'activation-key-rollback-result', {
+        userId: userId || null,
+        keyId: keyRow.id,
+        rolledBack: !rollbackErr,
+        error: rollbackErr || null,
+      });
+      return activationFailure(classified.code, classified.message, debug);
     }
 
-    return { success: true };
+    writeActivationLog('log', 'profile-update-success', {
+      userId: userId || null,
+      keyId: keyRow.id,
+      accountStatus: 'active',
+    });
+    writeActivationLog('log', 'validate-success', {
+      userId: userId || null,
+      keyId: keyRow.id,
+    });
+
+    return {
+      success: true,
+      message: 'Activation succeeded',
+      debug: {
+        ...debug,
+        activationKeyLookupStatus: 'activated',
+      },
+    };
   } catch (err) {
-    console.error('[validateActivationKey] unexpected error:', err.message);
-    return { success: false, error: 'activation_failed' };
+    const classified = classifySupabaseError(err, 'activation_failed', 'Activation failed');
+    writeActivationLog('error', 'validate-exception', {
+      userId: userId || null,
+      key: safeKey,
+      error: err,
+      classified,
+    });
+    return activationFailure(classified.code, classified.message, debug);
   }
 });
 
@@ -2871,12 +3640,11 @@ ipcMain.handle('tracking:pauseAutoSession', () => {
   if (afSession) {
     closeAutoFocusSession('user_paused');
   } else {
-    clearInterval(afBufferTick); afBufferTick = null;
+    clearAfBuffer('user_paused');
     clearTimeout(afIdleTimer);  afIdleTimer  = null;
-    afBufferStart = null;
     afSession     = null;
   }
-  afState = 'user_paused';
+  setAfState('user_paused', 'user_paused');
   afBroadcast('user_paused');
   return { success: true };
 });
@@ -2887,8 +3655,10 @@ ipcMain.handle('tracking:pauseAutoSession', () => {
 // calling resume (e.g. from the renderer's calendar-event-end handler) must
 // not clobber the running session by setting afState = 'watching'.
 ipcMain.handle('tracking:resumeAutoTracking', () => {
-  if (afState === 'user_paused') {
-    afState = 'watching';
+  if (ensureActiveAfTracking('user_resume_active_session')) {
+    afBroadcast('user_resume_active_session');
+  } else if (afState === 'user_paused') {
+    setAfState('watching', 'user_resumed');
     afBroadcast('user_resumed');
   }
   return { success: true };
@@ -2897,10 +3667,14 @@ ipcMain.handle('tracking:resumeAutoTracking', () => {
 // Returns current AF machine state so the TimerPage can sync on mount
 // without waiting for the next heartbeat event.
 ipcMain.handle('tracker:getAutoFocusState', () => {
-  const bufferPct = (afState === 'buffering' && afBufferStart)
+  hydrateActiveAfSessionFromDb('get_state_db_active_session');
+  ensureActiveAfTracking('get_state_active_session_guard');
+  const state = hasActiveAfSession() ? 'tracking' : afState;
+  const bufferPct = (state === 'buffering' && afBufferStart)
     ? Math.min(100, Math.round(((Date.now() - afBufferStart) / 1000 / AF_THRESHOLD_SECS) * 100))
     : 0;
-  return { state: afState, session: afSession, bufferPct };
+  logAF('AF_BROADCAST_STATE', 'get_auto_focus_state', { broadcastState: state, bufferPct });
+  return { state, session: afSession, bufferPct };
 });
 
 // ─── FOCUS MODE ───────────────────────────────────────────────────────────────
@@ -3255,7 +4029,52 @@ ipcMain.handle('break:updateSettings', (_, { userId, enabled, workIntervalMins, 
   scheduleBreakReminder(userId);
   return { success: true };
 });
-ipcMain.handle('break:dismiss', (_, { userId }) => { scheduleBreakReminder(userId); return { success: true }; });
+ipcMain.handle('break:dismiss', (_, { userId, snoozeMins }) => {
+  scheduleBreakReminder(userId, snoozeMins ? snoozeMins * 60 * 1000 : null);
+  return { success: true };
+});
+
+// ─── PDF REPORT EXPORT ─────────────────────────────────────────────────────────
+// Renders report HTML in a hidden, offscreen window and uses Chromium's native
+// printToPDF (same engine as `chrome --headless --print-to-pdf`) so the output
+// gets real automatic page numbers and a footer that repeats on every page via
+// headerTemplate/footerTemplate — neither is achievable from window.print().
+ipcMain.handle('export:pdf', async (_, { html, headerTemplate, footerTemplate, defaultFilename }) => {
+  let win = null;
+  try {
+    win = new BrowserWindow({
+      show: false,
+      webPreferences: { offscreen: true, sandbox: true },
+    });
+    await win.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(html));
+
+    const pdfBuffer = await win.webContents.printToPDF({
+      printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: headerTemplate || '<div></div>',
+      footerTemplate: footerTemplate || '<div></div>',
+      preferCSSPageSize: true,
+      // Custom margins leave room for the header/footer templates above —
+      // 'default' margins are too tight and clip them on some page sizes.
+      margins: { marginType: 'custom', top: 0.7, bottom: 0.65, left: 0.4, right: 0.4 },
+    });
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save Report as PDF',
+      defaultPath: defaultFilename || 'flow-ledger-report.pdf',
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
+    });
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    fs.writeFileSync(filePath, pdfBuffer);
+    return { success: true, path: filePath };
+  } catch (err) {
+    console.error('[export:pdf] failed:', err.message);
+    return { success: false, error: err.message };
+  } finally {
+    if (win && !win.isDestroyed()) win.destroy();
+  }
+});
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
 ipcMain.handle('stats:summary', (_, { userId, from, to }) => {
@@ -4425,7 +5244,7 @@ ipcMain.handle('calendar:list', (_, { userId, from, to }) => {
      LEFT JOIN projects p  ON ce.project_id = p.id
      LEFT JOIN clients  cl ON ce.client_id  = cl.id
      WHERE ce.user_id=? AND ce.start_time<=? AND ce.end_time>=? AND ce.status != 'cancelled'
-     ORDER BY ce.start_time`,
+     ORDER BY ce.start_time, ce.id`,
     [userId, to || now + 86400, from || now - 86400]
   );
 });

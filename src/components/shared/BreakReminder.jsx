@@ -15,7 +15,7 @@ const BREAK_TIPS = [
   "Do 10 jumping jacks or a quick walk",
 ];
 
-export default function BreakReminder({ userId, onDismiss, data = {} }) {
+export default function BreakReminder({ userId, onDismiss, onSessionChange, data = {} }) {
   const [tip]        = useState(() => BREAK_TIPS[Math.floor(Math.random() * BREAK_TIPS.length)]);
   const [duration,   setDuration]   = useState(data.duration || 17);
   const [elapsed,    setElapsed]    = useState(0);
@@ -33,6 +33,7 @@ export default function BreakReminder({ userId, onDismiss, data = {} }) {
       if (sessionIdRef.current) {
         api.stopSession?.({ sessionId: sessionIdRef.current }).catch(() => {});
         sessionIdRef.current = null;
+        onSessionChange?.();
       }
     };
   }, []);
@@ -42,12 +43,14 @@ export default function BreakReminder({ userId, onDismiss, data = {} }) {
     if (sessionIdRef.current) {
       await api.stopSession?.({ sessionId: sessionIdRef.current }).catch(() => {});
       sessionIdRef.current = null;
+      onSessionChange?.();
     }
   };
 
   const startBreak = async () => {
     const res = await api.startSession?.({ userId, category: 'Break', title: 'Scheduled Break', sessionType: 'break' });
     sessionIdRef.current = res?.id ?? null;
+    onSessionChange?.();
     setIsBreaking(true);
     setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -60,7 +63,7 @@ export default function BreakReminder({ userId, onDismiss, data = {} }) {
 
   const snooze = async () => {
     await stopBreakSession();
-    await api.dismissBreak?.({ userId });
+    await api.dismissBreak?.({ userId, snoozeMins: 10 });
     onDismiss?.();
   };
 

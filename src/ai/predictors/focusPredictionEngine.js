@@ -392,8 +392,17 @@ export function getNextFocusRecommendation(now = new Date(), existingEvents = []
   const windows = predictBestFocusWindows(now, { minWindowHours: 0.5 });
   const currentHour = now.getHours() + now.getMinutes() / 60;
 
-  const next = windows.find(w => w.startHour >= currentHour && w.suitableForDeepWork);
-  const fallback = windows.find(w => w.startHour >= currentHour);
+  // predictBestFocusWindows() sorts its results by score, not by time, so
+  // .find() here used to return whichever eligible window scored highest —
+  // which could be hours later than a perfectly fine, sooner window. Sort the
+  // *eligible* candidates chronologically before picking, so "next" actually
+  // means next.
+  const upcoming = windows
+    .filter(w => w.startHour >= currentHour)
+    .sort((a, b) => a.startHour - b.startHour);
+
+  const next = upcoming.find(w => w.suitableForDeepWork);
+  const fallback = upcoming[0];
 
   return next || fallback || null;
 }

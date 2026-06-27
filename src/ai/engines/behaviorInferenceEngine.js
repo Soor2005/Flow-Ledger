@@ -156,7 +156,7 @@ function inferCognitiveLoad(compressed, workMode) {
 
   if (techCount >= 3) return 'high';
   if (techCount >= 1) return 'medium';
-  return 'medium';
+  return 'low';
 }
 
 // ─── Flow State Inference ─────────────────────────────────────────────────────

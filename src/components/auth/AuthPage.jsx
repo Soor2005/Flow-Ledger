@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import supabase from '../../lib/supabase';
 import logoSrc from '../../assets/logo.png';
+import { isMac as IS_MAC_TB, MacControls as TrafficLights, WinControls } from '../shared/TitleBar';
 
 const FEATURES = [
   { Icon: Clock3,    label: 'Live focus sessions',          sub: "See what you're doing in real time"  },
@@ -105,12 +106,9 @@ export default function AuthPage({ onRegistered, onLoginSuccess, onUnverified })
   return (
     <div className="fl-auth-page flex h-full flex-col overflow-hidden">
       {/* Drag region */}
-      <div className="drag-region shrink-0 flex h-9 items-center px-3 gap-[6px]" style={{ background: 'transparent' }}>
-        <div className="no-drag flex items-center gap-[6px]">
-          <button onClick={() => window.electron?.close?.()}    className="h-3 w-3 rounded-full" style={{ background: '#ff5f57' }} title="Close" />
-          <button onClick={() => window.electron?.minimize?.()}  className="h-3 w-3 rounded-full" style={{ background: '#febc2e' }} title="Minimize" />
-          <button onClick={() => window.electron?.maximize?.()}  className="h-3 w-3 rounded-full" style={{ background: '#28c840' }} title="Maximize" />
-        </div>
+      <div className="drag-region shrink-0 flex h-9 items-center justify-between pl-3" style={{ background: 'transparent' }}>
+        {IS_MAC_TB && <TrafficLights />}
+        {!IS_MAC_TB && <WinControls height={36} />}
       </div>
 
       <div className="flex flex-1 overflow-hidden">

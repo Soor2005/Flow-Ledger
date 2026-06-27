@@ -219,8 +219,8 @@ export default function ExportModal({
             {/* Format hint */}
             <p className="fl-export-hint mt-3 leading-relaxed">
               {format === 'csv'
-                ? '📊 Includes metadata, section headers, KPIs, and data tables. Opens in Excel, Numbers, or Google Sheets.'
-                : '🖨️ Opens a styled print page. Use Cmd/Ctrl+P → Save as PDF, or send to printer.'}
+                ? '📊 Downloads one clean, analysis-ready CSV file per dataset. Opens in Excel, Numbers, or Google Sheets.'
+                : '🖨️ Generates a polished business report and prompts you to choose where to save the PDF.'}
             </p>
           </div>
         </div>

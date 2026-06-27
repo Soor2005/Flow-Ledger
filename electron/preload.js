@@ -2,9 +2,16 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electron', {
   // Window controls
+  platform: process.platform,
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close:    () => ipcRenderer.send('window-close'),
+  isMaximized: () => ipcRenderer.invoke('window-isMaximized'),
+  onMaximizedChange: (cb) => {
+    const handler = (_, isMax) => cb(isMax);
+    ipcRenderer.on('window:maximizedChange', handler);
+    return () => ipcRenderer.removeListener('window:maximizedChange', handler);
+  },
 
   // Auth — legacy local
   register:      (d) => ipcRenderer.invoke('auth:register', d),
@@ -24,6 +31,9 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('auth:deepLink', handler);
     return () => ipcRenderer.removeListener('auth:deepLink', handler);
   },
+
+  // Report export
+  exportReportPDF:        (d) => ipcRenderer.invoke('export:pdf', d),
 
   // Manual sessions
   startSession:           (d) => ipcRenderer.invoke('sessions:start', d),

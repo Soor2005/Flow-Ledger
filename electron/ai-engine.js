@@ -6,6 +6,8 @@
 // Pure Node.js — no external ML dependencies required
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const { summarizeWindowTitles, humanizePhrase } = require('./windowTitleAnalyzer');
+
 // ── CATEGORY DEFINITIONS ──────────────────────────────────────────────────────
 
 const CATEGORIES = {
@@ -540,16 +542,45 @@ class FlowLedgerAI {
 
   /**
    * Generate an intelligent session name from a set of app activities.
+   *
+   * Previously this only looked at `workflow.workflowName` — a name picked
+   * randomly from a small canned phrase list keyed by category, completely
+   * ignoring window_title/app_name/url on every activity. It now extracts
+   * the actual, time-weighted, cleaned window-title phrase that best
+   * describes what was on screen (same scoring the calendar event writer
+   * uses — see windowTitleAnalyzer.js), and only falls back to the canned
+   * name when no activity had a usable title (e.g. idle blocks).
    */
   summarizeSession(activities, projectName, clientName) {
-    const workflow = this.detectWorkflow(activities);
-    let name = workflow.workflowName;
+    const workflow  = this.detectWorkflow(activities);
+    const titleInfo = summarizeWindowTitles(activities);
 
-    // Personalise with project/client context if available
-    if (projectName && workflow.continuityScore > 60) {
-      name = `${projectName} — ${name}`;
-    } else if (clientName && workflow.continuityScore > 60) {
-      name = `${clientName} — ${name}`;
+    const TITLE_QUALITY_THRESHOLD = 20;
+    let name;
+    let nameHasOwnProject = false;
+    if (titleInfo.bestPhrase && titleInfo.bestPhraseScore >= TITLE_QUALITY_THRESHOLD) {
+      const humanized = humanizePhrase(titleInfo.bestPhrase);
+      // IDE-style titles ("file.js — Project") already carry their own project
+      // context — use it directly instead of stacking our project/client prefix
+      // on top, which previously produced "Flow Ledger — File.Js — Flow Ledger".
+      if (humanized.project) {
+        name = `${humanized.project} — ${humanized.text}`;
+        nameHasOwnProject = true;
+      } else {
+        name = humanized.text;
+      }
+    } else {
+      name = workflow.workflowName;
+    }
+
+    // Personalise with project/client context if available (skip when the
+    // title already embeds its own project context — see above).
+    if (!nameHasOwnProject) {
+      if (projectName && workflow.continuityScore > 60) {
+        name = `${projectName} — ${name}`;
+      } else if (clientName && workflow.continuityScore > 60) {
+        name = `${clientName} — ${name}`;
+      }
     }
 
     return {
@@ -557,11 +588,12 @@ class FlowLedgerAI {
       sessionType:  workflow.primaryCategory,
       isDeepWork:   ['development', 'design', 'writing', 'focus'].includes(workflow.primaryCategory),
       confidence:   workflow.intentConfidence,
-      description:  this._buildDescription(workflow, activities),
+      description:  this._buildDescription(workflow, activities, titleInfo),
     };
   }
 
-  _buildDescription(workflow, activities) {
+  _buildDescription(workflow, activities, titleInfo = null) {
+    const info = titleInfo || summarizeWindowTitles(activities);
     const parts = [];
     if (workflow.totalDurationSecs > 0) {
       parts.push(`${Math.round(workflow.totalDurationSecs / 60)} min`);
@@ -574,7 +606,25 @@ class FlowLedgerAI {
     } else {
       parts.push(workflow.primaryCategory);
     }
-    return parts.join(' · ');
+    let detail = parts.join(' · ');
+
+    // Mention the actual app(s) instead of staying purely category-level.
+    if (info.distinctApps.length === 1) {
+      detail += ` in ${info.distinctApps[0]}`;
+    } else if (info.distinctApps.length > 1) {
+      detail += ` across ${info.distinctApps.slice(0, 2).join(' & ')}`;
+    }
+
+    // Surface a second, distinct piece of work seen during the session —
+    // real substance instead of stats-only text.
+    const secondary = info.distinctPhrases.find(
+      p => p.phrase.toLowerCase() !== (info.bestPhrase || '').toLowerCase()
+    );
+    if (secondary) {
+      detail += `; also touched ${humanizePhrase(secondary.phrase).text}`;
+    }
+
+    return detail;
   }
 
   // ── FOCUS DETECTION ───────────────────────────────────────────────────────

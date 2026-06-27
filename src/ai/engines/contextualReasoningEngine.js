@@ -266,8 +266,15 @@ function buildPurposeContext(intentResult, continuityProfile, featureGraph, comp
     if (desc) return { type: 'feature_purpose', featureId: topFeature.featureId, description: desc };
   }
 
-  // Purpose from primary intent type
-  const intentType = intentResult?.primaryIntent?.includes('implementing') ? 'implementing'
+  // Purpose from primary intent type. `intentResult.type` is the clean enum
+  // value intentInferenceEngine.inferIntent() actually returns ('debugging',
+  // 'reviewing', 'researching', 'implementing', ...) — prefer it over
+  // sniffing substrings out of a rendered `primaryIntent` string, which
+  // misses real debugging/review phrasing that doesn't literally contain
+  // "fix"/"review" (e.g. "troubleshooting the reasoning pipeline").
+  const intentType = ['implementing', 'debugging', 'reviewing', 'researching'].includes(intentResult?.type)
+    ? intentResult.type
+    : intentResult?.primaryIntent?.includes('implementing') ? 'implementing'
     : intentResult?.primaryIntent?.includes('fix') ? 'debugging'
     : intentResult?.primaryIntent?.includes('review') ? 'reviewing'
     : 'implementing';
@@ -298,7 +305,9 @@ function buildOutcomeContext(intentResult, continuityProfile, featureGraph) {
     'debugging+ui_components': 'UI rendering issues resolved and interaction behavior corrected',
   };
 
-  const intentPrefix = intentResult?.primaryIntent?.includes('fix') ? 'debugging'
+  const intentPrefix = ['implementing', 'debugging', 'reviewing'].includes(intentResult?.type)
+    ? intentResult.type
+    : intentResult?.primaryIntent?.includes('fix') ? 'debugging'
     : intentResult?.primaryIntent?.includes('review') ? 'reviewing'
     : 'implementing';
 

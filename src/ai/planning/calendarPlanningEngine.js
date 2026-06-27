@@ -423,30 +423,34 @@ export function recommendBreaks(events) {
     const eventMins = durationMins(event);
     cumulativeWorkMins += eventMins;
 
-    // Recommend break after 90+ cumulative mins
-    if (cumulativeWorkMins >= 90 || (i < sorted.length - 1)) {
-      const breakStart = parseTime(event.end_time);
-      const nextEventStart = i < sorted.length - 1
-        ? parseTime(sorted[i + 1].start_time)
-        : null;
+    // There's nowhere to place a break after the last event (no next event
+    // to gap against), so only evaluate when one follows. The previous
+    // `cumulativeWorkMins >= 90 || (i < sorted.length - 1)` outer condition
+    // was misleading dead weight: the second disjunct is true for every
+    // iteration except the last anyway, and on the last iteration
+    // `nextEventStart` is always null regardless of cumulative time, so the
+    // `>= 90` half could never actually gate anything either way.
+    if (i >= sorted.length - 1) continue;
 
-      if (breakStart && nextEventStart) {
-        const gapMins = (nextEventStart - breakStart) / 60000;
-        if (gapMins >= 10) {
-          const breakMins = Math.min(gapMins, 20);
-          breaks.push({
-            recommendedStart: breakStart,
-            recommendedEnd: addMinutes(breakStart, breakMins),
-            durationMins: breakMins,
-            afterEvent: event.title,
-            beforeEvent: sorted[i + 1]?.title,
-            reason: cumulativeWorkMins >= 90
-              ? `${Math.round(cumulativeWorkMins)} min work session — recovery needed`
-              : 'Natural transition point',
-            label: `Break — ${formatTimeLabel(breakStart)}`,
-          });
-          cumulativeWorkMins = 0;
-        }
+    const breakStart = parseTime(event.end_time);
+    const nextEventStart = parseTime(sorted[i + 1].start_time);
+
+    if (breakStart && nextEventStart) {
+      const gapMins = (nextEventStart - breakStart) / 60000;
+      if (gapMins >= 10) {
+        const breakMins = Math.min(gapMins, 20);
+        breaks.push({
+          recommendedStart: breakStart,
+          recommendedEnd: addMinutes(breakStart, breakMins),
+          durationMins: breakMins,
+          afterEvent: event.title,
+          beforeEvent: sorted[i + 1]?.title,
+          reason: cumulativeWorkMins >= 90
+            ? `${Math.round(cumulativeWorkMins)} min work session — recovery needed`
+            : 'Natural transition point',
+          label: `Break — ${formatTimeLabel(breakStart)}`,
+        });
+        cumulativeWorkMins = 0;
       }
     }
   }

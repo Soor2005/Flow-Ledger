@@ -74,6 +74,16 @@ function pctChange(curr, prev) {
   if (!prev) return null;
   return Math.round(((curr - prev) / prev) * 100);
 }
+function gradeFromScore(score) {
+  if (score >= 90) return 'A';
+  if (score >= 85) return 'A-';
+  if (score >= 80) return 'B+';
+  if (score >= 70) return 'B';
+  if (score >= 60) return 'C';
+  if (score >= 50) return 'D';
+  return 'F';
+}
+function mean(arr) { return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0; }
 function fmtHrs(s)  { return (s / 3600).toFixed(1) + 'h'; }
 function fmtMins(s) { const m = Math.round(s / 60); return m < 60 ? `${m}m` : `${Math.floor(m/60)}h ${m%60}m`; }
 function fmtSecs(s) { if (s < 60) return `${s}s`; if (s < 3600) return `${Math.round(s/60)}m`; return fmtMins(s); }
@@ -1552,17 +1562,170 @@ export default function ReportsPage({ user }) {
           const sectionIds = scope === 'current' ? [activeTab] : MODULES.map(m => m.id);
           const sections   = sectionIds.map(id => buildTabSection(id, exportData)).filter(Boolean);
           const periodLabel = period === 'custom' ? `${customFrom} to ${customTo}` : `Last ${effectiveDays} days`;
+          const score = Math.max(0, Math.min(100, Math.round(deepPct * 0.4 + focusPct * 0.4 + (100 - burnoutRisk) * 0.2)));
+          const burnoutLevel = burnoutRisk >= 60 ? 'High' : burnoutRisk >= 35 ? 'Elevated' : burnoutRisk >= 15 ? 'Moderate' : 'Low';
+          const dailyAvgLastWeek  = (weekComp?.lastWeek?.totalSecs    || 0) / 3600 / 7;
+          const deepAvgLastWeek   = (weekComp?.lastWeek?.deepWorkSecs || 0) / 3600 / 7;
+          const focusPctLastWeek  = weekComp ? Math.round((weekComp.lastWeek?.focusSecs || 0) / Math.max(1, weekComp.lastWeek?.totalSecs || 0) * 100) : 0;
+          const dailyFocusPctArr  = daily.map(d => d.total > 0 ? Math.round(d.focus / d.total * 100) : 0);
+
+          // ── Representative day timeline (most recent date that has any sessions) ──
+          const dateKey = (ts) => new Date(ts * 1000).toISOString().split('T')[0];
+          const sessionDates = [...new Set(sessions.map(s => dateKey(s.started_at)))].sort();
+          const repDate = sessionDates[sessionDates.length - 1];
+          const timelineBlocks = sessions.filter(s => dateKey(s.started_at) === repDate).map(s => {
+            const d = new Date(s.started_at * 1000);
+            const startSec = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+            const dur = s.duration_seconds || 0;
+            if (s.session_type === 'meeting') return { startSec, durSec: dur, color: '#F87171', label: 'Meetings' };
+            if (s.session_type === 'break')   return { startSec, durSec: dur, color: '#FBBF24', label: 'Breaks' };
+            if (s.is_deep_work)                return { startSec, durSec: dur, color: '#5BA7FF', label: 'Deep Work' };
+            if (dur < 600)                     return { startSec, durSec: dur, color: '#A78BFA', label: 'Context Switching' };
+            return { startSec, durSec: dur, color: '#34D399', label: 'Focus Sessions' };
+          });
+
+          // ── Weekly activity heatmap (day-of-week × hour-of-day, minutes active) ──
+          const heatmap = Array.from({ length: 7 }, () => Array(24).fill(0));
+          sessions.forEach(s => {
+            if (!s.started_at) return;
+            const d = new Date(s.started_at * 1000);
+            const day = (d.getDay() + 6) % 7; // Mon=0..Sun=6
+            heatmap[day][d.getHours()] += (s.duration_seconds || 0) / 60;
+          });
+
+          const recommendations = [
+            breakRatio < 10 ? { text: 'Increase break frequency — currently under 10% of tracked time, which raises fatigue risk.', confidence: 88 } : null,
+            switchRate > 40 ? { text: 'Block longer, uninterrupted focus windows — over 40% of sessions are under 10 minutes.', confidence: 82 } : null,
+            meetPct > 30 ? { text: 'Audit recurring meetings and consolidate them into fewer days to protect deep work blocks.', confidence: 76 } : null,
+            distractApps.length > 0 ? { text: `Restrict access to ${distractApps[0]?.app_name || 'top distraction apps'} during core focus hours.`, confidence: 71 } : null,
+          ].filter(Boolean).slice(0, 4);
+
           const meta = {
             dateRange: `${new Date(fromTs * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(toTs * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
             period:    periodLabel,
             sections:  sectionIds.map(id => MODULES.find(m => m.id === id)?.label).filter(Boolean).join(', '),
+            generatedBy: user.username,
+            companyName: user.company || user.workspace_name || null,
+            userName:    [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username,
+
+            // Executive summary
+            keyTakeaways: [
+              `${deepPct}% of tracked time was deep work, averaging ${deepPerDay}h/day across ${effectiveDays} days.`,
+              `Meetings consumed ${meetPct}% of tracked time (${meetPerDay}h/day average).`,
+              distractApps.length > 0 ? `${distractApps.length} distraction app${distractApps.length === 1 ? '' : 's'} accounted for ${fmtH(distractTime)} this period.` : null,
+              `Burnout risk is currently assessed as ${burnoutLevel.toLowerCase()} (${burnoutRisk}/100).`,
+            ].filter(Boolean),
+            execKpis: [
+              { label: 'Total Tracked',  value: fmtH(totalSecs), progress: Math.min(100, Math.round(avgPerDay / Math.max(1, user.daily_target_hours || 6) * 100)) },
+              { label: 'Deep Work',      value: `${deepPct}%`, trend: deepTrend, badge: deepPct >= 40 ? 'excellent' : deepPct >= 20 ? 'good' : 'warn', progress: deepPct },
+              { label: 'Focus Accuracy', value: `${focusPct}%`, badge: focusPct >= 70 ? 'excellent' : focusPct >= 50 ? 'good' : 'warn', progress: focusPct },
+              { label: 'Avg Hours/Day',  value: `${avgPerDay}h`, progress: Math.min(100, Math.round(avgPerDay / Math.max(1, user.daily_target_hours || 6) * 100)) },
+            ],
+            productivityScore: {
+              value: score,
+              description: 'Weighted blend of deep work ratio, focus accuracy, and burnout risk over the reporting period.',
+              breakdown: [
+                { label: 'Deep Work Ratio', weight: 40, value: deepPct,            color: '#5BA7FF' },
+                { label: 'Focus Accuracy',  weight: 40, value: focusPct,           color: '#34D399' },
+                { label: 'Burnout (inverse)', weight: 20, value: 100 - burnoutRisk, color: '#FBBF24' },
+              ],
+            },
+            radar: [
+              { label: 'Deep Work',        value: deepPct },
+              { label: 'Focus',            value: focusPct },
+              { label: 'Consistency',      value: deepConsistency },
+              { label: 'Low Distraction',  value: Math.max(0, 100 - distractPct) },
+              { label: 'Break Balance',    value: Math.min(100, breakRatio * 5) },
+              { label: 'Meeting Balance',  value: Math.max(0, 100 - meetPct) },
+            ],
+
+            // Performance overview
+            trend: {
+              label: 'Total Tracked Hours',
+              unit:  'h',
+              points: daily.map(d => ({ label: d.date, value: d.total })),
+            },
+            comparative: [
+              { label: 'Hours / Day',        current: avgPerDay, previous: +dailyAvgLastWeek.toFixed(1), best: +Math.max(...daily.map(d => d.total), 0).toFixed(1), average: +mean(daily.map(d => d.total)).toFixed(1), unit: 'h' },
+              { label: 'Deep Work Hours/Day', current: +deepPerDay, previous: +deepAvgLastWeek.toFixed(1), best: +Math.max(...daily.map(d => d.deepWork), 0).toFixed(1), average: +mean(daily.map(d => d.deepWork)).toFixed(1), unit: 'h' },
+              { label: 'Focus Accuracy',     current: focusPct, previous: focusPctLastWeek, best: Math.max(...dailyFocusPctArr, 0), average: Math.round(mean(dailyFocusPctArr)), unit: '%' },
+            ],
+
+            // Session timeline + weekly heatmap
+            timeline: timelineBlocks.length ? {
+              dateLabel: repDate ? new Date(repDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : 'Most recent tracked day',
+              blocks: timelineBlocks,
+              heatmap,
+            } : null,
+
+            // AI insights — expanded executive analysis, built from already-computed page metrics
+            aiInsights: {
+              strengths: [
+                adaptiveFocus?.insights?.[0],
+                adaptiveHistory?.trend === 'improving' ? 'Productivity trend is improving over the last 30 days.' : null,
+                deepConsistency >= 70 ? `Deep work logged on ${daysWithDeep} of ${effectiveDays} days — strong consistency.` : null,
+              ].filter(Boolean),
+              weaknesses: [
+                switchRate > 40 ? `${switchRate}% of sessions were under 10 minutes, indicating frequent context switching.` : null,
+                meetPct > 30 ? `Meetings consumed ${meetPct}% of tracked time, limiting deep work capacity.` : null,
+              ].filter(Boolean),
+              opportunities: [
+                distractApps.length > 0 ? `${distractApps.length} distraction app${distractApps.length === 1 ? '' : 's'} accounted for ${fmtH(distractTime)} this period.` : null,
+                breakRatio < 10 ? 'Increase break frequency to sustain focus quality over longer sessions.' : null,
+              ].filter(Boolean),
+              bottlenecks: [
+                overworkDays >= 3 ? `${overworkDays} overwork days (>8h) may be limiting recovery time.` : null,
+                meetDays >= effectiveDays * 0.6 ? 'Meetings are spread across most days, fragmenting deep work blocks.' : null,
+              ].filter(Boolean),
+              burnoutRisk: {
+                level: burnoutLevel,
+                text: `Composite score of ${burnoutRisk}/100, based on overwork days (${overworkDays}), break ratio (${breakRatio}%), and average daily hours (${avgPerDay}h).`,
+              },
+              focusPattern: {
+                text: adaptiveFocus?.peakWindow
+                  ? `Peak focus window detected around ${adaptiveFocus.peakWindow}. ${adaptiveFocus.insights?.[0] || ''}`
+                  : `Average session length is ${avgSessLen} minutes across ${sessCount} sessions, with ${switchPerDay} sessions/day.`,
+              },
+              predictedNextWeek: {
+                value: deepTrend != null ? `${deepTrend > 0 ? '+' : ''}${deepTrend}%` : '—',
+                text: deepTrend != null
+                  ? `Based on the recent trend, deep work is projected to ${deepTrend >= 0 ? 'increase' : 'decrease'} next week if current patterns continue.`
+                  : 'Insufficient trend history to generate a forecast yet.',
+              },
+              recommendations,
+            },
+            definitions: [
+              { term: 'Deep Work',        definition: 'Continuous focused work sessions of 25 minutes or longer with minimal context switching.' },
+              { term: 'Focus Accuracy',   definition: 'Share of tracked time classified as focused (non-distracted) activity.' },
+              { term: 'Context Switch',   definition: 'A session shorter than 10 minutes, indicating fragmented attention.' },
+              { term: 'Burnout Risk',     definition: 'Composite indicator based on overwork days, break ratio, and average daily hours.' },
+              { term: 'Productivity Score', definition: '40% deep work ratio + 40% focus accuracy + 20% inverse burnout risk.' },
+            ],
+
+            // Final summary page
+            finalSummary: {
+              grade: gradeFromScore(score),
+              score,
+              highlights: [
+                `Logged ${fmtH(totalSecs)} of tracked time over ${effectiveDays} day${effectiveDays === 1 ? '' : 's'}.`,
+                catData[0] ? `${catData[0].name} was the top category at ${catData[0].pct}% of tracked time.` : null,
+                longestDeep ? `Longest single deep work session reached ${fmtDuration(longestDeep)}.` : null,
+              ].filter(Boolean),
+              biggestAchievement: deepConsistency >= 50
+                ? `Deep work was logged on ${daysWithDeep} of ${effectiveDays} days, with a longest session of ${fmtDuration(longestDeep)}.`
+                : `Best single day reached ${Math.max(...daily.map(d => d.total), 0).toFixed(1)}h of tracked work.`,
+              biggestOpportunity: recommendations[0]?.text || (meetPct > 30 ? 'Reduce meeting load to protect deep work capacity.' : 'Maintain current pace — no major opportunities flagged this period.'),
+              aiRecommendation: recommendations[0]?.text || 'Continue current focus habits — no high-confidence changes recommended this period.',
+              closing: `Overall, this was a ${score >= 70 ? 'strong' : score >= 50 ? 'solid' : 'challenging'} period with a productivity score of ${score}/100. ` +
+                `${burnoutLevel === 'Low' ? 'Burnout risk remains low, supporting a sustainable pace.' : `Burnout risk is ${burnoutLevel.toLowerCase()} — consider the recommendations above before the next period.`}`,
+            },
           };
           const title    = scope === 'current'
             ? `Flow Ledger — ${MODULES.find(m => m.id === activeTab)?.label} Report`
             : 'Flow Ledger — Full Analytics Report';
           const filename = `flow-ledger-reports-${activeTab}-${new Date().toISOString().split('T')[0]}`;
           if (format === 'csv') exportAsCSV(title, meta, sections, `${filename}.csv`);
-          else exportAsPDF(title, meta, sections);
+          else await exportAsPDF(title, meta, sections);
         }}
       />
     </div>

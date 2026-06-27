@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, Notification, session: electronSession, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, Notification, nativeImage, session: electronSession, screen, dialog } = require('electron');
 
 // ─── GPU workaround: relaunch with sandbox disabled on first run ──────────────
 // On Windows + NVIDIA, Electron's GPU *sandbox process* crashes silently,
@@ -25,6 +25,7 @@ const {
 } = require('./workflow/workflowEngine');
 const { createTray, destroyTray } = require('./tray');
 const { FlowLedgerAI, WORKFLOW_NAMES } = require('./ai-engine');
+const { parseTitleHistory, pushTitleHistory } = require('./windowTitleAnalyzer');
 const { setupUpdater }    = require('./updater');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 
@@ -80,6 +81,17 @@ function getSupabaseAdmin() {
 // when the PowerShell bridge pipe closes unexpectedly (process killed, restarted
 // by Windows Update, etc.).  We log it and let the bridge auto-restart; we
 // never want the whole app to die over a broken pipe.
+// console.error/warn alone are not enough in a packaged Windows GUI app —
+// there is no attached console, so anything logged only to console is
+// invisible and the user just sees a frozen/blank app with zero diagnostics.
+// Mirror fatal errors to a crash.log in userData so they're actually findable.
+function logFatal(label, err) {
+  try {
+    const line = `[${new Date().toISOString()}] ${label}: ${err && err.stack ? err.stack : err}\n`;
+    fs.appendFileSync(path.join(app.getPath('userData'), 'crash.log'), line);
+  } catch (_) { /* best effort — never let logging itself crash the app */ }
+}
+
 process.on('uncaughtException', (err) => {
   if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') {
     // Benign — broken pipe from the PowerShell tracker child process.
@@ -89,11 +101,13 @@ process.on('uncaughtException', (err) => {
   }
   // For any other uncaught error log it but do NOT crash — keeps the app alive.
   console.error('[main] Uncaught exception:', err);
+  logFatal('uncaughtException', err);
 });
 
 process.on('unhandledRejection', (reason) => {
   // Suppress noisy but harmless promise rejections (network, tracker, etc.)
   console.warn('[main] Unhandled rejection:', reason);
+  logFatal('unhandledRejection', reason);
 });
 
 const isDev   = !!process.env.ELECTRON_START_URL;
@@ -250,6 +264,23 @@ function getAppIconPath() {
     path.join(__dirname, '..', 'public', 'logo.png'),
   ];
   return candidates.find(p => fs.existsSync(p)) || candidates[0];
+}
+
+// Native OS notifications (esp. Windows toast) are rendered by a separate OS
+// shell process that reads the icon file directly off disk — it can't see
+// inside the app.asar archive the way Electron's own patched fs/nativeImage
+// loader can. Loading the icon into a NativeImage here (asar-aware) and
+// handing Notification the decoded bitmap — instead of a path string —
+// sidesteps that entirely, so the icon (and the notification itself) keeps
+// working in packaged/production builds, not just `npm run` dev mode.
+let _notifIcon = null;
+function getNotifIcon() {
+  if (_notifIcon) return _notifIcon;
+  try {
+    const img = nativeImage.createFromPath(getAppIconPath());
+    if (!img.isEmpty()) _notifIcon = img;
+  } catch {}
+  return _notifIcon || undefined;
 }
 
 // ── Branding: ensures Windows notifications show "Flow Ledger" not "Electron"
@@ -1040,6 +1071,10 @@ function createSchema() {
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN supporting_tools TEXT');
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_recommended_title TEXT');
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_recommended_description TEXT');
+  // Distinct window titles seen across a merged/extended session block — without
+  // this, window_title gets overwritten on every extend and the narrative writer
+  // only ever sees the LATEST title, losing everything else done during the block.
+  tryAlter("ALTER TABLE auto_sessions ADD COLUMN title_history TEXT DEFAULT '[]'");
 
   save();
 }
@@ -1505,7 +1540,27 @@ function startAutoTracker(userId) {
         let id = existingWorkflowSession?.id || uuidv4();
         if (existingWorkflowSession) {
           const supportingTools = mergeSupportingTools(existingWorkflowSession.supporting_tools, activeWorkflow, appName);
-          const narrativeRows = all('SELECT * FROM auto_sessions WHERE id=?', [id]).concat({
+
+          // window_title gets overwritten below on every extend, so without this the
+          // narrative writer would only ever see the LATEST title and lose everything
+          // else done earlier in this merged session block. title_history recovers it.
+          const existingRow = get('SELECT * FROM auto_sessions WHERE id=?', [id]);
+          const priorTitles = parseTitleHistory(existingRow?.title_history)
+            .filter(t => t.toLowerCase() !== (title || '').toLowerCase());
+          // No exact per-title timing is tracked, so split the session's elapsed
+          // duration evenly across prior titles as a reasonable approximation —
+          // enough for the time-weighted phrase ranking to consider them.
+          const nominalDur = priorTitles.length
+            ? Math.max(30, Math.floor((existingRow?.duration_seconds || 0) / (priorTitles.length + 1)))
+            : 0;
+          const historyRows = priorTitles.map(t => ({
+            app_name: existingRow?.app_name || appName,
+            window_title: t,
+            duration_seconds: nominalDur,
+            ai_category: existingRow?.ai_category,
+          }));
+
+          const narrativeRows = historyRows.concat([existingRow].filter(Boolean)).concat({
             app_name: appName,
             window_title: title || '',
             url: url || null,
@@ -1519,6 +1574,7 @@ function startAutoTracker(userId) {
             clientId: finalClientId || existingWorkflowSession.client_id || null,
             fallbackTitle: aiWorkflowName || aiLabel || appName,
           });
+          const newTitleHistory = pushTitleHistory(existingRow?.title_history, title || '', 10);
           logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_BLOCKED, {
             sessionId: id,
             workflowId: resolvedWorkflowId,
@@ -1543,11 +1599,13 @@ function startAutoTracker(userId) {
                     workflow_id=?,
                     supporting_tools=?,
                     ai_recommended_title=COALESCE(?, ai_recommended_title),
-                    ai_recommended_description=COALESCE(?, ai_recommended_description)
+                    ai_recommended_description=COALESCE(?, ai_recommended_description),
+                    title_history=?
               WHERE id=?`,
             [now, duration, title || '', url || null, finalProjectId, finalClientId,
              aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName,
-             resolvedWorkflowId, supportingTools, narrative.title, narrative.description, id]
+             resolvedWorkflowId, supportingTools, narrative.title, narrative.description,
+             newTitleHistory, id]
           );
           logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_EXTENDED, {
             sessionId: id,
@@ -1590,12 +1648,12 @@ function startAutoTracker(userId) {
                (id,user_id,app_name,window_title,url,started_at,ended_at,duration_seconds,
                 date_key,project_id,client_id,
                 ai_label,ai_category,ai_session_type,ai_confidence,ai_is_deep_work,ai_workflow_name,workflow_id,supporting_tools,
-                ai_recommended_title,ai_recommended_description)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                ai_recommended_title,ai_recommended_description,title_history)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [id, userId, appName, title || '', url || null, now - duration, now, duration,
              dateKey, finalProjectId, finalClientId,
              aiLabel, aiCategory, aiSessionType, aiConfidence, aiIsDeepWork, aiWorkflowName, resolvedWorkflowId, supportingTools,
-             narrative.title, narrative.description]
+             narrative.title, narrative.description, JSON.stringify(title ? [title] : [])]
           );
         } else {
           logWorkflowPersistence(WORKFLOW_EVENTS.SESSION_CREATION_BLOCKED, {
@@ -1732,7 +1790,7 @@ function startAutoTracker(userId) {
         new Notification({
           title: '🚫 Distraction Blocked',
           body: `${appName} is blocked during Focus Mode. Stay focused!`,
-          icon: getAppIconPath(),
+          icon: getNotifIcon(),
           silent: false,
         }).show();
       } catch {}
@@ -1905,7 +1963,7 @@ function scheduleFlowState(sessionTitle) {
     const body  = `${title} — 25 minutes in. Deep focus mode active. Keep going!`;
     // Native OS notification
     try {
-      new Notification({ title: '🌊 Flow State Reached', body, icon: getAppIconPath() }).show();
+      new Notification({ title: '🌊 Flow State Reached', body, icon: getNotifIcon() }).show();
     } catch (e) { /* notifications unavailable */ }
     // Also push to in-app notification centre
     if (mainWindow) {
@@ -1915,11 +1973,13 @@ function scheduleFlowState(sessionTitle) {
 }
 
 // ─── BREAK REMINDER ───────────────────────────────────────────────────────────
-function scheduleBreakReminder(userId) {
+// snoozeMs lets a caller (e.g. the "Snooze 10m" button) override the normal
+// work-interval delay with a short one-off wait instead.
+function scheduleBreakReminder(userId, snoozeMs = null) {
   clearTimeout(breakReminderTimeout);
   const settings = get('SELECT * FROM break_settings WHERE user_id=?', [userId]);
   if (!settings || !settings.enabled) return;
-  const intervalMs = (settings.work_interval_mins || 52) * 60 * 1000;
+  const intervalMs = snoozeMs || (settings.work_interval_mins || 52) * 60 * 1000;
   breakReminderTimeout = setTimeout(() => {
     // Smart: only fire if user has actually been working (>=50% active in window)
     const windowSecs = (settings.work_interval_mins || 52) * 60;
@@ -2009,6 +2069,11 @@ function createWindow() {
       mainWindow.hide();
     }
   });
+
+  // Push maximize/restore state so the custom titlebar can swap its icon —
+  // mirrors the native OS window-control behavior (maximize <-> restore icon).
+  mainWindow.on('maximize',   () => mainWindow.webContents.send('window:maximizedChange', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximizedChange', false));
 }
 
 // Disable GPU hardware acceleration. Electron's GPU compositor crashes silently
@@ -2131,6 +2196,19 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
     else showMainWindow();
   });
+}).catch((err) => {
+  // Without this, a thrown error anywhere in startup (e.g. initDatabase()
+  // failing) left the app running with zero window, zero tray icon, and
+  // zero visible diagnostics — just a silently hung process. Now it's both
+  // logged to crash.log and surfaced to the user instead of failing invisibly.
+  console.error('[main] Fatal startup error:', err);
+  logFatal('startup', err);
+  dialog.showErrorBox(
+    'Flow Ledger failed to start',
+    `An error occurred during startup:\n\n${err?.message || err}\n\n` +
+    `Details were written to: ${path.join(app.getPath('userData'), 'crash.log')}`
+  );
+  app.exit(1);
 });
 
 // ─── AI PERIODIC ANALYSIS JOB ────────────────────────────────────────────────
@@ -2318,7 +2396,7 @@ function checkTaskReminders(userId) {
       if (_notifiedReminderKeys.has(key)) continue;
       _notifiedReminderKeys.add(key);
       try {
-        new Notification({ title: 'Task Reminder', body: task.title, icon: getAppIconPath() }).show();
+        new Notification({ title: 'Task Reminder', body: task.title, icon: getNotifIcon() }).show();
       } catch (_) {}
       mainWindow.webContents.send('tasks:reminder', { task, sentAt: Date.now() });
       run('UPDATE tasks SET reminder_at=NULL WHERE id=?', [task.id]);
@@ -2451,6 +2529,7 @@ app.on('window-all-closed', () => {
 ipcMain.on('window-minimize', () => mainWindow?.minimize());
 ipcMain.on('window-maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize());
 ipcMain.on('window-close',    () => mainWindow?.hide());   // hide to tray
+ipcMain.handle('window-isMaximized', () => !!mainWindow?.isMaximized());
 
 
 // ─── NATIVE APP ICON ─────────────────────────────────────────────────────────
@@ -3950,7 +4029,52 @@ ipcMain.handle('break:updateSettings', (_, { userId, enabled, workIntervalMins, 
   scheduleBreakReminder(userId);
   return { success: true };
 });
-ipcMain.handle('break:dismiss', (_, { userId }) => { scheduleBreakReminder(userId); return { success: true }; });
+ipcMain.handle('break:dismiss', (_, { userId, snoozeMins }) => {
+  scheduleBreakReminder(userId, snoozeMins ? snoozeMins * 60 * 1000 : null);
+  return { success: true };
+});
+
+// ─── PDF REPORT EXPORT ─────────────────────────────────────────────────────────
+// Renders report HTML in a hidden, offscreen window and uses Chromium's native
+// printToPDF (same engine as `chrome --headless --print-to-pdf`) so the output
+// gets real automatic page numbers and a footer that repeats on every page via
+// headerTemplate/footerTemplate — neither is achievable from window.print().
+ipcMain.handle('export:pdf', async (_, { html, headerTemplate, footerTemplate, defaultFilename }) => {
+  let win = null;
+  try {
+    win = new BrowserWindow({
+      show: false,
+      webPreferences: { offscreen: true, sandbox: true },
+    });
+    await win.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(html));
+
+    const pdfBuffer = await win.webContents.printToPDF({
+      printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: headerTemplate || '<div></div>',
+      footerTemplate: footerTemplate || '<div></div>',
+      preferCSSPageSize: true,
+      // Custom margins leave room for the header/footer templates above —
+      // 'default' margins are too tight and clip them on some page sizes.
+      margins: { marginType: 'custom', top: 0.7, bottom: 0.65, left: 0.4, right: 0.4 },
+    });
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save Report as PDF',
+      defaultPath: defaultFilename || 'flow-ledger-report.pdf',
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
+    });
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    fs.writeFileSync(filePath, pdfBuffer);
+    return { success: true, path: filePath };
+  } catch (err) {
+    console.error('[export:pdf] failed:', err.message);
+    return { success: false, error: err.message };
+  } finally {
+    if (win && !win.isDestroyed()) win.destroy();
+  }
+});
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
 ipcMain.handle('stats:summary', (_, { userId, from, to }) => {

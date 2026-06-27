@@ -233,7 +233,11 @@ function getModeVerbForHint(mode) {
 }
 
 function extractCommonSubject(titles) {
-  if (!titles.length) return null;
+  // Need at least two titles to talk about a "recurring" word at all —
+  // with a single title, Math.ceil(1 * 0.4) === 1 made every word that
+  // appeared even once look "recurring", falsely triggering continuity
+  // narratives ("exploring Project X") from just one prior session.
+  if (titles.length < 2) return null;
 
   // Extract significant words from titles (exclude verbs and function words)
   const FUNCTION_WORDS = new Set([
@@ -255,7 +259,7 @@ function extractCommonSubject(titles) {
 
   // Find words that appear in multiple titles
   const recurring = Object.entries(wordCounts)
-    .filter(([, count]) => count >= Math.ceil(titles.length * 0.4))
+    .filter(([, count]) => count >= Math.max(2, Math.ceil(titles.length * 0.4)))
     .sort(([, a], [, b]) => b - a)
     .slice(0, 3)
     .map(([w]) => w);

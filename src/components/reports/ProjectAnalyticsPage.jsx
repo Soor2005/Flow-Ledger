@@ -1932,7 +1932,7 @@ export default function ProjectAnalyticsPage({ user }) {
           const title = 'Flow Ledger — Project & Client Analytics';
           const filename = `flow-ledger-analytics-${dateLabel}.csv`;
           if (format === 'csv') exportAsCSV(title, meta, sections, filename);
-          else exportAsPDF(title, meta, sections);
+          else await exportAsPDF(title, meta, sections);
         }}
       />
     </div>

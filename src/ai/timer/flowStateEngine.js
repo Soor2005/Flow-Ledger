@@ -222,7 +222,7 @@ export function summarizeFlowHistory(stateHistory = []) {
   if (!stateHistory.length) return null;
   const counts = {};
   for (const s of stateHistory) {
-    counts[s.stateId] = (counts[s.stateId] || 0) + 1;
+    counts[s.id] = (counts[s.id] || 0) + 1;
   }
   const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
   return {

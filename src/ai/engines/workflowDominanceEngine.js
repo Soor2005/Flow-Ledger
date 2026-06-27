@@ -134,7 +134,7 @@ function isDistractionTitle(title = '', url = '') {
  * Extract meaningful keywords from a string, filtered by stop words.
  * Returns normalized lowercase words of length ≥ 3.
  */
-function extractKeywords(text = '') {
+export function extractKeywords(text = '') {
   return text
     .replace(APP_SUFFIX_STRIP_RE, '')
     .replace(/[^a-zA-Z0-9\s]/g, ' ')
@@ -464,11 +464,16 @@ function classifyWorkflows(scoredClusters, totalSecs) {
       continue;
     }
 
-    // Workflow locking: only promote to secondary/primary if it crossed the threshold
+    // Workflow locking: only promote to primary/secondary if it crossed the
+    // threshold documented above (≥15 min AND ≥20% of session time). This
+    // used to auto-promote whichever cluster scored highest to `primary`
+    // regardless of threshold, so a session fragmented into many small
+    // clusters (none individually crossing the lock threshold) would still
+    // get a confident-looking "dominant workflow" label instead of falling
+    // through to the fragmented-session fallback in analyzeDominance().
     const crossedLockThreshold = totalMins >= LOCK_MIN_MINS && timePct >= LOCK_MIN_PCT;
 
-    if (primary.length === 0) {
-      // First non-noise, non-distraction workflow is always primary
+    if (crossedLockThreshold && primary.length === 0) {
       primary.push({ ...cluster, workflowClass: WORKFLOW_CLASS.PRIMARY });
     } else if (crossedLockThreshold) {
       secondary.push({ ...cluster, workflowClass: WORKFLOW_CLASS.SECONDARY });
