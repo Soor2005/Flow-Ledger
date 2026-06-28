@@ -378,6 +378,36 @@ function buildDurationPhrase(durationMins, isDeepWork, productivityState) {
   return null;
 }
 
+// ─── Verb Synonym Rotation ─────────────────────────────────────────────────────
+// inferAction() (the high-confidence action-inference override below) is fully
+// deterministic — it always returns the same verb for the same activity data,
+// which bypassed the variantIndex-based selection in pickHumanVerb() and made
+// "Rewrite with AI" produce identical output whenever that override fired
+// (the common case for sessions with clear window-title signals). Rotating the
+// FINAL chosen verb through a synonym set — after any override — guarantees a
+// rewrite always changes the wording, regardless of which path picked it.
+const VERB_SYNONYM_PAIRS = {
+  implementing: [['Implementing', 'Implemented'], ['Building', 'Built'], ['Developing', 'Developed'], ['Engineering', 'Engineered'], ['Creating', 'Created']],
+  debugging:    [['Debugging', 'Debugged'], ['Fixing', 'Fixed'], ['Troubleshooting', 'Troubleshot'], ['Resolving', 'Resolved'], ['Investigating', 'Investigated']],
+  reviewing:    [['Reviewing', 'Reviewed'], ['Auditing', 'Audited'], ['Evaluating', 'Evaluated'], ['Assessing', 'Assessed'], ['Inspecting', 'Inspected']],
+  refactoring:  [['Refactoring', 'Refactored'], ['Improving', 'Improved'], ['Restructuring', 'Restructured'], ['Optimizing', 'Optimized'], ['Cleaning Up', 'Cleaned up']],
+  testing:      [['Testing', 'Tested'], ['Validating', 'Validated'], ['Verifying', 'Verified'], ['QA Testing', 'QA tested']],
+  designing:    [['Designing', 'Designed'], ['Crafting', 'Crafted'], ['Prototyping', 'Prototyped'], ['Refining', 'Refined']],
+  analyzing:    [['Analyzing', 'Analyzed'], ['Examining', 'Examined'], ['Investigating', 'Investigated'], ['Studying', 'Studied']],
+  planning:     [['Planning', 'Planned'], ['Scoping', 'Scoped'], ['Organizing', 'Organized'], ['Strategizing', 'Strategized']],
+  documenting:  [['Documenting', 'Documented'], ['Writing', 'Wrote'], ['Drafting', 'Drafted'], ['Composing', 'Composed']],
+  researching:  [['Researching', 'Researched'], ['Exploring', 'Explored'], ['Studying', 'Studied'], ['Investigating', 'Investigated']],
+  deploying:    [['Deploying', 'Deployed'], ['Shipping', 'Shipped'], ['Releasing', 'Released'], ['Publishing', 'Published']],
+  integrating:  [['Integrating', 'Integrated'], ['Connecting', 'Connected'], ['Configuring', 'Configured'], ['Wiring Up', 'Wired up']],
+};
+
+export function rotateVerbPair(presentVerb, pastVerb, variantIndex = 0) {
+  const key = (presentVerb || '').toLowerCase().trim();
+  const variants = VERB_SYNONYM_PAIRS[key];
+  if (!variants || !variants.length) return [presentVerb, pastVerb];
+  return variants[variantIndex % variants.length];
+}
+
 // ─── Verb Selector (per-call, no module-level state) ─────────────────────────
 // usedVerbs must be passed in by the caller — do not use module-level mutable state.
 
@@ -402,9 +432,15 @@ function pickHumanVerb(intentType, position = 0, usedVerbs = []) {
  * @param {Object} intent   - from intentInferenceEngine
  * @param {Object} ranking  - from signalRankingEngine
  * @param {Object} reasoning - from contextualReasoningEngine
+ * @param {Object} [options]
+ * @param {number} [options.variantIndex] - rotates verb choice and sentence
+ *   structure so repeated "Rewrite with AI" calls on the same underlying
+ *   activity data produce genuinely different phrasing instead of the same
+ *   deterministic output every time.
  * @returns {Object} humanizedOutput
  */
-export function humanize(intent, ranking, reasoning) {
+export function humanize(intent, ranking, reasoning, options = {}) {
+  const variantIndex = options.variantIndex || 0;
   const {
     type: intentType, objective, topPhrases, isContinuing,
     verbs, pastVerbs, isAIDominant,
@@ -451,9 +487,11 @@ export function humanize(intent, ranking, reasoning) {
   );
 
   // ── Verb selection ──────────────────────────────────────────────────────────
+  // variantIndex offsets the verb pick so a rewrite never repeats the same verb
+  // as the previous one for identical underlying activity data.
   const sessionUsedVerbs = reasoning._usedVerbs || [];
-  const presentVerb  = pickHumanVerb(intentType, 0, sessionUsedVerbs);
-  const pastVerb     = (pastVerbs || ['Worked on'])[0];
+  const presentVerb  = pickHumanVerb(intentType, variantIndex, sessionUsedVerbs);
+  const pastVerb     = (pastVerbs || ['Worked on'])[variantIndex % (pastVerbs?.length || 1)] || 'Worked on';
 
   // ── Tool phrase ─────────────────────────────────────────────────────────────
   const toolPhrase = buildToolPhrase(tools, intentType);
@@ -476,6 +514,7 @@ export function humanize(intent, ranking, reasoning) {
   );
   let finalVerb = presentVerb;
   let finalActivity = activityPhrase;
+  let chosenPastVerb = pastVerb;
 
   // High-confidence action inference override — replaces the humanization pipeline
   // output when a better, more specific title can be inferred directly from signals.
@@ -494,21 +533,30 @@ export function humanize(intent, ranking, reasoning) {
     if (isTitleAcceptable(candidateTitle)) {
       finalVerb     = actionInferred.verb;
       finalActivity = actionInferred.subject;
+      chosenPastVerb = actionInferred.pastVerb;
     }
   }
+
+  // Rotate to a synonymous verb pair keyed on variantIndex. This runs AFTER the
+  // action-inference override above so a rewrite still changes wording even
+  // when that deterministic override fires (see VERB_SYNONYM_PAIRS comment).
+  const rotatedVerbPair = rotateVerbPair(finalVerb, chosenPastVerb, variantIndex);
+  finalVerb = rotatedVerbPair[0];
+  chosenPastVerb = rotatedVerbPair[1];
 
   // ── Title: [Verb] [activity] ────────────────────────────────────────────────
   const title = buildTitle(finalVerb, finalActivity, project);
 
   // ── Description: rich sentence ──────────────────────────────────────────────
   const description = buildDescription(
-    actionInferred.hasSubject && actionInferred.confidence >= 0.80 ? actionInferred.pastVerb : pastVerb,
+    chosenPastVerb,
     finalActivity,
     contextPhrase,
     toolPhrase,
     durationPhrase,
     intent,
     project,
+    variantIndex,
   );
 
   // ── Productivity note ───────────────────────────────────────────────────────
@@ -576,7 +624,7 @@ function buildTitle(verb, activity, project) {
 
 // ─── Description Builder ──────────────────────────────────────────────────────
 
-function buildDescription(pastVerb, activity, context, _tools, duration, intent, project) {
+function buildDescription(pastVerb, activity, context, _tools, duration, intent, project, variantIndex = 0) {
   // Strip leading gerunds to prevent double-verb patterns like "Reviewed reviewing..."
   const cleanActivity = activity.replace(LEADING_GERUND_RE, '');
   const cleanContext  = context ? context.replace(LEADING_GERUND_RE, '') : null;
@@ -584,10 +632,16 @@ function buildDescription(pastVerb, activity, context, _tools, duration, intent,
   // Main clause: what was done.
   // IMPORTANT: Only append context when the activity doesn't already contain " and "
   // — if it does, appending another "and X" creates audit-report chaining ("X and Y and Z").
+  // variantIndex rotates through SENTENCE_STRUCTURES so repeated rewrites of the
+  // same activity data read differently instead of producing identical text.
   const activityHasConjunction = cleanActivity.includes(' and ');
-  const mainClause = (cleanContext && !activityHasConjunction)
-    ? `${pastVerb} ${cleanActivity} and ${cleanContext}`
-    : `${pastVerb} ${cleanActivity}`;
+  let mainClause;
+  if (cleanContext && !activityHasConjunction) {
+    const structure = SENTENCE_STRUCTURES[variantIndex % SENTENCE_STRUCTURES.length];
+    mainClause = structure(pastVerb, cleanActivity, cleanContext).replace(/\.$/, '');
+  } else {
+    mainClause = `${pastVerb} ${cleanActivity}`;
+  }
 
   // Purpose clause: WHY it was done — replaces the old "using [tools]" clause
   const intentType   = intent?.type || 'implementing';

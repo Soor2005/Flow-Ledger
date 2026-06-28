@@ -111,7 +111,8 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const isDev   = !!process.env.ELECTRON_START_URL;
-const DB_PATH = path.join(app.getPath('userData'), 'flow-ledger-v4.db');
+const DB_PATH   = path.join(app.getPath('userData'), 'flow-ledger-v4.db');
+const BACKUP_PATH = DB_PATH + '.bak';
 const LOGS_DIR = path.join(app.getPath('userData'), 'logs');
 const ACTIVATION_LOG_PATH = path.join(LOGS_DIR, 'activation.log');
 
@@ -674,24 +675,41 @@ async function initDatabase() {
   const wasmPath  = path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
   const SQL       = await initSqlJs({ locateFile: () => wasmPath });
 
+  // Attempt to open a candidate buffer; returns the live sql.js Database or null.
+  const tryOpen = (buf) => {
+    if (!buf || buf.length < 512 || buf.toString('ascii', 0, 6) !== 'SQLite') return null;
+    try { return new SQL.Database(buf); } catch { return null; }
+  };
+
   if (fs.existsSync(DB_PATH)) {
     const buf = fs.readFileSync(DB_PATH);
-    // Guard against empty / corrupted files (sql.js throws "file is not a database")
-    if (buf.length === 0 || buf.toString('ascii', 0, 6) !== 'SQLite') {
-      // Back up the bad file so nothing is silently lost, then start fresh
+    db = tryOpen(buf);
+    if (!db) {
+      // Primary file is corrupt or empty — before giving up, try the rolling
+      // backup written by save() on the previous successful write. This is
+      // the recovery path for power-loss/corruption scenarios: instead of
+      // silently wiping the user's data and starting fresh, fall back to the
+      // last known-good snapshot.
+      const backupBuf = fs.existsSync(BACKUP_PATH) ? fs.readFileSync(BACKUP_PATH) : null;
+      db = tryOpen(backupBuf);
+
       const badPath = DB_PATH + '.corrupt-' + Date.now();
-      fs.renameSync(DB_PATH, badPath);
-      console.warn(`[db] Database file was corrupt or empty — backed up to ${badPath} and starting fresh.`);
-      db = new SQL.Database();
-    } else {
-      try {
-        db = new SQL.Database(buf);
-      } catch (e) {
-        const badPath = DB_PATH + '.corrupt-' + Date.now();
-        fs.renameSync(DB_PATH, badPath);
-        console.warn(`[db] Failed to open database (${e.message}) — backed up to ${badPath} and starting fresh.`);
+      try { fs.renameSync(DB_PATH, badPath); } catch (_) {}
+
+      if (db) {
+        console.warn(`[db] Primary database was corrupt — recovered from backup (${BACKUP_PATH}). Corrupt file preserved at ${badPath}.`);
+      } else {
+        console.warn(`[db] Database file was corrupt or empty and no usable backup was found — backed up to ${badPath} and starting fresh.`);
         db = new SQL.Database();
       }
+    }
+  } else if (fs.existsSync(BACKUP_PATH)) {
+    // Primary missing entirely (e.g. deleted mid-write before rename) — recover from backup.
+    db = tryOpen(fs.readFileSync(BACKUP_PATH));
+    if (db) {
+      console.warn('[db] Primary database file was missing — recovered from backup.');
+    } else {
+      db = new SQL.Database();
     }
   } else {
     db = new SQL.Database();
@@ -745,11 +763,44 @@ function save() {
       return;
     }
 
+    // Roll the current on-disk file into a one-generation-back backup *before*
+    // overwriting it, so a power loss that corrupts the live file (or a bad
+    // write that slips past the sanity check above) still leaves a recoverable
+    // copy on disk. Only roll a backup when the existing file is itself valid,
+    // so we never replace a good backup with a bad one.
+    try {
+      if (fs.existsSync(DB_PATH)) {
+        const existing = fs.readFileSync(DB_PATH);
+        if (existing.length >= 512 && existing.toString('ascii', 0, 6) === 'SQLite') {
+          fs.writeFileSync(BACKUP_PATH, existing);
+        }
+      }
+    } catch (_) { /* backup is best-effort, never block the primary save */ }
+
     // Atomic write: write to a temp file then rename, so a crash mid-write
-    // cannot leave a partial/corrupt file at DB_PATH.
+    // cannot leave a partial/corrupt file at DB_PATH. fsync the temp file
+    // before the rename so the bytes are actually flushed to stable storage —
+    // without this, a sudden power-off can lose data that was only sitting in
+    // the OS write cache even though writeFileSync had already "returned".
     const tmp = DB_PATH + '.tmp';
-    fs.writeFileSync(tmp, buf);
+    const fd = fs.openSync(tmp, 'w');
+    try {
+      fs.writeSync(fd, buf);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
     fs.renameSync(tmp, DB_PATH);
+
+    // Best-effort: fsync the containing directory too, so the rename itself
+    // (the directory entry update) survives a power cut. Not supported on
+    // Windows (no directory file descriptors), so this is a no-op there.
+    if (process.platform !== 'win32') {
+      try {
+        const dirFd = fs.openSync(path.dirname(DB_PATH), 'r');
+        try { fs.fsyncSync(dirFd); } finally { fs.closeSync(dirFd); }
+      } catch (_) {}
+    }
   } catch (e) {
     console.error('[save] Failed to persist database:', e.message);
   }
@@ -2512,6 +2563,16 @@ app.on('before-quit', () => {
     } catch (_) {}
   }
 });
+
+// OS-initiated power events (shutdown, sleep, lock) fire with a short grace
+// window before the machine actually powers off — force an immediate flush
+// of whatever is in memory so an unexpected shutdown doesn't lose writes
+// that happened since the last `run()` call.
+try {
+  powerMonitor.on('shutdown', () => { try { save(); } catch (_) {} });
+  powerMonitor.on('suspend',  () => { try { save(); } catch (_) {} });
+  powerMonitor.on('lock-screen', () => { try { save(); } catch (_) {} });
+} catch (_) {}
 
 app.on('window-all-closed', () => {
   if (tracker) tracker.stop();
@@ -4883,6 +4944,18 @@ ipcMain.handle('calendar:googleConnect', async (_, { userId, calendarId = 'prima
   const creds = googleCreds();
   if (!creds) throw new Error('CREDENTIALS_NOT_CONFIGURED');
 
+  // Only one Google Calendar account may be connected per user. Block the
+  // OAuth flow entirely (rather than letting a second account overwrite or
+  // duplicate rows) so the user must explicitly disconnect the existing one
+  // first via Settings.
+  const existingGoogle = get(
+    'SELECT id FROM calendar_connections WHERE user_id=? AND provider=? LIMIT 1',
+    [userId, 'google'],
+  );
+  if (existingGoogle) {
+    throw new Error('A Google Calendar account is already connected. Disconnect it first if you want to connect a different one.');
+  }
+
   // Close any lingering callback server
   if (_googleOAuthServer) { try { _googleOAuthServer.close(); } catch (_) {} _googleOAuthServer = null; }
 
@@ -5007,6 +5080,17 @@ h1{font-size:20px;font-weight:700;color:#F1F5FF;letter-spacing:-.02em;margin-bot
           const info = await httpsGet('https://www.googleapis.com/oauth2/v1/userinfo', access_token);
           if (info.status === 200) email = info.body.email || null;
         } catch (_) {}
+
+        // Re-check the one-account-per-user rule right before insert (closes the
+        // race window if two OAuth flows were somehow started concurrently).
+        const raceCheck = get(
+          'SELECT id FROM calendar_connections WHERE user_id=? AND provider=? LIMIT 1',
+          [userId, 'google'],
+        );
+        if (raceCheck) {
+          reject(new Error('A Google Calendar account is already connected.'));
+          return;
+        }
 
         // Persist connection (ics_url='' for OAuth connections)
         const connId = uuidv4();

@@ -5,7 +5,9 @@ const api = window.electron || {};
 
 // Same formula HomePage uses for its "PROD. SCORE" stat — kept in sync so the
 // header widget and the home page never disagree on what today's score is.
-function computeScore(sessions) {
+// Exported so other features (e.g. Activity Snapshot) can compute the same
+// score for an arbitrary date range without duplicating the formula.
+export function computeScore(sessions) {
   const active = (sessions || []).filter(s => !s.is_idle && (s.duration_seconds || 0) > 0);
   let totalSecs = 0, deepSecs = 0, distractSecs = 0;
   active.forEach(s => {

@@ -67,7 +67,7 @@ function setCached(fp, result) {
 
 // ─── Core Pipeline Stages ─────────────────────────────────────────────────────
 
-function runCorePipeline(autoSessions, project, client, sessionDurationMins) {
+function runCorePipeline(autoSessions, project, client, sessionDurationMins, variantIndex = 0) {
   // ── Stage 1: Sanitize ──────────────────────────────────────────────────────
   const { sessions: cleanSessions, stats: sanitizeStats } = sanitizeSessions(autoSessions);
 
@@ -188,7 +188,7 @@ function runCorePipeline(autoSessions, project, client, sessionDurationMins) {
   reasoning.intentResult    = intent;
 
   // ── Stage 11: Humanization ────────────────────────────────────────────────
-  const humanized = humanize(intent, ranking, reasoning);
+  const humanized = humanize(intent, ranking, reasoning, { variantIndex });
   reasoning.humanized = humanized;
 
   // ── Stage 12: Overall confidence ──────────────────────────────────────────
@@ -411,6 +411,8 @@ export function orchestrateSync(autoSessions = [], options = {}) {
     useContinuity      = false,
     sessionId          = null,
     linkedTaskTitle    = null,
+    rewriteAttempt     = 0,
+    bypassCache        = false,
   } = options;
 
   if (!autoSessions.length) {
@@ -427,17 +429,21 @@ export function orchestrateSync(autoSessions = [], options = {}) {
   // the first session's cached title and description (the duplication bug).
   // linkedTaskTitle is also included since re-assigning a session to a different
   // task must produce a fresh title rather than reusing a stale cached one.
+  // rewriteAttempt is included so each "Rewrite with AI" click gets its own cache
+  // slot instead of replaying a previous rewrite's cached output verbatim.
   const firstTs = autoSessions[0]?.started_at ?? '';
   const lastTs  = autoSessions[autoSessions.length - 1]?.started_at ?? '';
   const sessionKey = sessionId || `${firstTs}_${lastTs}`;
-  const fp = contextFingerprint(compForFP) + `|${project?.id || ''}|${sessionKey}|${linkedTaskTitle || ''}`;
+  const fp = contextFingerprint(compForFP) + `|${project?.id || ''}|${sessionKey}|${linkedTaskTitle || ''}|${rewriteAttempt}`;
 
-  const cached = getCached(fp);
-  if (cached) return cached;
+  if (!bypassCache) {
+    const cached = getCached(fp);
+    if (cached) return cached;
+  }
 
   // Run pipeline
   const { reasoning, intent, ranking, humanized, fusedWorkblock } = runCorePipeline(
-    autoSessions, project, client, sessionDurationMins,
+    autoSessions, project, client, sessionDurationMins, rewriteAttempt,
   );
 
   // Optional: run continuity engine (updates localStorage)

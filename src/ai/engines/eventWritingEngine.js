@@ -19,6 +19,7 @@ import { getDominantSessions } from './workflowDominanceEngine.js';
 import { isGenericSubject, checkTitleRejectPatterns } from './genericKeywordFilter.js';
 import { checkNarrativeQuality } from './narrativeQualityEngine.js';
 import { inferAction } from './actionInferenceEngine.js';
+import { rotateVerbPair } from './humanizationEngine.js';
 
 // ─── Work Subtype → Verb Map ──────────────────────────────────────────────────
 // Much richer than generic category verbs — each subtype gets specific verbs.
@@ -315,8 +316,12 @@ function deduplicateTitle(title = '') {
  *   inferAction() call (e.g. from humanizationEngine on the orchestrator path).
  *   When provided, Priority 0 skips the inferAction() call entirely, preventing
  *   the double-inference problem (R-04). Pass null to compute fresh (standalone path).
+ * @param {number} [variantIndex] - rotates verb choice so a "Rewrite with AI"
+ *   re-roll on identical input data still produces different wording (used on
+ *   the legacy/no-autoSessions fallback path; the orchestrator path's own verb
+ *   rotation lives in humanizationEngine.js).
  */
-export function generateTitle(context, precomputedInference = null) {
+export function generateTitle(context, precomputedInference = null, variantIndex = 0) {
   const { primaryCategory, project, hour } = context;
 
   // Check learned title first
@@ -368,7 +373,11 @@ export function generateTitle(context, precomputedInference = null) {
   let inferredSource = null;
   if (inferred.hasSubject && inferred.confidence >= 0.80 &&
       !['work_mode_fallback', 'primary_app'].includes(inferred.source)) {
-    const candidateTitle = `${inferred.verb} ${inferred.subject}`;
+    // inferAction() is deterministic for identical input — rotate to a synonym
+    // verb so repeated rewrites of the same session don't return the exact
+    // same title every time.
+    const [rotatedVerb] = rotateVerbPair(inferred.verb, inferred.pastVerb, variantIndex);
+    const candidateTitle = `${rotatedVerb} ${inferred.subject}`;
     if (isQualityTitle(candidateTitle)) {
       inferredTitle = candidateTitle;
       inferredSource = inferred.source;
@@ -379,7 +388,7 @@ export function generateTitle(context, precomputedInference = null) {
   const { subject, verbOverride, source } = extractSubject(context);
 
   // Select action verb
-  const verb = verbOverride || selectVerb(context, 0);
+  const verb = verbOverride || selectVerb(context, variantIndex);
 
   // Build the title — prefer action-inferred title when available
   let title = '';
@@ -495,8 +504,11 @@ export function generateTitle(context, precomputedInference = null) {
 /**
  * Generate a natural, professional description from context.
  * Reads like it was written by a person, not a template engine.
+ *
+ * @param {number} [variantIndex] - rotates the leading action verb so a
+ *   "Rewrite with AI" re-roll on identical context still reads differently.
  */
-export function generateDescription(context, generatedTitle = '') {
+export function generateDescription(context, generatedTitle = '', variantIndex = 0) {
   const {
     primaryCategory, project, client, apps, websites,
     fallbackKeywords = [], durationMins, focusQuality, isDeepWork,
@@ -524,7 +536,12 @@ export function generateDescription(context, generatedTitle = '') {
     migrating:    'Migrated',
   };
   const descVerbs = DESC_VERB_PHRASES[primaryCategory] || DESC_VERB_PHRASES.development;
-  const descVerb = (workSubtype && SUBTYPE_DESC_VERBS[workSubtype]) || descVerbs[0];
+  const baseDescVerb = (workSubtype && SUBTYPE_DESC_VERBS[workSubtype]) || descVerbs[0];
+  // workSubtype strings ('debugging', 'implementing', ...) double as the
+  // gerund keys in VERB_SYNONYM_PAIRS, so this rotates to a synonym past-tense
+  // verb on repeated rewrites instead of always returning baseDescVerb.
+  const [, rotatedDescVerb] = rotateVerbPair(workSubtype || 'implementing', baseDescVerb, variantIndex);
+  const descVerb = rotatedDescVerb || baseDescVerb;
 
   // What was worked on — derive from AI-generated title by stripping the leading verb
   let subject = '';

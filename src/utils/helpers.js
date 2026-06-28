@@ -26,6 +26,13 @@ export function weekStart() {
   return Math.floor(d.getTime() / 1000);
 }
 
+export function monthStart() {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return Math.floor(d.getTime() / 1000);
+}
+
 export function dateKey(unixSeconds) {
   return new Date(unixSeconds * 1000).toISOString().split('T')[0];
 }

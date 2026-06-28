@@ -31,6 +31,7 @@ import PageTransition from '../shared/PageTransition';
 import FocusSessionDock from '../shared/FocusSessionDock';
 import { isMac as IS_MAC_TB, MacControls as TrafficLights, WinControls } from '../shared/TitleBar';
 import ProductivityScoreWidget from '../shared/ProductivityScoreWidget';
+import ActivitySnapshotButton from '../shared/ActivitySnapshotButton';
 import DailyDebrief from '../shared/DailyDebrief';
 import CommandPalette, { pushRecentPage } from '../shared/CommandPalette';
 import NotificationCentre, { pushNotification, pushToast, ToastStack, NotificationBell, onNotificationsChanged } from '../shared/NotificationCentre';
@@ -603,9 +604,15 @@ export default function Dashboard() {
         <div aria-hidden className="pointer-events-none absolute inset-0"
           style={{ background: 'radial-gradient(ellipse at center,rgba(124,108,242,0.07),transparent 60%)' }} />
 
-        {/* LEFT — flex-1: productivity score widget */}
-        <div className="flex flex-1 items-center pl-5">
+        {/* LEFT — flex-1: productivity score widget + activity snapshot */}
+        <div className="flex flex-1 items-center gap-2.5 pl-5">
           <ProductivityScoreWidget userId={user.id} />
+          <ActivitySnapshotButton
+            userId={user.id}
+            accountName={accountName}
+            initials={initials}
+            logoSrc={logoSrc}
+          />
         </div>
 
         {/* CENTER — absolutely pinned to 50% so it never shifts with content changes */}

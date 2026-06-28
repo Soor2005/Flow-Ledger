@@ -4,7 +4,7 @@ import {
   Calendar, Users, Coffee, Target, Briefcase,
   MapPin, Video, ExternalLink, FileText,
   FolderOpen, ChevronDown, CheckCircle2, Save,
-  AlertCircle, Move, Sparkles, Gauge,
+  AlertCircle, Move, Sparkles, Gauge, MoreHorizontal,
 } from 'lucide-react';
 import { computeFocusQuality } from '../../ai/timer/focusQualityEngine.js';
 function useThemeLight() {
@@ -107,23 +107,101 @@ function AppAvatar({ name }) {
 }
 
 // ─── Shared icon button ───────────────────────────────────────────────────────
-function IconBtn({ onClick, title, hoverColor = '#C8CCE0', hoverBg = 'rgba(255,255,255,0.07)', disabled = false, children }) {
+function IconBtn({ onClick, title, hoverColor, hoverBg, disabled = false, isLight = false, children }) {
+  const baseColor = isLight ? '#64748B' : '#7A8BA8';
+  const resolvedHoverColor = hoverColor || (isLight ? '#1E293B' : '#C8CCE0');
+  const resolvedHoverBg    = hoverBg    || (isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.07)');
   return (
     <button
       onClick={onClick} title={title} disabled={disabled}
       style={{
         width: 30, height: 30, borderRadius: 8,
         background: 'transparent', border: 'none',
-        color: '#7A8BA8', cursor: disabled ? 'default' : 'pointer',
+        color: baseColor, cursor: disabled ? 'default' : 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'color 0.12s ease, background 0.12s ease', flexShrink: 0,
         opacity: disabled ? 0.4 : 1,
       }}
-      onMouseOver={e => { if (!disabled) { e.currentTarget.style.color = hoverColor; e.currentTarget.style.background = hoverBg; }}}
-      onMouseOut={e  => { e.currentTarget.style.color = '#7A8BA8'; e.currentTarget.style.background = 'transparent'; }}
+      onMouseOver={e => { if (!disabled) { e.currentTarget.style.color = resolvedHoverColor; e.currentTarget.style.background = resolvedHoverBg; }}}
+      onMouseOut={e  => { e.currentTarget.style.color = baseColor; e.currentTarget.style.background = 'transparent'; }}
     >
       {children}
     </button>
+  );
+}
+
+// ─── Header overflow menu ──────────────────────────────────────────────────────
+// Houses secondary header actions (reschedule, delete, ...) so the primary
+// action row stays short and never competes with the title for width.
+function OverflowMenu({ items, isLight = false }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const visibleItems = items.filter(Boolean);
+  if (!visibleItems.length) return null;
+
+  const neutralBorder  = isLight ? '#E2E8F0' : 'rgba(255,255,255,0.12)';
+  const neutralText    = isLight ? '#475569' : '#8090A8';
+  const neutralTextHi  = isLight ? '#1E293B' : '#C8CCE0';
+  const neutralHoverBg = isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.06)';
+  const itemText       = isLight ? '#334155' : '#C4C8E0';
+  const dangerText      = isLight ? '#DC2626' : '#F87171';
+  const dangerHoverBg   = isLight ? 'rgba(220,38,38,0.08)' : 'rgba(248,113,113,0.10)';
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="More actions"
+        style={{
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: open ? neutralHoverBg : 'transparent',
+          border: `1px solid ${neutralBorder}`,
+          color: open ? neutralTextHi : neutralText, cursor: 'pointer',
+          transition: 'all 0.12s ease',
+        }}
+        onMouseOver={e => { if (!open) e.currentTarget.style.background = neutralHoverBg; }}
+        onMouseOut={e  => { if (!open) e.currentTarget.style.background = 'transparent'; }}
+      >
+        <MoreHorizontal size={15} />
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60,
+          minWidth: 172, background: isLight ? '#FFFFFF' : '#131824',
+          border: `1px solid ${isLight ? '#E2E8F0' : 'rgba(255,255,255,0.09)'}`,
+          borderRadius: 11,
+          boxShadow: isLight ? '0 12px 32px rgba(15,23,42,0.16), 0 2px 8px rgba(15,23,42,0.08)' : '0 12px 32px rgba(0,0,0,0.6)',
+          overflow: 'hidden', padding: 4,
+        }}>
+          {visibleItems.map((item, i) => (
+            <button key={i}
+              onClick={() => { setOpen(false); item.onClick(); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                padding: '8px 10px', borderRadius: 7, border: 'none', background: 'transparent',
+                color: item.danger ? dangerText : itemText, fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', textAlign: 'left',
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = item.danger ? dangerHoverBg : neutralHoverBg; }}
+              onMouseOut={e  => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <item.icon size={13} />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -718,15 +796,22 @@ export default function SessionDetailPopup({
 
   // ── Shared input style ───────────────────────────────────────────────────────
   const fieldBase = {
-    width: '100%', background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.09)',
-    borderRadius: 9, padding: '8px 10px', color: '#E4E8F4', fontSize: 13,
+    width: '100%',
+    background: isLight ? 'rgba(15,23,42,0.03)' : 'rgba(255,255,255,0.04)',
+    border: `1px solid ${isLight ? '#E2E8F0' : 'rgba(255,255,255,0.09)'}`,
+    borderRadius: 9, padding: '8px 10px', color: isLight ? '#0F172A' : '#E4E8F4', fontSize: 13,
     outline: 'none', boxSizing: 'border-box',
     transition: 'border-color 0.14s ease, background 0.14s ease',
-    colorScheme: 'dark',
+    colorScheme: isLight ? 'light' : 'dark',
   };
-  const focusStyle = (e) => { e.target.style.borderColor = `${color}60`; e.target.style.background = 'rgba(255,255,255,0.06)'; };
-  const blurStyle  = (e) => { e.target.style.borderColor = 'rgba(255,255,255,0.09)'; e.target.style.background = 'rgba(255,255,255,0.04)'; };
+  const focusStyle = (e) => {
+    e.target.style.borderColor = `${color}60`;
+    e.target.style.background = isLight ? 'rgba(15,23,42,0.05)' : 'rgba(255,255,255,0.06)';
+  };
+  const blurStyle  = (e) => {
+    e.target.style.borderColor = isLight ? '#E2E8F0' : 'rgba(255,255,255,0.09)';
+    e.target.style.background  = isLight ? 'rgba(15,23,42,0.03)' : 'rgba(255,255,255,0.04)';
+  };
 
   // ── Enter edit mode ──────────────────────────────────────────────────────────
   const enterEditMode = () => {
@@ -913,29 +998,32 @@ export default function SessionDetailPopup({
         }} />
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
+        {/* Two-row layout: row 1 holds badges + actions (fixed height, never
+            wraps), row 2 is the title with the full panel width to itself —
+            this is what prevents the cramped one-word-per-line wrapping the
+            old single-row layout produced when the action bar grew. */}
         <div style={{
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          gap: 12, padding: '16px 18px 14px',
-          borderBottom: '1px solid rgba(255,255,255,0.055)',
+          display: 'flex', flexDirection: 'column', gap: 12,
+          padding: '16px 18px 14px',
+          borderBottom: `1px solid ${isLight ? 'rgba(15,23,42,0.07)' : 'rgba(255,255,255,0.055)'}`,
           flexShrink: 0, position: 'relative', zIndex: 1,
         }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {/* Type badge + duration */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, flexWrap: 'wrap' }}>
-              <div style={{
-                width: 26, height: 26, borderRadius: 8, flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: `linear-gradient(145deg, ${color}22 0%, ${color}0D 100%)`,
-                border: `1px solid ${color}2E`,
-                boxShadow: `0 2px 10px ${color}18, inset 0 1px 0 ${color}15`,
+          {/* Row 1: type/duration badges (left) + actions (right).
+              flexWrap is a safety net only — sizes below are tuned to fit
+              the panel's default 420px width on one line; if a host window
+              ever renders the panel narrower, actions wrap to their own
+              line instead of clipping or compressing the title row. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', rowGap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, overflow: 'hidden' }}>
+              <TypeIcon size={13} style={{ color, flexShrink: 0 }} />
+              <span style={{
+                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                <TypeIcon size={11} style={{ color }} />
-              </div>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.10em', color }}>
                 {typeName}
               </span>
               <span style={{
-                fontSize: 11, fontWeight: 700, color,
+                fontSize: 11, fontWeight: 700, color, flexShrink: 0,
                 fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
                 padding: '2px 7px', borderRadius: 6,
                 background: `${color}14`, border: `1px solid ${color}28`,
@@ -944,7 +1032,120 @@ export default function SessionDetailPopup({
               </span>
             </div>
 
-            {/* Title — input in edit mode, text in view mode */}
+            {/* Header action buttons — equal height (30px), equal radius,
+                consistent padding/icon size, vertically centered content.
+                Rewrite with AI is the one labeled (primary) button; Edit
+                is icon-only so the hierarchy reads at a glance and the row
+                stays short enough to never compress the title below it. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {editMode ? (
+                <>
+                  <button
+                    onClick={cancelEdit} disabled={saving}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      height: 30, padding: '0 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      background: 'transparent',
+                      border: `1px solid ${isLight ? '#E2E8F0' : 'rgba(255,255,255,0.12)'}`,
+                      color: isLight ? '#475569' : '#8090A8', cursor: saving ? 'default' : 'pointer',
+                      opacity: saving ? 0.5 : 1, transition: 'all 0.12s ease', boxSizing: 'border-box',
+                    }}
+                    onMouseOver={e => { if (!saving) { e.currentTarget.style.background = isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = isLight ? '#1E293B' : '#B0BDCF'; }}}
+                    onMouseOut={e  => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = isLight ? '#475569' : '#8090A8'; }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveAll} disabled={saving}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      height: 30, padding: '0 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                      background: saving ? `${color}30` : `${color}22`,
+                      border: `1px solid ${color}45`,
+                      color: saving ? `${color}80` : color,
+                      cursor: saving ? 'default' : 'pointer',
+                      boxShadow: saving ? 'none' : `0 2px 10px ${color}20`,
+                      transition: 'all 0.12s ease', boxSizing: 'border-box',
+                    }}
+                    onMouseOver={e => { if (!saving) { e.currentTarget.style.background = `${color}30`; e.currentTarget.style.boxShadow = `0 4px 16px ${color}30`; }}}
+                    onMouseOut={e  => { if (!saving) { e.currentTarget.style.background = `${color}22`; e.currentTarget.style.boxShadow = `0 2px 10px ${color}20`; }}}
+                  >
+                    <Save size={12} />
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                  <IconBtn onClick={onClose} title="Close" disabled={saving} isLight={isLight}>
+                    <X size={14} />
+                  </IconBtn>
+                </>
+              ) : (
+                <>
+                  {/* Primary action: Rewrite with AI — re-rolls title/description
+                      from scratch, even if the current title already looks meaningful */}
+                  {!isCalendar && onRewriteAI && (
+                    <button
+                      onClick={() => onRewriteAI(block)}
+                      disabled={aiRewriting}
+                      title="Regenerate the title & description from tracked activity"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        height: 30, padding: '0 11px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        background: aiRewriting ? (isLight ? 'rgba(16,185,129,0.08)' : 'rgba(52,211,153,0.08)') : 'transparent',
+                        border: `1px solid ${isLight ? 'rgba(5,150,105,0.32)' : 'rgba(52,211,153,0.30)'}`,
+                        color: isLight ? '#059669' : '#34D399', cursor: aiRewriting ? 'default' : 'pointer',
+                        opacity: aiRewriting ? 0.7 : 1,
+                        transition: 'all 0.12s ease', whiteSpace: 'nowrap', boxSizing: 'border-box',
+                      }}
+                      onMouseOver={e => { if (!aiRewriting) e.currentTarget.style.background = isLight ? 'rgba(16,185,129,0.12)' : 'rgba(52,211,153,0.12)'; }}
+                      onMouseOut={e  => { if (!aiRewriting) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <Sparkles size={12} />
+                      {aiRewriting ? 'Rewriting…' : 'Rewrite with AI'}
+                    </button>
+                  )}
+
+                  {/* Secondary action: Edit Event / Edit Session */}
+                  <button
+                    onClick={enterEditMode}
+                    title={isCalendar ? 'Edit event details' : 'Edit session details'}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      height: 30, padding: '0 11px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      background: 'transparent',
+                      border: `1px solid ${isLight ? '#E2E8F0' : 'rgba(255,255,255,0.12)'}`,
+                      color: isLight ? '#475569' : '#8090A8', cursor: 'pointer',
+                      transition: 'all 0.12s ease', whiteSpace: 'nowrap', boxSizing: 'border-box',
+                    }}
+                    onMouseOver={e => { e.currentTarget.style.color = color; e.currentTarget.style.borderColor = `${color}45`; e.currentTarget.style.background = `${color}12`; }}
+                    onMouseOut={e  => { e.currentTarget.style.color = isLight ? '#475569' : '#8090A8'; e.currentTarget.style.borderColor = isLight ? '#E2E8F0' : 'rgba(255,255,255,0.12)'; e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <Pencil size={12} />
+                    {isCalendar ? 'Edit Event' : 'Edit Session'}
+                  </button>
+
+                  {/* Everything else lives in the overflow menu so the action
+                      row never grows wide enough to squeeze the title. */}
+                  <OverflowMenu isLight={isLight} items={[
+                    onReschedule && {
+                      icon: Move, label: 'Reschedule',
+                      onClick: () => { onClose(); onReschedule(block); },
+                    },
+                    onDelete && {
+                      icon: Trash2, label: isCalendar ? 'Delete event' : 'Delete session',
+                      danger: true,
+                      onClick: () => setConfirmDelete(true),
+                    },
+                  ]} />
+
+                  <IconBtn onClick={onClose} title="Close" isLight={isLight}>
+                    <X size={14} />
+                  </IconBtn>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: title — full panel width, clamped to 3 lines */}
+          <div>
             {editMode ? (
               <div>
                 <input
@@ -955,7 +1156,7 @@ export default function SessionDetailPopup({
                   style={{
                     ...fieldBase,
                     fontSize: 15, fontWeight: 700, padding: '7px 10px',
-                    borderColor: titleError ? '#F87171' : 'rgba(255,255,255,0.09)',
+                    borderColor: titleError ? '#F87171' : (isLight ? '#E2E8F0' : 'rgba(255,255,255,0.09)'),
                   }}
                   onFocus={e => { if (!titleError) focusStyle(e); }}
                   onBlur={e => { if (!titleError) blurStyle(e); }}
@@ -968,130 +1169,17 @@ export default function SessionDetailPopup({
               </div>
             ) : (
               <h2 style={{
-                fontSize: 16, fontWeight: 700, color: '#EEF0FC',
-                lineHeight: 1.28, margin: 0, letterSpacing: '-0.02em',
+                fontSize: 17, fontWeight: 700, color: isLight ? '#0F172A' : '#EEF0FC',
+                lineHeight: 1.25, margin: 0, letterSpacing: '-0.02em',
+                display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+                overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {isVagueTitle(block.title) ? (
                   isSuggestionQualityTitle(aiRecap?.title)
-                    ? <span style={{ color: '#9CA8C0', fontStyle: 'italic', fontWeight: 500, fontSize: 15 }}>{aiRecap.title}</span>
-                    : <span style={{ color: '#4A5A78', fontStyle: 'italic', fontWeight: 400, fontSize: 15 }}>Untitled session</span>
+                    ? <span style={{ color: isLight ? '#64748B' : '#9CA8C0', fontStyle: 'italic', fontWeight: 500, fontSize: 16 }}>{aiRecap.title}</span>
+                    : <span style={{ color: isLight ? '#94A3B8' : '#4A5A78', fontStyle: 'italic', fontWeight: 400, fontSize: 16 }}>Untitled session</span>
                 ) : block.title}
               </h2>
-            )}
-          </div>
-
-          {/* Header action buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, paddingTop: 2 }}>
-            {editMode ? (
-              <>
-                <button
-                  onClick={cancelEdit} disabled={saving}
-                  style={{
-                    padding: '5px 11px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                    background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#8090A8', cursor: saving ? 'default' : 'pointer',
-                    opacity: saving ? 0.5 : 1, transition: 'all 0.12s ease',
-                  }}
-                  onMouseOver={e => { if (!saving) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#B0BDCF'; }}}
-                  onMouseOut={e  => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#8090A8'; }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveAll} disabled={saving}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-                    background: saving ? `${color}30` : `${color}22`,
-                    border: `1px solid ${color}45`,
-                    color: saving ? `${color}80` : color,
-                    cursor: saving ? 'default' : 'pointer',
-                    boxShadow: saving ? 'none' : `0 2px 10px ${color}20`,
-                    transition: 'all 0.12s ease',
-                  }}
-                  onMouseOver={e => { if (!saving) { e.currentTarget.style.background = `${color}30`; e.currentTarget.style.boxShadow = `0 4px 16px ${color}30`; }}}
-                  onMouseOut={e  => { if (!saving) { e.currentTarget.style.background = `${color}22`; e.currentTarget.style.boxShadow = `0 2px 10px ${color}20`; }}}
-                >
-                  <Save size={10} />
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-                <IconBtn onClick={onClose} title="Close" disabled={saving}>
-                  <X size={14} />
-                </IconBtn>
-              </>
-            ) : (
-              <>
-                {/* Rewrite with AI — re-rolls title/description from scratch,
-                    even if the current title already looks meaningful */}
-                {!isCalendar && onRewriteAI && (
-                  <button
-                    onClick={() => onRewriteAI(block)}
-                    disabled={aiRewriting}
-                    title="Regenerate the title & description from tracked activity"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      padding: '5px 11px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                      background: aiRewriting ? 'rgba(52,211,153,0.08)' : 'transparent',
-                      border: '1px solid rgba(52,211,153,0.30)',
-                      color: '#34D399', cursor: aiRewriting ? 'default' : 'pointer',
-                      opacity: aiRewriting ? 0.7 : 1,
-                      transition: 'all 0.12s ease',
-                    }}
-                    onMouseOver={e => { if (!aiRewriting) e.currentTarget.style.background = 'rgba(52,211,153,0.12)'; }}
-                    onMouseOut={e  => { if (!aiRewriting) e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <Sparkles size={10} />
-                    {aiRewriting ? 'Rewriting…' : 'Rewrite with AI'}
-                  </button>
-                )}
-
-                {/* Edit Event / Edit Session button */}
-                <button
-                  onClick={enterEditMode}
-                  title={isCalendar ? 'Edit event details' : 'Edit session details'}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    padding: '5px 11px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                    background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#8090A8', cursor: 'pointer',
-                    transition: 'all 0.12s ease',
-                  }}
-                  onMouseOver={e => { e.currentTarget.style.color = color; e.currentTarget.style.borderColor = `${color}45`; e.currentTarget.style.background = `${color}12`; }}
-                  onMouseOut={e  => { e.currentTarget.style.color = '#8090A8'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <Pencil size={10} />
-                  {isCalendar ? 'Edit Event' : 'Edit Session'}
-                </button>
-
-                {/* Reschedule — icon-only to avoid crowding the header */}
-                {onReschedule && (
-                  <IconBtn
-                    onClick={() => { onClose(); onReschedule(block); }}
-                    title="Reschedule to a different time"
-                    hoverColor="#a78bfa"
-                    hoverBg="rgba(124,108,242,0.12)"
-                  >
-                    <Move size={13} />
-                  </IconBtn>
-                )}
-
-                {/* Delete button — available for both calendar events and sessions */}
-                {onDelete && (
-                  <IconBtn
-                    onClick={() => setConfirmDelete(true)}
-                    title={isCalendar ? 'Delete event' : 'Delete session'}
-                    hoverColor="#F87171"
-                    hoverBg="rgba(248,113,113,0.11)"
-                  >
-                    <Trash2 size={13} />
-                  </IconBtn>
-                )}
-
-                <IconBtn onClick={onClose} title="Close">
-                  <X size={14} />
-                </IconBtn>
-              </>
             )}
           </div>
         </div>

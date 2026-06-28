@@ -491,14 +491,18 @@ function GoogleConnectStep({ userId, onSuccess, onCancel }) {
   );
 }
 
-function ConnectDialog({ userId, onClose, onSave }) {
+function ConnectDialog({ userId, sources = [], onClose, onSave }) {
+  // Only one Google Calendar account is allowed per user — once connected,
+  // disable the tile instead of letting the user start a second OAuth flow
+  // that the backend would reject anyway.
+  const hasGoogle = sources.some(s => s.provider === 'google');
   const providers = [
-    { id: 'google',  name: 'Google Calendar',  color: '#4285f4', badge: 'Native OAuth' },
+    { id: 'google',  name: 'Google Calendar',  color: '#4285f4', badge: hasGoogle ? 'Connected' : 'Native OAuth', disabled: hasGoogle },
     { id: 'outlook', name: 'Outlook / Office',  color: '#0072c6', badge: 'iCal' },
     { id: 'apple',   name: 'Apple Calendar',    color: '#888888', badge: 'iCal' },
     { id: 'ical',    name: 'Custom iCal URL',   color: '#6366f1', badge: 'iCal' },
   ];
-  const [provider, setProvider] = useState('google');
+  const [provider, setProvider] = useState(hasGoogle ? 'outlook' : 'google');
   const [step,     setStep]     = useState(1); // 1=pick provider, 2=google OAuth | 2=ical url
   const [label,    setLabel]    = useState('');
   const [icsUrl,   setIcsUrl]   = useState('');
@@ -556,8 +560,10 @@ function ConnectDialog({ userId, onClose, onSave }) {
                   const ProvIcon = meta?.Icon;
                   const isSelected = provider === p.id;
                   return (
-                    <button key={p.id} onClick={() => { setProvider(p.id); setColor(p.color); }}
-                      style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px 14px', borderRadius: 12, border: `1px solid ${isSelected ? `${p.color}40` : '#1E2230'}`, background: isSelected ? `${p.color}0D` : '#111419', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', boxShadow: isSelected ? `0 0 0 1px ${p.color}20` : 'none' }}>
+                    <button key={p.id} disabled={p.disabled}
+                      onClick={() => { if (p.disabled) return; setProvider(p.id); setColor(p.color); }}
+                      title={p.disabled ? 'Only one Google Calendar account can be connected. Disconnect the existing one first.' : undefined}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px 14px', borderRadius: 12, border: `1px solid ${isSelected ? `${p.color}40` : '#1E2230'}`, background: isSelected ? `${p.color}0D` : '#111419', cursor: p.disabled ? 'not-allowed' : 'pointer', textAlign: 'left', transition: 'all 0.15s', boxShadow: isSelected ? `0 0 0 1px ${p.color}20` : 'none', opacity: p.disabled ? 0.45 : 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <ProvIcon size={15} style={{ color: isSelected ? p.color : '#4B5263' }} />
                         <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: isSelected ? `${p.color}18` : '#1A1D24', color: isSelected ? p.color : '#4B5263', border: `1px solid ${isSelected ? `${p.color}25` : '#252932'}` }}>
@@ -4034,7 +4040,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
       )}
 
       {/* Connect dialog */}
-      {showConnect && <ConnectDialog userId={user.id} onClose={() => setShowConnect(false)} onSave={addSource} />}
+      {showConnect && <ConnectDialog userId={user.id} sources={sources} onClose={() => setShowConnect(false)} onSave={addSource} />}
 
       {/* Schedule session modal */}
       {scheduleDraft && ReactDOM.createPortal(
