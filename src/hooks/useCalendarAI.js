@@ -403,6 +403,16 @@ export function useCalendarAI({
     }, []),
 
     /**
+     * Re-roll the AI title + description from scratch, ignoring whatever
+     * title/description the session currently has (even if meaningful).
+     * Use for an explicit "Rewrite with AI" action on an event.
+     */
+    rewriteSessionContent: useCallback((session, sessionAutoSessions = [], project = null, client = null) => {
+      if (!session) return null;
+      return generateSessionRecap(session, sessionAutoSessions, project, client, { forceRewrite: true });
+    }, []),
+
+    /**
      * Get the deep work label for a session (e.g. "Deep Focus", "Quick Session").
      */
     getDeepWorkLabel: useCallback((session, sessionAutoSessions = []) => {

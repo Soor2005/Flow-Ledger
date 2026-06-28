@@ -6,8 +6,6 @@ import {
   Clock, Monitor, Target, BarChart2, Coffee, TrendingUp,
   Video, ExternalLink, CheckSquare, FileText, Play,
 } from 'lucide-react';
-import { getCategoryColor } from '../../utils/helpers';
-
 const api = window.electron || {};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -43,6 +41,43 @@ function hashColor(str) {
   let h = 0;
   for (let i = 0; i < (str || '').length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
   return PALETTE[h % PALETTE.length];
+}
+
+// ─── Shared AI-category color map ──────────────────────────────────────────────
+// Single source of truth for this file — mirrors the Activity page's category
+// colors exactly (src/components/activity/ActivityPage.jsx SMART_CATEGORY_DEFS),
+// so a category (development, planning, research, distraction, communication, …)
+// reads as the same color everywhere in the app. Keyed lowercase to match
+// ai_category/category values coming off tracked sessions.
+const AI_CAT_COLORS = {
+  development:   '#6366f1',
+  coding:        '#6366f1',
+  design:        '#f43f5e',
+  writing:       '#34d399',
+  research:      '#60a5fa',
+  communication: '#a78bfa',
+  meeting:       '#f87171',
+  planning:      '#fbbf24',
+  learning:      '#2dd4bf',
+  admin:         '#94a3b8',
+  distraction:   '#fb923c',
+  break:         '#cbd5e1',
+  focus:         '#8b5cf6',
+  other:         '#6b7280',
+};
+
+/**
+ * Resolve a display color for an AI/category key. Checks the user's own
+ * custom categories first (so a manually-colored category is never
+ * overridden), then the shared AI category map, then falls back to a
+ * deterministic hash color instead of one fixed fallback shade.
+ */
+function resolveCategoryColor(raw, categories = []) {
+  const userColor = categories.find(c => c.name === raw)?.color;
+  if (userColor) return userColor;
+  const known = AI_CAT_COLORS[(raw || '').toLowerCase().trim()];
+  if (known) return known;
+  return hashColor(raw);
 }
 
 const SKIP_CATS = new Set(['GENERAL', 'general', 'null', 'undefined', '']);
@@ -1128,16 +1163,26 @@ function deriveProductivityState(aiInsights, aiProductivity, aiDailySummary) {
   const aiPct    = aiInsights?.aiToolUsage?.aiPct  || 0;
   const totalMins= aiDailySummary?.totalMins || 0;
 
-  if (burnout === 'high')                         return { id:'recovery',   label:'Recovery Needed',    color:'#F87171', bg:'rgba(248,113,113,0.1)',  border:'rgba(248,113,113,0.28)', pulse:true  };
-  if (focusQ >= 80 && ctxQ >= 70 && dwPct >= 40) return { id:'deep_flow',  label:'Deep Flow',           color:'#818CF8', bg:'rgba(129,140,248,0.12)', border:'rgba(129,140,248,0.32)', pulse:true  };
-  if (focusQ >= 65 && dwPct >= 25)               return { id:'momentum',   label:'High Momentum',       color:'#34D399', bg:'rgba(52,211,153,0.1)',   border:'rgba(52,211,153,0.28)',  pulse:false };
-  if (aiPct >= 50)                               return { id:'ai_research','label':'AI Research Mode',  color:'#60A5FA', bg:'rgba(96,165,250,0.1)',   border:'rgba(96,165,250,0.28)',  pulse:false };
-  if (ctxQ < 40 && totalMins > 60)               return { id:'fragmented', label:'Context Switching',   color:'#FBBF24', bg:'rgba(251,191,36,0.1)',   border:'rgba(251,191,36,0.28)',  pulse:false };
-  if (workType.includes('Planning'))             return { id:'planning',   label:'Planning State',      color:'#A78BFA', bg:'rgba(167,139,250,0.1)',  border:'rgba(167,139,250,0.28)', pulse:false };
-  if (workType.includes('Design'))               return { id:'design',     label:'Design Workflow',     color:'#F472B6', bg:'rgba(244,114,182,0.1)',  border:'rgba(244,114,182,0.28)', pulse:false };
-  if (burnout === 'medium')                      return { id:'high_output','label':'High Output',       color:'#FB923C', bg:'rgba(251,146,60,0.1)',   border:'rgba(251,146,60,0.28)',  pulse:false };
-  if (focusQ >= 50)                              return { id:'focused',    label:'Focused Work',        color:'#7c6cf2', bg:'rgba(124,108,242,0.1)',  border:'rgba(124,108,242,0.28)', pulse:false };
-  return                                           { id:'building',   label:'Building Up',         color:'#94A3B8', bg:'rgba(148,163,184,0.07)', border:'rgba(148,163,184,0.18)', pulse:false };
+  if (burnout === 'high')                         return { id:'recovery',   label:'Recovery Needed',    color:'#F87171', bg:'rgba(248,113,113,0.1)',  border:'rgba(248,113,113,0.28)', pulse:true,
+    reason: 'Calendar-derived burnout signal is high — sustained work with limited recovery breaks today.' };
+  if (focusQ >= 80 && ctxQ >= 70 && dwPct >= 40) return { id:'deep_flow',  label:'Deep Flow',           color:'#818CF8', bg:'rgba(129,140,248,0.12)', border:'rgba(129,140,248,0.32)', pulse:true,
+    reason: `${Math.round(focusQ)}% focus quality with ${Math.round(dwPct)}% deep work and minimal context switching.` };
+  if (focusQ >= 65 && dwPct >= 25)               return { id:'momentum',   label:'High Momentum',       color:'#34D399', bg:'rgba(52,211,153,0.1)',   border:'rgba(52,211,153,0.28)',  pulse:false,
+    reason: `${Math.round(focusQ)}% focus quality and ${Math.round(dwPct)}% deep work — strong but not yet at peak-flow thresholds.` };
+  if (aiPct >= 50)                               return { id:'ai_research','label':'AI Research Mode',  color:'#60A5FA', bg:'rgba(96,165,250,0.1)',   border:'rgba(96,165,250,0.28)',  pulse:false,
+    reason: `${Math.round(aiPct)}% of tracked time today was spent in AI tools.` };
+  if (ctxQ < 40 && totalMins > 60)               return { id:'fragmented', label:'Context Switching',   color:'#FBBF24', bg:'rgba(251,191,36,0.1)',   border:'rgba(251,191,36,0.28)',  pulse:false,
+    reason: `Focus continuity score is only ${Math.round(ctxQ)}/100 across ${Math.round(totalMins / 60 * 10) / 10}h tracked — frequent app/window switching.` };
+  if (workType.includes('Planning'))             return { id:'planning',   label:'Planning State',      color:'#A78BFA', bg:'rgba(167,139,250,0.1)',  border:'rgba(167,139,250,0.28)', pulse:false,
+    reason: "Today's dominant tracked activity is planning/organizing tools and tasks." };
+  if (workType.includes('Design'))               return { id:'design',     label:'Design Workflow',     color:'#F472B6', bg:'rgba(244,114,182,0.1)',  border:'rgba(244,114,182,0.28)', pulse:false,
+    reason: "Today's dominant tracked activity is design tools." };
+  if (burnout === 'medium')                      return { id:'high_output','label':'High Output',       color:'#FB923C', bg:'rgba(251,146,60,0.1)',   border:'rgba(251,146,60,0.28)',  pulse:false,
+    reason: 'Elevated work pace today — moderate burnout signal, not yet critical.' };
+  if (focusQ >= 50)                              return { id:'focused',    label:'Focused Work',        color:'#7c6cf2', bg:'rgba(124,108,242,0.1)',  border:'rgba(124,108,242,0.28)', pulse:false,
+    reason: `${Math.round(focusQ)}% focus quality — steady, consistent work.` };
+  return                                           { id:'building',   label:'Building Up',         color:'#94A3B8', bg:'rgba(148,163,184,0.07)', border:'rgba(148,163,184,0.18)', pulse:false,
+    reason: 'Not enough tracked activity yet today to score focus quality.' };
 }
 
 function deriveHeroNarrative(aiInsights, aiDailySummary, aiProductivity, aiSelectedRecap) {
@@ -1207,6 +1252,9 @@ function AIInsightsPanel({
   aiMaturityLevel = 'learning',
   aiRecommendations = [],
   aiForecast = [],
+  // Predictive Intelligence (src/ai/predictive/) — forward-looking forecasts,
+  // layered on top of the adaptive behavioral snapshot above.
+  aiPredictive = null,
 }) {
   const [localCmd, setLocalCmd] = useState('');
   // Auto-execute countdown (seconds remaining, 0 = cancelled/done)
@@ -1279,11 +1327,14 @@ function AIInsightsPanel({
 
   // ── Intelligence derivation ───────────────────────────────────────────────
 
-  // Adaptive flow state must be declared FIRST — used by pState below
+  // Adaptive flow state must be declared FIRST — used by pState below.
+  // description/recommendation already exist on aiFlowState (FLOW_STATE_META
+  // in adaptiveBehaviorEngine.js) but were never surfaced in this UI before.
   const adaptiveFlowMeta = aiFlowState ? {
     id: aiFlowState.state, label: aiFlowState.label,
     color: aiFlowState.color, bg: `${aiFlowState.color}18`,
     border: `${aiFlowState.color}38`, pulse: aiFlowState.state === 'deep_flow',
+    reason: aiFlowState.description, recommendation: aiFlowState.recommendation,
   } : null;
 
   // Prefer adaptive (learned) flow state; fall back to calendar-derived state
@@ -1292,12 +1343,25 @@ function AIInsightsPanel({
   const hero      = deriveHeroNarrative(aiInsights, aiDailySummary, aiProductivity, aiSelectedRecap);
   const workflow  = deriveDetectedWorkflow(aiInsights);
 
-  // Merge behavioral recommendations on top of calendar ones (behavioral are personalized)
+  // Merge behavioral + calendar recommendations, then rank by their own
+  // `priority` field (lower = more urgent) across BOTH sources combined.
+  // Previously this just concatenated the two arrays, so a calendar rec with
+  // priority 1 could be silently buried behind 4 lower-priority behavioral
+  // ones — recommendations were never actually impact-ranked despite each
+  // one already carrying a priority value.
   const calRecs     = aiInsights?.recommendations || [];
-  const mergedRecs  = aiRecommendations.length > 0
-    ? [...aiRecommendations, ...calRecs].slice(0, 4)
-    : calRecs;
+  const mergedRecs  = [...aiRecommendations, ...calRecs]
+    .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9));
   const recs        = mergedRecs.slice(0, 3);
+
+  // Impact band derived from the same priority value — High/Medium/Low
+  // instead of showing every recommendation as equally weighted.
+  function impactBand(priority) {
+    if (priority == null) return null;
+    if (priority <= 2) return { label: 'High Impact',   color: '#F87171' };
+    if (priority <= 4) return { label: 'Medium Impact', color: '#FBBF24' };
+    return { label: 'Low Impact', color: '#94A3B8' };
+  }
 
   const prod      = aiProductivity;
   const trend     = aiInsights?.focusTrend;
@@ -1311,24 +1375,13 @@ function AIInsightsPanel({
   const scoreColor = (s) => s >= 75 ? '#34D399' : s >= 50 ? '#FBBF24' : '#F87171';
 
   // ── Category color map ────────────────────────────────────────────────────────
+  // Shares the module-level AI_CAT_COLORS (mirrors the Activity page exactly)
+  // plus a few extras this panel alone uses that aren't Activity page categories.
   const CAT_COLORS = {
-    development:   '#818CF8',  // indigo-400
-    coding:        '#818CF8',
-    design:        '#F472B6',  // pink-400
-    writing:       '#34D399',  // emerald-400
-    research:      '#38BDF8',  // sky-400
-    communication: '#A78BFA',  // violet-400
-    meeting:       '#F87171',  // red-400
-    planning:      '#FBBF24',  // amber-400
-    learning:      '#2DD4BF',  // teal-400
-    admin:         '#94A3B8',  // slate-400
-    distraction:   '#FB923C',  // orange-400
-    break:         '#64748B',  // slate-500
-    focus:         '#C084FC',  // purple-400
-    data:          '#22D3EE',  // cyan-400
-    deep_work:     '#7C3AED',  // violet-600
-    general:       '#475569',  // slate-600
-    other:         '#64748B',
+    ...AI_CAT_COLORS,
+    data:      '#22D3EE',  // cyan-400 — not an Activity page category
+    deep_work: '#7C3AED',  // violet-600 — not an Activity page category
+    general:   '#475569',  // slate-600 — not an Activity page category
   };
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
@@ -1417,6 +1470,14 @@ function AIInsightsPanel({
         })()}
       </div>
 
+      {/* Why this state — small supporting label, not a new card, so the
+          chip row above stays exactly as designed. */}
+      {pState.reason && (
+        <p style={{ fontSize:9, color:'var(--sp-text-faint)', margin:'-3px 0 0', lineHeight:1.45, paddingLeft:1 }}>
+          {pState.reason}
+        </p>
+      )}
+
       {/* ── 3. SESSION RECAP ────────────────────────────────────────────────── */}
 
       {/* Session intelligence recap */}
@@ -1463,9 +1524,13 @@ function AIInsightsPanel({
 
           <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
             {[
+              // "Flow Score" (a raw contextSwitching number with no explanation,
+              // overlapping conceptually with Focus Quality) was dropped here —
+              // it's now folded into the context-switch anomaly callout in
+              // Predictive Intelligence below, where it comes with an explanation
+              // and a recommendation instead of a bare unexplained percentage.
               { label:'Focus Quality',  value:prod.focusQuality,    max:100 },
-              { label:'Deep Work',      value:dw?.ratio ?? (prod.deepWork?.deepWorkPercent || 0), max:100, suffix:'%' },
-              { label:'Flow Score',     value:prod.contextSwitching, max:100 },
+              { label:'Deep Work',      value:dw?.ratio ?? (prod.deepWork?.deepWorkPercent || 0), max:100, suffix:'%', sub: aiBehavioral?.deepWorkInsight },
             ].filter(m => m.value != null).map(m => {
               const pct  = Math.min(Math.round((m.value / m.max) * 100), 100);
               const col  = scoreColor(m.value);
@@ -1480,6 +1545,9 @@ function AIInsightsPanel({
                   <div style={{ height:3, borderRadius:99, background:'rgba(255,255,255,0.07)', overflow:'hidden' }}>
                     <div style={{ width:`${pct}%`, height:'100%', borderRadius:99, background:`linear-gradient(90deg, ${col}CC, ${col}66)`, transition:'width 0.7s cubic-bezier(0.4,0,0.2,1)' }} />
                   </div>
+                  {m.sub && (
+                    <p style={{ fontSize:8.5, color:'var(--sp-text-faint)', margin:'3px 0 0', lineHeight:1.4 }}>{m.sub}</p>
+                  )}
                 </div>
               );
             })}
@@ -1630,17 +1698,30 @@ function AIInsightsPanel({
             const ac     = isWarn ? '#FBBF24' : isOk ? '#34D399' : '#7c6cf2';
             const bg     = isWarn ? 'rgba(251,191,36,0.07)' : isOk ? 'rgba(52,211,153,0.07)' : 'rgba(124,108,242,0.07)';
             const br     = isWarn ? 'rgba(251,191,36,0.22)' : isOk ? 'rgba(52,211,153,0.22)' : 'rgba(124,108,242,0.2)';
+            const impact = impactBand(r.priority);
             return (
               <div key={i} className="fl-sp-ai-rec-item" style={{ padding:'8px 10px', borderRadius:10, background:bg, border:`1px solid ${br}`, borderLeft:`3px solid ${ac}`, display:'flex', alignItems:'flex-start', gap:9, transition:'background 0.15s' }}
                 onMouseOver={e => e.currentTarget.style.filter='brightness(1.15)'}
                 onMouseOut={e => e.currentTarget.style.filter=''}>
                 <span style={{ fontSize:13, lineHeight:1, flexShrink:0, marginTop:0.5 }}>{r.icon}</span>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:2 }}>
-                    <p style={{ fontSize:10.5, fontWeight:700, color:'var(--sp-text)', margin:0, lineHeight:1.2 }}>{r.title}</p>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:2, gap:6 }}>
+                    <p style={{ fontSize:10.5, fontWeight:700, color:'var(--sp-text)', margin:0, lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.title}</p>
                     {r.action && <span style={{ fontSize:8.5, color:ac, fontWeight:600, flexShrink:0, marginLeft:6 }}>{r.action} →</span>}
                   </div>
-                  <p style={{ fontSize:9.5, color:'var(--sp-text-sec)', margin:0, lineHeight:1.45 }}>{r.message}</p>
+                  <p style={{ fontSize:9.5, color:'var(--sp-text-sec)', margin:'0 0 4px', lineHeight:1.45 }}>{r.message}</p>
+                  {(impact || r.confidence) && (
+                    <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                      {impact && (
+                        <span style={{ fontSize:7.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:impact.color }}>
+                          {impact.label}
+                        </span>
+                      )}
+                      {r.confidence && (
+                        <span style={{ fontSize:8, color:'var(--sp-text-faint)' }}>{r.confidence} confidence</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1717,9 +1798,27 @@ function AIInsightsPanel({
             </div>
           )}
           {aiFragmentation > 50 && (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
               <span style={{ fontSize:9.5, color:'var(--sp-text-muted)' }}>Context switching</span>
               <span style={{ fontSize:9.5, fontWeight:700, color:'#FBBF24' }}>High ({Math.round(aiFragmentation)}%)</span>
+            </div>
+          )}
+          {/* Typical interruption rate — already computed by adaptiveBehaviorEngine
+              (intel.contextSwitch.baseline, per 10 min) but never surfaced before. */}
+          {aiBehavioral?.switchBaseline > 0 && (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
+              <span style={{ fontSize:9.5, color:'var(--sp-text-muted)' }}>Typical switching pace</span>
+              <span style={{ fontSize:9.5, fontWeight:700, color:'var(--sp-text)' }}>~{Math.round(aiBehavioral.switchBaseline * 6)}/hr</span>
+            </div>
+          )}
+          {/* Day-to-day consistency — already computed (intel.history.consistency)
+              but never surfaced before; distinct from the trend direction above. */}
+          {aiBehavioral?.consistency > 0 && (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:9.5, color:'var(--sp-text-muted)' }}>Day-to-day consistency</span>
+              <span style={{ fontSize:9.5, fontWeight:700, color: aiBehavioral.consistency >= 70 ? '#34D399' : aiBehavioral.consistency >= 40 ? '#FBBF24' : '#F87171' }}>
+                {Math.round(aiBehavioral.consistency)}%
+              </span>
             </div>
           )}
           {aiForecast.length > 0 && (() => {
@@ -1877,17 +1976,46 @@ function AIInsightsPanel({
                     </span>
                   </div>
                 ))}
+                {/* Recovery suggestion — answers "what should I do about it",
+                    not just "here's what you missed". */}
+                <p style={{ fontSize: 9, color: 'var(--sp-text-faint)', margin: '4px 0 0', lineHeight: 1.4 }}>
+                  → Reschedule "{missed[0].title}" into your next open slot, or fold its goal into your current block to avoid losing the work entirely.
+                </p>
               </div>
             )}
 
             {/* Schedule quality score */}
             {sqScore !== null && (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop: (totalEvents > 0 || conflictCount > 0) ? 7 : 0, paddingTop: (totalEvents > 0 || conflictCount > 0) ? 7 : 0, borderTop: (totalEvents > 0 || conflictCount > 0) ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <span style={{ fontSize: 9, color: 'var(--sp-text-muted)' }}>Schedule quality</span>
-                <div style={{ display:'flex', alignItems:'center', gap: 5 }}>
-                  {sqGrade && <span style={{ fontSize: 9, fontWeight: 700, color: healthColor }}>{sqGrade}</span>}
-                  <span style={{ fontSize: 10, fontWeight: 800, color: healthColor, fontVariantNumeric: 'tabular-nums' }}>{sqScore}<span style={{ fontSize: 7, opacity: 0.7 }}>/100</span></span>
+              <div style={{ marginTop: (totalEvents > 0 || conflictCount > 0) ? 7 : 0, paddingTop: (totalEvents > 0 || conflictCount > 0) ? 7 : 0, borderTop: (totalEvents > 0 || conflictCount > 0) ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize: 9, color: 'var(--sp-text-muted)' }}>Schedule quality</span>
+                  <div style={{ display:'flex', alignItems:'center', gap: 5 }}>
+                    {sqGrade && <span style={{ fontSize: 9, fontWeight: 700, color: healthColor }}>{sqGrade}</span>}
+                    <span style={{ fontSize: 10, fontWeight: 800, color: healthColor, fontVariantNumeric: 'tabular-nums' }}>{sqScore}<span style={{ fontSize: 7, opacity: 0.7 }}>/100</span></span>
+                  </div>
                 </div>
+                {/* What's causing the score + one practical fix — only when it's
+                    actually worth explaining (a perfect/near-perfect score needs
+                    no justification). Schedule quality = conflictScore*0.4 +
+                    adherence*0.6 (calendarInsightsEngine.getScheduleQualityInsight),
+                    so the dominant cause is whichever term is weakest. */}
+                {sqScore < 70 && (() => {
+                  const cause = conflictCount > 0
+                    ? `${conflictCount} scheduling conflict${conflictCount > 1 ? 's' : ''} today`
+                    : adherencePct !== null && adherencePct < 70
+                    ? `only ${adherencePct}% of planned events were completed as scheduled`
+                    : missedCount > 0
+                    ? `${missedCount} planned event${missedCount > 1 ? 's' : ''} missed`
+                    : 'a mix of timing variance across today\'s events';
+                  const fix = conflictCount > 0
+                    ? 'Resolve the conflict above first — it counts for 40% of this score.'
+                    : 'Build in 5-10min buffers between blocks so a slow start doesn\'t cascade into the next one.';
+                  return (
+                    <p style={{ fontSize: 9, color: 'var(--sp-text-faint)', margin: '5px 0 0', lineHeight: 1.45 }}>
+                      Lower because {cause}. {fix}
+                    </p>
+                  );
+                })()}
               </div>
             )}
 
@@ -1944,6 +2072,142 @@ function AIInsightsPanel({
           )}
         </div>
       )}
+
+      {/* ── 9b. PREDICTIVE INTELLIGENCE ─────────────────────────────────────────
+           Forward-looking forecasts (src/ai/predictive/), layered on top of the
+           adaptive behavioral snapshot above — burnout trajectory, workload
+           forecast, next-event risk, anomalies, and a likely-next-action nudge. */}
+      {aiPredictive?.isReady && (() => {
+        const { burnoutTrajectory, workloadForecast, scheduleRisk, anomalies, nextAction, topAlert } = aiPredictive.brief;
+        const RISK_COLOR = { low: '#34D399', medium: '#FBBF24', moderate: '#FBBF24', high: '#F87171', critical: '#EF4444' };
+        const pct = (c) => c != null ? `${Math.round(c * 100)}%` : null;
+
+        // Small "Nm confidence" tag — reused across every prediction row so a
+        // forecast is never shown bare; every number here is a real computed
+        // confidence from src/ai/predictive/, not a placeholder.
+        const ConfidenceTag = ({ value }) => value == null ? null : (
+          <span style={{ fontSize:7.5, color:'var(--sp-text-faint)', fontVariantNumeric:'tabular-nums' }}>{pct(value)} confidence</span>
+        );
+
+        const rows = [];
+
+        if (topAlert) {
+          rows.push(
+            <div key="alert" style={{
+              display:'flex', alignItems:'flex-start', gap:7, padding:'8px 10px', borderRadius:9,
+              background: `${RISK_COLOR[topAlert.severity] || '#818CF8'}14`,
+              border: `1px solid ${RISK_COLOR[topAlert.severity] || '#818CF8'}30`,
+            }}>
+              <span style={{ fontSize:11, lineHeight:'14px' }}>⚡</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontSize:10.5, color:'var(--sp-text)', margin:0, lineHeight:1.4, fontWeight:600 }}>{topAlert.message}</p>
+                {topAlert.confidence != null && <div style={{ marginTop:3 }}><ConfidenceTag value={topAlert.confidence} /></div>}
+              </div>
+            </div>
+          );
+        }
+
+        if (burnoutTrajectory?.available) {
+          const elevated = burnoutTrajectory.crossesCriticalOn || burnoutTrajectory.crossesHighOn;
+          rows.push(
+            <div key="burnout">
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:9.5, color:'var(--sp-text-muted)' }}>Burnout trajectory (7d)</span>
+                <span style={{ fontSize:10, fontWeight:700, color: RISK_COLOR[burnoutTrajectory.crossesCriticalOn ? 'critical' : burnoutTrajectory.crossesHighOn ? 'high' : 'low'] }}>
+                  {burnoutTrajectory.crossesCriticalOn ? `Critical by ${burnoutTrajectory.crossesCriticalOn}`
+                    : burnoutTrajectory.crossesHighOn ? `High by ${burnoutTrajectory.crossesHighOn}`
+                    : 'On track'}
+                </span>
+              </div>
+              {/* Explanation only when it's worth justifying — a clean "on track"
+                  result doesn't need a paragraph under it. */}
+              {elevated && (
+                <p style={{ fontSize:8.5, color:'var(--sp-text-faint)', margin:'3px 0 0', lineHeight:1.4 }}>
+                  {burnoutTrajectory.insight} <ConfidenceTag value={burnoutTrajectory.confidence} />
+                </p>
+              )}
+            </div>
+          );
+        }
+
+        if (workloadForecast?.available) {
+          rows.push(
+            <div key="workload">
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:9.5, color:'var(--sp-text-muted)' }}>Tomorrow's projected load</span>
+                <span style={{ fontSize:10, fontWeight:700, color: workloadForecast.tomorrowOverload ? RISK_COLOR.high : 'var(--sp-text)' }}>
+                  {workloadForecast.tomorrow.projectedHours}h
+                </span>
+              </div>
+              {workloadForecast.overloadRisk && (
+                <p style={{ fontSize:8.5, color:'var(--sp-text-faint)', margin:'3px 0 0', lineHeight:1.4 }}>
+                  {workloadForecast.insight} <ConfidenceTag value={workloadForecast.confidence} />
+                </p>
+              )}
+            </div>
+          );
+        }
+
+        if (scheduleRisk) {
+          rows.push(
+            <div key="schedule">
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:9.5, color:'var(--sp-text-muted)' }}>Next event risk{scheduleRisk.label ? ` — ${scheduleRisk.label}` : ''}</span>
+                <span style={{ fontSize:10, fontWeight:700, color: RISK_COLOR[scheduleRisk.riskLevel] || 'var(--sp-text)', textTransform:'capitalize' }}>
+                  {scheduleRisk.riskLevel}
+                </span>
+              </div>
+              {/* Recommended action + estimated impact — never just a risk label. */}
+              {scheduleRisk.riskLevel !== 'low' && (
+                <p style={{ fontSize:8.5, color:'var(--sp-text-faint)', margin:'3px 0 0', lineHeight:1.4 }}>
+                  {scheduleRisk.recommendation}
+                  {scheduleRisk.overrunMinutesEstimate >= 10 && ` (~${scheduleRisk.overrunMinutesEstimate}m estimated impact)`}
+                  {' '}<ConfidenceTag value={scheduleRisk.confidence} />
+                </p>
+              )}
+            </div>
+          );
+        }
+
+        if (nextAction) {
+          rows.push(
+            <div key="next" style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:9.5, color:'var(--sp-text-muted)' }}>Likely next</span>
+              <span style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ fontSize:10, fontWeight:700, color:'#818CF8' }}>{nextAction.label}</span>
+                <ConfidenceTag value={nextAction.confidence} />
+              </span>
+            </div>
+          );
+        }
+
+        if (anomalies?.length) {
+          for (const a of anomalies.slice(0, 2)) {
+            rows.push(
+              <div key={a.type}>
+                <p style={{ fontSize:9.5, color: RISK_COLOR[a.severity] || 'var(--sp-text-muted)', margin:0, lineHeight:1.4 }}>
+                  {a.message}
+                </p>
+                {(a.recommendation || a.estimatedFocusLossMins >= 10) && (
+                  <p style={{ fontSize:8.5, color:'var(--sp-text-faint)', margin:'2px 0 0', lineHeight:1.4 }}>
+                    {a.recommendation}
+                    {a.estimatedFocusLossMins >= 10 && ` Estimated impact: ~${a.estimatedFocusLossMins}m of focus.`}
+                  </p>
+                )}
+              </div>
+            );
+          }
+        }
+
+        if (!rows.length) return null;
+
+        return (
+          <div className="fl-sp-ai-predictive" style={{ padding:'10px 12px', borderRadius:11, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.065)', display:'flex', flexDirection:'column', gap:7 }}>
+            <span style={{ fontSize:8, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.11em', color:'#5A6A88' }}>Predictive Intelligence</span>
+            {rows}
+          </div>
+        );
+      })()}
 
       {/* ── 10. AI COMMAND BAR ──────────────────────────────────────────────── */}
       <div>
@@ -2210,6 +2474,8 @@ export default function SummaryPanel({
   aiMaturityLevel = 'learning',
   aiRecommendations = [],
   aiForecast = [],
+  // Predictive Intelligence props (src/ai/predictive/)
+  aiPredictive = null,
 }) {
   const [tab,           setTab]           = useState('projects');
   const [hoveredPieIdx, setHoveredPieIdx] = useState(null);
@@ -2696,7 +2962,7 @@ export default function SummaryPanel({
         name: formatLabel(displayCatName(raw) || raw),
         value,
         count: counts[raw] || 0,
-        color: getCategoryColor(raw, categories) || hashColor(raw),
+        color: resolveCategoryColor(raw, categories),
       }))
       .filter(item => item.name && !isProjectName(item.name))
       .sort((a, b) => b.value - a.value)
@@ -2709,7 +2975,7 @@ export default function SummaryPanel({
         if (!name) return null;
         const formatted = formatLabel(name);
         if (isProjectName(formatted)) return null;
-        return { raw, name: formatted, value: secs, count: 0, color: getCategoryColor(raw, categories) || hashColor(raw) };
+        return { raw, name: formatted, value: secs, count: 0, color: resolveCategoryColor(raw, categories) };
       })
       .filter(Boolean)
       .sort((a, b) => b.value - a.value)
@@ -3382,6 +3648,7 @@ export default function SummaryPanel({
             aiMaturityLevel={aiMaturityLevel}
             aiRecommendations={aiRecommendations}
             aiForecast={aiForecast}
+            aiPredictive={aiPredictive}
           />
         )}
       </div>}

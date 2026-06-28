@@ -7,6 +7,7 @@ import {
   CheckCircle2, Circle, ExternalLink, Plus, Layers, Hash,
 } from 'lucide-react';
 // recharts PieChart removed — replaced by CategoryDonut SVG component below
+import { useAuth } from '../../App';
 import AppIcon from '../shared/AppIcon';
 import { pushToast } from '../shared/NotificationCentre';
 import { classifyActivityApp, classifyActivitySession, SMART_CATEGORY_DEFS } from '../../utils/activityCategories';
@@ -506,6 +507,15 @@ function ActiveSessionBanner({ session, onStop, onNavigate }) {
 
 // ─── Main ────────────────────────────────────────────────────────────────────────
 export default function HomePage({ user, onNavigate }) {
+  const { profile } = useAuth() || {};
+  const accountName =
+    [profile?.first_name || user.first_name, profile?.last_name || user.last_name].filter(Boolean).join(' ')
+    || profile?.full_name
+    || user.full_name
+    || user.username
+    || user.email
+    || 'there';
+
   const [dateKey,        setDateKey]        = useState(localDateStr());
   const [autoSessions,   setAutoSessions]   = useState([]);
   const [prevAuto,       setPrevAuto]       = useState([]);
@@ -744,7 +754,7 @@ export default function HomePage({ user, onNavigate }) {
                   background: 'linear-gradient(130deg,#e2d9ff 0%,#c4b5fd 45%,#a78bfa 100%)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontWeight: 700,
                 }}>
-                  {(user.username || 'there').split(' ')[0]}
+                  {accountName.split(' ')[0]}
                 </span>
               </h1>
               <p className="mt-0.5 text-[11.5px] font-medium text-tx-faint">

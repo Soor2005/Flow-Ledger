@@ -229,6 +229,18 @@ const DOMAIN_PURPOSE_MAP = {
     ]],
   ],
   researching: [
+    [/librar|package|framework|tool|dependency/, [
+      'to compare available libraries and choose the best fit for the codebase',
+      'to evaluate tooling options and their tradeoffs before committing',
+    ]],
+    [/api|integration|service|sdk|webhook/, [
+      'to understand the API surface and plan the integration approach',
+      'to evaluate integration options and their long-term maintenance cost',
+    ]],
+    [/performance|optim|speed|latency|cache/, [
+      'to compare performance characteristics across candidate approaches',
+      'to identify the most efficient approach before implementation',
+    ]],
     [/.*/, [
       'to evaluate options and identify the most effective implementation approach',
       'to understand available approaches and inform technical decision-making',
@@ -313,10 +325,13 @@ export const INTENT_TYPES = {
     label: 'Researching',
     verbs:     ['Analyzing', 'Exploring', 'Investigating', 'Studying', 'Evaluating'],
     pastVerbs: ['Analyzed', 'Explored', 'Evaluated', 'Investigated'],
-    purpose: (subject, project) =>
-      project
+    purpose: (subject, project) => {
+      const domainPurpose = getPurposeForDomain('researching', subject);
+      if (domainPurpose) return domainPurpose;
+      return project
         ? `to evaluate options and inform ${project}'s development direction`
-        : `to evaluate options and identify the best implementation approach`,
+        : `to evaluate options and identify the best implementation approach`;
+    },
   },
   designing: {
     label: 'Designing',

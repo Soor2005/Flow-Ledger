@@ -4,8 +4,9 @@ import {
   Calendar, Users, Coffee, Target, Briefcase,
   MapPin, Video, ExternalLink, FileText,
   FolderOpen, ChevronDown, CheckCircle2, Save,
-  AlertCircle, Move,
+  AlertCircle, Move, Sparkles, Gauge,
 } from 'lucide-react';
+import { computeFocusQuality } from '../../ai/timer/focusQualityEngine.js';
 function useThemeLight() {
   const [isLight, setIsLight] = useState(() => document.documentElement.classList.contains('theme-light'));
   useEffect(() => {
@@ -309,6 +310,37 @@ function PanelHeader({ icon: Icon, label, right }) {
   );
 }
 
+// ─── Focus score — round circular progress ring ──────────────────────────────
+// Exported so the calendar hover tooltip can render the same ring, keeping
+// the focus score visually consistent between hover and the detail view.
+export function FocusScoreRing({ score = 0, color = '#6366F1', size = 56, stroke = 5 }) {
+  const r = (size - stroke) / 2;
+  const c = r * 2 * Math.PI;
+  const offset = c - (Math.min(Math.max(score, 0), 100) / 100) * c;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0, transform: 'rotate(-90deg)' }}>
+      <circle
+        cx={size / 2} cy={size / 2} r={r}
+        fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke}
+      />
+      <circle
+        cx={size / 2} cy={size / 2} r={r}
+        fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1), stroke 0.3s ease' }}
+      />
+      <text
+        x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+        transform={`rotate(90 ${size / 2} ${size / 2})`}
+        style={{ fontSize: size * 0.27, fontWeight: 800, fill: color, fontVariantNumeric: 'tabular-nums' }}
+      >
+        {Math.round(score)}
+      </text>
+    </svg>
+  );
+}
+
 // ─── Edit field label ─────────────────────────────────────────────────────────
 function FieldLabel({ children }) {
   return (
@@ -592,8 +624,12 @@ function AISuggestionBanner({ recap, color, isLight, onApply, onEdit }) {
 
 export default function SessionDetailPopup({
   block, popupApps = [], popupTags = [], projects = [],
+  autoSessions = [],
   aiRecap = null,
   aiSuggestedProject = null,
+  aiBannerForced = false,
+  aiRewriting = false,
+  onRewriteAI,
   onClose, onDelete, onAssignProject, onUpdate, onReschedule,
 }) {
   const isLight = useThemeLight();
@@ -650,6 +686,12 @@ export default function SessionDetailPopup({
   const startTs = isCalendar ? block.start_time  : block.started_at;
   const endTs   = isCalendar ? block.end_time    : (block.ended_at || Math.floor(Date.now() / 1000));
   const dur     = Math.max(0, endTs - startTs);
+
+  // Focus score — same engine the Timer uses for completed sessions, so the
+  // number here matches whatever's reported elsewhere for this session.
+  const focusQuality = (isSession && dur > 0)
+    ? computeFocusQuality(autoSessions.filter(a => !a.is_idle), dur)
+    : null;
 
   const appTotal = popupApps.reduce((s, a) => s + (a.seconds || 0), 0);
 
@@ -979,6 +1021,30 @@ export default function SessionDetailPopup({
               </>
             ) : (
               <>
+                {/* Rewrite with AI — re-rolls title/description from scratch,
+                    even if the current title already looks meaningful */}
+                {!isCalendar && onRewriteAI && (
+                  <button
+                    onClick={() => onRewriteAI(block)}
+                    disabled={aiRewriting}
+                    title="Regenerate the title & description from tracked activity"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '5px 11px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                      background: aiRewriting ? 'rgba(52,211,153,0.08)' : 'transparent',
+                      border: '1px solid rgba(52,211,153,0.30)',
+                      color: '#34D399', cursor: aiRewriting ? 'default' : 'pointer',
+                      opacity: aiRewriting ? 0.7 : 1,
+                      transition: 'all 0.12s ease',
+                    }}
+                    onMouseOver={e => { if (!aiRewriting) e.currentTarget.style.background = 'rgba(52,211,153,0.12)'; }}
+                    onMouseOut={e  => { if (!aiRewriting) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <Sparkles size={10} />
+                    {aiRewriting ? 'Rewriting…' : 'Rewrite with AI'}
+                  </button>
+                )}
+
                 {/* Edit Event / Edit Session button */}
                 <button
                   onClick={enterEditMode}
@@ -1036,9 +1102,14 @@ export default function SessionDetailPopup({
           style={{ flex: 1, overflowY: 'auto', padding: '14px 18px 20px', display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', zIndex: 1 }}
         >
 
-          {/* ── AI WRITING SUGGESTION BANNER ── */}
-          {aiRecap && isVagueTitle(block.title || block.category) && !editMode && (
+          {/* ── AI WRITING SUGGESTION BANNER ──
+               Shows automatically for vague titles, or on demand after the
+               user clicks "Rewrite with AI" (aiBannerForced) even if the
+               current title already looks meaningful. Keyed by recap.title
+               so a rewrite remounts the banner and clears its dismissed state. */}
+          {aiRecap && (isVagueTitle(block.title || block.category) || aiBannerForced) && !editMode && (
             <AISuggestionBanner
+              key={aiRecap.title}
               recap={aiRecap}
               color={color}
               isLight={isLight}
@@ -1381,6 +1452,33 @@ export default function SessionDetailPopup({
                 </Panel>
               )}
             </>
+          )}
+
+          {/* ── Focus Score — round circular progress ring ── */}
+          {!editMode && focusQuality && (
+            <Panel>
+              <PanelHeader icon={Gauge} label="Focus Score" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 13px 13px' }}>
+                <FocusScoreRing score={focusQuality.overall} color={focusQuality.color} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: focusQuality.color, margin: '0 0 3px' }}>
+                    {focusQuality.label}
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px' }}>
+                    {focusQuality.breakdown?.deepPct > 0 && (
+                      <span style={{ fontSize: 10, color: '#7A8BA8' }}>
+                        Deep work <b style={{ color: '#9AA6C4', fontWeight: 700 }}>{focusQuality.breakdown.deepPct}%</b>
+                      </span>
+                    )}
+                    {focusQuality.switchesPerHour > 0 && (
+                      <span style={{ fontSize: 10, color: '#7A8BA8' }}>
+                        Switches <b style={{ color: '#9AA6C4', fontWeight: 700 }}>{focusQuality.switchesPerHour}/hr</b>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Panel>
           )}
 
           {/* ── Apps & Websites — hidden in edit mode to avoid layout collapse ── */}

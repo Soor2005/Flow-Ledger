@@ -208,8 +208,32 @@ function runCorePipeline(autoSessions, project, client, sessionDurationMins) {
 
 // ─── Narrative Assembly ───────────────────────────────────────────────────────
 
-function assembleOutput(reasoning, intent, humanized, fusedWorkblock, existing = {}) {
+function assembleOutput(reasoning, intent, humanized, fusedWorkblock, existing = {}, linkedTaskTitle = null) {
   const ownership = reasoning.ownership;
+  const preserveManualTitle = hasMeaningfulManualTitle(existing.title);
+
+  // ── Linked task override ──────────────────────────────────────────────────
+  // A task assignment is explicit user input — it outranks every inferred or
+  // synthesized candidate below. A manually-edited title still wins over it.
+  if (!preserveManualTitle && linkedTaskTitle) {
+    const preserveDesc  = isManuallyWrittenDesc(existing.description);
+    const taskTitle      = buildLinkedTaskTitle(reasoning, linkedTaskTitle);
+    const taskDesc       = preserveDesc ? existing.description : (humanized.description || '');
+    const taskQaReport   = validateNarrative({ title: taskTitle, description: taskDesc }, ownership);
+    if (taskQaReport.passes) {
+      return {
+        title:            taskTitle,
+        description:      taskDesc,
+        productivityNote: humanized.productivityNote,
+        deepWorkLabel:    buildDeepWorkLabel(reasoning),
+        titleSource:      'linked_task',
+        descSource:       preserveDesc ? 'manual' : 'humanization',
+        qualityScore:     0.96,
+        qaReport:         taskQaReport,
+      };
+    }
+    // Falls through to the normal humanization/synthesis flow below.
+  }
 
   // Prefer fusion-sourced narratives when workblock fusion produced a strong result
   const fusionIsStrong = fusedWorkblock?.fusionConfidence >= 0.65 && fusedWorkblock?.fusedSubject;
@@ -322,20 +346,21 @@ function buildDeepWorkLabel(reasoning) {
   return 'Quick Session';
 }
 
+const WORK_MODE_VERBS = {
+  deep_implementation: 'Implementing',
+  debugging:           'Debugging',
+  design_work:         'Designing',
+  refactoring:         'Improving',
+  code_review:         'Reviewing',
+  research:            'Analyzing',
+  planning:            'Planning',
+  testing:             'Testing',
+};
+
 function buildFallbackTitle(reasoning) {
   // Use ownership subject when available — more specific than category labels
   if (reasoning.ownership?.subject && reasoning.ownership.confidence >= 0.45) {
-    const { workMode } = reasoning;
-    const verb = {
-      deep_implementation: 'Implementing',
-      debugging:           'Debugging',
-      design_work:         'Designing',
-      refactoring:         'Improving',
-      code_review:         'Reviewing',
-      research:            'Analyzing',
-      planning:            'Planning',
-      testing:             'Testing',
-    }[workMode] || 'Working on';
+    const verb = WORK_MODE_VERBS[reasoning.workMode] || 'Working on';
     return `${verb} ${reasoning.ownership.subject}`;
   }
 
@@ -351,6 +376,15 @@ function buildFallbackTitle(reasoning) {
   return labels[cat] || 'Development Session';
 }
 
+// Linked task title is explicit, user-curated ground truth (the user assigned
+// this session to that task). It outranks every inferred/synthesized title.
+function buildLinkedTaskTitle(reasoning, linkedTaskTitle) {
+  const verb = WORK_MODE_VERBS[reasoning.workMode] || 'Working on';
+  return linkedTaskTitle.toLowerCase().startsWith(verb.toLowerCase())
+    ? linkedTaskTitle
+    : `${verb} ${linkedTaskTitle}`;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -364,6 +398,8 @@ function buildFallbackTitle(reasoning) {
  * @param {number} options.sessionDurationMins - actual session duration
  * @param {Object} options.existing    - { title, description } to preserve
  * @param {boolean} options.useContinuity - run continuity engine (heavier)
+ * @param {string} [options.linkedTaskTitle] - explicit task assignment title;
+ *   outranks every inferred/synthesized title when present (see eventContextAnalyzer.extractLinkedTaskTitle)
  * @returns {Object} orchestrationResult
  */
 export function orchestrateSync(autoSessions = [], options = {}) {
@@ -374,6 +410,7 @@ export function orchestrateSync(autoSessions = [], options = {}) {
     existing           = {},
     useContinuity      = false,
     sessionId          = null,
+    linkedTaskTitle    = null,
   } = options;
 
   if (!autoSessions.length) {
@@ -388,10 +425,12 @@ export function orchestrateSync(autoSessions = [], options = {}) {
   // never share a cache entry even when they involve the same apps and project.
   // Without this, sessions on the same day with identical app usage would all return
   // the first session's cached title and description (the duplication bug).
+  // linkedTaskTitle is also included since re-assigning a session to a different
+  // task must produce a fresh title rather than reusing a stale cached one.
   const firstTs = autoSessions[0]?.started_at ?? '';
   const lastTs  = autoSessions[autoSessions.length - 1]?.started_at ?? '';
   const sessionKey = sessionId || `${firstTs}_${lastTs}`;
-  const fp = contextFingerprint(compForFP) + `|${project?.id || ''}|${sessionKey}`;
+  const fp = contextFingerprint(compForFP) + `|${project?.id || ''}|${sessionKey}|${linkedTaskTitle || ''}`;
 
   const cached = getCached(fp);
   if (cached) return cached;
@@ -415,7 +454,7 @@ export function orchestrateSync(autoSessions = [], options = {}) {
   }
 
   // Assemble final output
-  const output = assembleOutput(reasoning, intent, humanized, fusedWorkblock, existing);
+  const output = assembleOutput(reasoning, intent, humanized, fusedWorkblock, existing, linkedTaskTitle);
 
   const result = {
     // Primary outputs

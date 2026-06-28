@@ -8,13 +8,15 @@ import {
   Monitor, Target, CheckCircle2, ChevronDown, Mail, FileText,
 } from 'lucide-react';
 import SummaryPanel from './SummaryPanel';
-import SessionDetailPopup from './SessionDetailPopup';
+import SessionDetailPopup, { FocusScoreRing } from './SessionDetailPopup';
 import { TasksWorkspace, ProjectsWorkspace, ClientsWorkspace } from './TabWorkspaces';
 import { useCalendarAI } from '../../hooks/useCalendarAI';
 import { useAdaptiveIntelligence } from '../../hooks/useAdaptiveIntelligence';
+import { usePredictiveIntelligence } from '../../hooks/usePredictiveIntelligence';
 import { RescheduleModal, RescheduleToast, BlockContextMenu } from './RescheduleModal';
 import { pushToast } from '../shared/NotificationCentre';
 import { mergeWorkflowSessions } from '../../utils/workflowSessionMerge';
+import { computeFocusQuality } from '../../ai/timer/focusQualityEngine.js';
 
 const api = window.electron || {};
 
@@ -2532,11 +2534,48 @@ export default function CalendarView({ user, categories, activeSession, setActiv
     } : null,
   });
 
+  // ─── Predictive Intelligence ──────────────────────────────────────────────
+  // Layered on top of adaptiveAI's learned behavioral snapshot — forecasts
+  // burnout trajectory, workload, schedule risk, and anomalies forward in
+  // time instead of only describing what already happened.
+  const upcomingCalEvent = useMemo(() => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const next = calEvents
+      .filter(e => e.start_time > nowSec)
+      .sort((a, b) => a.start_time - b.start_time)[0];
+    if (!next) return null;
+    const start = new Date(next.start_time * 1000);
+    return {
+      hour: start.getHours(),
+      dow: start.getDay(),
+      projectId: next.project_id || null,
+      plannedDurationMins: Math.max(0, (next.end_time - next.start_time) / 60),
+      label: next.title || null,
+    };
+  }, [calEvents]);
+
+  const predictiveAI = usePredictiveIntelligence({
+    behavioral: adaptiveAI.behavioral,
+    sessions,
+    autoSessions: workflowAutoSessions,
+    calendarEvents: calEvents,
+    tasks,
+    projects,
+    currentProjectId: activeSession?.project_id || null,
+    upcomingEvent: upcomingCalEvent,
+  });
+
   // AI-generated titles for sessions that have vague/blank titles.
   // Keyed by session ID. Visual overlay only — not auto-saved.
   const [aiTitleMap, setAiTitleMap] = useState({});
   // AI recap for the currently selected block (shown in popup)
   const [popupAIRecap, setPopupAIRecap] = useState(null);
+  // Raw auto-sessions for the currently selected block (reused by "Rewrite with AI")
+  const [popupAutoList, setPopupAutoList] = useState([]);
+  // True once the user explicitly asks for a rewrite — forces the suggestion
+  // banner to show even when the current title isn't vague.
+  const [aiBannerForced, setAiBannerForced] = useState(false);
+  const [aiRewriting, setAiRewriting] = useState(false);
   // AI suggested project for the currently selected session (when unassigned)
   const [popupAISuggestedProject, setPopupAISuggestedProject] = useState(null);
   // Live title suggestions for the active session
@@ -2747,6 +2786,8 @@ export default function CalendarView({ user, categories, activeSession, setActiv
     setPopupTags([]);
     setPopupAIRecap(null);
     setPopupAISuggestedProject(null);
+    setPopupAutoList([]);
+    setAiBannerForced(false);
     const from = block._type === 'calendar' ? block.start_time : block.started_at;
     const to   = block._type === 'calendar' ? block.end_time   : (block.ended_at || Math.floor(Date.now() / 1000));
     try {
@@ -2757,6 +2798,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
       const autoList = autos || [];
       setPopupApps(aggregateAutoUsage(autoList, { start: from, end: to, limit: 5 }));
       setPopupTags(tags || []);
+      setPopupAutoList(autoList);
 
       // Generate AI recap for session blocks
       if (block._type === 'session') {
@@ -2775,6 +2817,22 @@ export default function CalendarView({ user, categories, activeSession, setActiv
       }
     } catch {}
   }, [user.id, projects, clients]);
+
+  // Explicit "Rewrite with AI" action — re-rolls the title/description from
+  // scratch even when the session already has a meaningful (but unwanted) title.
+  const handleRewriteAI = useCallback(async (block) => {
+    if (!block || block._type !== 'session') return;
+    setAiRewriting(true);
+    try {
+      const project = projects.find(p => p.id === block.project_id) || null;
+      const client  = clients.find(c => c.id === block.client_id)   || null;
+      const recap = calendarAI.rewriteSessionContent(block, popupAutoList, project, client);
+      setPopupAIRecap(recap);
+      setAiBannerForced(true);
+    } finally {
+      setAiRewriting(false);
+    }
+  }, [projects, clients, popupAutoList]);
 
   const deleteSession = async (id) => {
     // Mark as explicitly deleted so the optimistic-preserve merge in loadData()
@@ -3130,13 +3188,18 @@ export default function CalendarView({ user, categories, activeSession, setActiv
   }, [sessions]);
 
   const clientTimeSecs = useMemo(() => {
+    const projectClientId = {};
+    for (const p of projects) projectClientId[p.id] = p.client_id;
     const map = {};
     for (const s of sessions) {
-      if (!s.client_id) continue;
-      map[s.client_id] = (map[s.client_id] || 0) + (s.duration_seconds || 0);
+      // Fall back to the linked project's client so time logged against a
+      // project (no client_id of its own) still rolls up to that client.
+      const cid = s.client_id || projectClientId[s.project_id];
+      if (!cid) continue;
+      map[cid] = (map[cid] || 0) + (s.duration_seconds || 0);
     }
     return map;
-  }, [sessions]);
+  }, [sessions, projects]);
 
   const selectedDaySessions = useMemo(() => sessionsForDay(selectedDate), [sessions, selectedDate]);
   const selectedDayAuto = useMemo(() => autoForDay(selectedDate), [workflowAutoSessions, selectedDate]);
@@ -3255,10 +3318,13 @@ export default function CalendarView({ user, categories, activeSession, setActiv
     const clientName = b.client_name  || null;
     const projName   = b.project_name || null;
     const projColor  = b.project_color || col;
-    // Score: use focus score proxy from hoverUsage switches (fewer = better)
-    const scoreVal   = hoverUsage.totalSeconds > 0
-      ? Math.max(10, Math.min(99, 100 - hoverUsage.switches * 7))
+    // Focus score — same engine as the detail popup & Timer, so the number
+    // shown on hover always matches what you'd see opening the event.
+    const focusVal   = hoverAuto.length > 0 && durSecs > 0
+      ? computeFocusQuality(hoverAuto.filter(a => !a.is_idle), durSecs)
       : null;
+    const scoreVal   = focusVal?.overall ?? null;
+    const scoreCol   = focusVal?.color ?? col;
     const tx    = isLight ? '#0F0D1F'                : '#EAEAF0';
     const txMid = isLight ? 'rgba(15,23,42,0.52)'   : '#6B7A96';
     const txFnt = isLight ? 'rgba(15,23,42,0.36)'   : '#4B5263';
@@ -3320,16 +3386,10 @@ export default function CalendarView({ user, categories, activeSession, setActiv
               fontVariantNumeric: 'tabular-nums', flexShrink: 0,
             }}>{fmtDur(durSecs)}</span>
           )}
-          {/* Score ring */}
-          {scoreVal && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
-              background: `${col}18`, border: `1px solid ${col}30`,
-              borderRadius: 5, padding: '2px 6px',
-            }}>
-              <span style={{ fontSize: 9, fontWeight: 800, color: col, fontVariantNumeric: 'tabular-nums' }}>
-                {scoreVal}%
-              </span>
+          {/* Focus score ring */}
+          {scoreVal != null && (
+            <div title={`Focus score: ${scoreVal}`} style={{ flexShrink: 0, lineHeight: 0 }}>
+              <FocusScoreRing score={scoreVal} color={scoreCol} size={22} stroke={2.5} />
             </div>
           )}
         </div>
@@ -3849,6 +3909,7 @@ export default function CalendarView({ user, categories, activeSession, setActiv
         aiMaturityLevel={adaptiveAI.maturityLevel}
         aiRecommendations={adaptiveAI.recommendations}
         aiForecast={adaptiveAI.forecast}
+        aiPredictive={predictiveAI}
         aiCommandInput={calendarAI.commandInput}
         aiCommandPreview={calendarAI.commandPreview}
         aiCommandResult={calendarAI.commandResult}
@@ -3949,9 +4010,13 @@ export default function CalendarView({ user, categories, activeSession, setActiv
         <SessionPopup
           block={selectedBlock} popupApps={popupApps} popupTags={popupTags}
           projects={projects}
+          autoSessions={popupAutoList}
           aiRecap={popupAIRecap}
           aiSuggestedProject={popupAISuggestedProject}
-          onClose={() => { setSelectedBlock(null); setPopupApps([]); setPopupTags([]); setPopupAIRecap(null); setPopupAISuggestedProject(null); }}
+          aiBannerForced={aiBannerForced}
+          aiRewriting={aiRewriting}
+          onRewriteAI={handleRewriteAI}
+          onClose={() => { setSelectedBlock(null); setPopupApps([]); setPopupTags([]); setPopupAIRecap(null); setPopupAISuggestedProject(null); setAiBannerForced(false); }}
           onDelete={
             selectedBlock._type === 'session'  ? deleteSession :
             selectedBlock._type === 'calendar' ? deleteCalendarEvent :

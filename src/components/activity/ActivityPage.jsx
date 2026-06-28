@@ -3197,17 +3197,37 @@ export default function ActivityPage({ user }) {
 
   const selectedBlock = blocks.find(b => b.id === selectedId) || null;
   const editingBlock  = blocks.find(b => b.id === editingId)  || null;
-  const eventRows = useMemo(() => (
-    [...autoData]
+  const eventRows = useMemo(() => {
+    // Merge consecutive raw tracker rows for the same app/site into a single
+    // entry (the tracker heartbeats periodically, so one continuous stretch
+    // of using the same app can otherwise show up as many duplicate rows).
+    const chronological = [...autoData]
       .filter(s => !s.is_idle && (s.duration_seconds || 0) > 0)
+      .sort((a, b) => (a.started_at || 0) - (b.started_at || 0));
+
+    const merged = [];
+    for (const s of chronological) {
+      const domain = safeHostname(s.url || '');
+      const last   = merged[merged.length - 1];
+      const sameEntity = last && last.app_name === s.app_name && (last.domain || '') === domain;
+      if (sameEntity) {
+        last.duration_seconds = (last.duration_seconds || 0) + (s.duration_seconds || 0);
+        if (!last.window_title && s.window_title) last.window_title = s.window_title;
+        if (!last.url && s.url) last.url = s.url;
+      } else {
+        merged.push({ ...s, domain });
+      }
+    }
+
+    return merged
       .sort((a, b) => (b.started_at || 0) - (a.started_at || 0))
       .map(item => ({
         ...item,
         cls: classifySession(item),
-        domain: safeHostname(item.url || ''),
+        domain: item.domain || safeHostname(item.url || ''),
         deviceLabel: item.url ? 'Desktop website' : 'Desktop app',
-      }))
-  ), [autoData]);
+      }));
+  }, [autoData]);
   const selectedEvent = eventRows.find(item => item.id === selectedEventId) || null;
 
   // Meta update helpers

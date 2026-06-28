@@ -12,12 +12,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X, ChevronLeft, ChevronRight, Briefcase, Users, Target,
   Clock, TrendingUp, BarChart2, DollarSign, Zap, Calendar,
-  Flame, Tag, Building2, Hash,
+  Flame, Tag, Building2, Hash, Download,
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
+import { exportAsCSV, exportAsPDF, fmtDuration, fmtMoney, fmtDate as fmtExportDate, fmtNow } from '../../utils/exportUtils';
 
 const api = window.electron || {};
 
@@ -99,7 +100,10 @@ function makeDailyPoints(from, days, dailyMap) {
 }
 
 // ─── item meta ────────────────────────────────────────────────────────────────
-function getItemMeta(type, item) {
+// `projects` is only needed for type 'client', to also catch sessions that are
+// only tagged with a project_id (no client_id of their own) so that, e.g.,
+// 1h logged on each of 3 projects belonging to the same client adds up to 3h.
+function getItemMeta(type, item, projects = []) {
   if (type === 'project') {
     return {
       name:   item.name,
@@ -117,6 +121,7 @@ function getItemMeta(type, item) {
     };
   }
   if (type === 'client') {
+    const clientProjectIds = new Set(projects.filter(p => p.client_id === item.id).map(p => p.id));
     return {
       name:   item.name,
       color:  item.color || '#6366f1',
@@ -127,7 +132,7 @@ function getItemMeta(type, item) {
         item.status  && { label: item.status,  icon: Hash },
         item.billing_type && item.billing_type !== 'none' && { label: item.billing_type, icon: DollarSign },
       ].filter(Boolean),
-      filterFn: s => s.client_id === item.id,
+      filterFn: s => s.client_id === item.id || clientProjectIds.has(s.project_id),
       billable: item.hourly_rate > 0,
       rate:     item.hourly_rate || 0,
     };
@@ -350,8 +355,12 @@ export default function DetailAnalyticsModal({ type, item, user, onClose }) {
   const [sessions,    setSessions]    = useState([]);
   const [allSessions, setAllSessions] = useState([]);      // all-time (for totals)
   const [loading,     setLoading]     = useState(true);
+  const [tasks,       setTasks]       = useState([]);
+  const [projects,    setProjects]    = useState([]);
+  const [showExport,  setShowExport]  = useState(false);
+  const [exporting,   setExporting]   = useState(false);
 
-  const meta = useMemo(() => getItemMeta(type, item), [type, item]);
+  const meta = useMemo(() => getItemMeta(type, item, projects), [type, item, projects]);
   const DT   = useMemo(() => makeDA(isLight), [isLight]);
 
   // Conditional primary-text class (replaces hardcoded `text-white` throughout)
@@ -378,6 +387,19 @@ export default function DetailAnalyticsModal({ type, item, user, onClose }) {
   }, [user.id, range.from, range.to]); // eslint-disable-line
 
   useEffect(() => { loadRange(); }, [loadRange]);
+
+  // ── Load tasks/projects allocated to this client or project (for report export) ──
+  useEffect(() => {
+    if (type !== 'client' && type !== 'project') return;
+    (async () => {
+      const [taskList, projectList] = await Promise.all([
+        api.listTasks?.({ userId: user.id }),
+        api.listProjects?.({ userId: user.id }),
+      ]);
+      setTasks(taskList || []);
+      setProjects(projectList || []);
+    })();
+  }, [type, item.id, user.id]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const rangeFiltered = useMemo(
@@ -454,6 +476,103 @@ export default function DetailAnalyticsModal({ type, item, user, onClose }) {
       ? [{ label: 'Target', value: `${item.target_hours}h`, sub: item.period, color: '#7c6cf2', Icon: Target }]
       : []),
   ];
+
+  // ── Report export: worked tasks, projects, and sessions allocated here ───────
+  const canExportReport = type === 'client' || type === 'project';
+
+  const projectNameById = useMemo(
+    () => Object.fromEntries(projects.map(p => [p.id, p.name])),
+    [projects]
+  );
+
+  const relatedTasks = useMemo(() => {
+    if (!canExportReport) return [];
+    return tasks.filter(t => type === 'client' ? t.client_id === item.id : t.project_id === item.id);
+  }, [tasks, type, item.id, canExportReport]);
+
+  const relatedProjects = useMemo(() => {
+    if (type !== 'client') return [];
+    return projects.filter(p => p.client_id === item.id);
+  }, [projects, type, item.id]);
+
+  const buildExportSections = () => {
+    const sortedSessions = [...allFiltered].sort((a, b) => (b.started_at || 0) - (a.started_at || 0));
+
+    const sections = [];
+
+    if (type === 'client' && relatedProjects.length) {
+      sections.push({
+        title: 'Projects',
+        headers: ['Project', 'Status', 'Hourly Rate', 'Hours Logged', 'Revenue'],
+        rows: relatedProjects.map(p => {
+          const projSecs = allSessions
+            .filter(s => s.project_id === p.id)
+            .reduce((a, s) => a + (s.duration_seconds || 0), 0);
+          const projRevenue = (p.hourly_rate || 0) * (projSecs / 3600);
+          return [p.name, p.status || 'active', fmtMoney(p.hourly_rate), fmtDuration(projSecs), fmtMoney(projRevenue)];
+        }),
+      });
+    }
+
+    sections.push({
+      title: 'Worked Tasks',
+      headers: ['Task', 'Project', 'Status', 'Priority', 'Estimated Hours', 'Logged Hours', 'Due Date'],
+      rows: relatedTasks.map(t => [
+        t.title,
+        t.project_name || projectNameById[t.project_id] || '—',
+        t.status || 'todo',
+        t.priority ?? '—',
+        t.estimated_hours ? `${t.estimated_hours}h` : '—',
+        fmtDuration(t.total_seconds),
+        fmtExportDate(t.due_date),
+      ]),
+    });
+
+    sections.push({
+      title: 'Sessions',
+      headers: ['Date', 'Title', 'Project', 'Duration', 'Type'],
+      rows: sortedSessions.map(s => [
+        fmtExportDate(s.started_at),
+        s.title || '—',
+        projectNameById[s.project_id] || '—',
+        fmtDuration(s.duration_seconds),
+        s.is_deep_work ? 'Deep Work' : (s.session_type || 'focus'),
+      ]),
+      kpis: [
+        { label: 'Total Sessions', value: sortedSessions.length },
+        { label: 'Total Hours', value: fmtDuration(allTimeSecs) },
+        ...(meta.billable ? [{ label: 'Total Revenue', value: fmtMoney(revenue) }] : []),
+      ],
+    });
+
+    return sections;
+  };
+
+  const doExportReport = async (format) => {
+    setExporting(true);
+    try {
+      const reportTitle = `${meta.name} — ${meta.typeLabel} Report`;
+      const reportMeta = {
+        [meta.typeLabel]: meta.name,
+        ...(type === 'client' && item.company ? { Company: item.company } : {}),
+        ...(type === 'client' ? { 'Billing Type': item.billing_type || 'none' } : {}),
+        'Date Range': 'All time',
+        'Total Hours': fmtDuration(allTimeSecs),
+        ...(meta.billable ? { 'Total Revenue': fmtMoney(revenue) } : {}),
+        Generated: fmtNow(),
+      };
+      const sections = buildExportSections();
+      const filename = `${meta.typeLabel.toLowerCase()}-report-${meta.name}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+      if (format === 'pdf') {
+        await exportAsPDF(reportTitle, reportMeta, sections);
+      } else {
+        exportAsCSV(reportTitle, reportMeta, sections, filename);
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div
@@ -756,27 +875,79 @@ export default function DetailAnalyticsModal({ type, item, user, onClose }) {
             {' · '}
             <span style={{ color: DT.footerMetaColor }}>{allTimeSessions} sessions</span>
           </p>
-          <button onClick={onClose}
-            style={{
-              padding: '7px 18px', borderRadius: 10, cursor: 'pointer',
-              fontSize: 12, fontWeight: 500,
-              background: DT.footerBtnBg,
-              border: `1px solid ${DT.footerBtnBorder}`,
-              color: DT.footerBtnText,
-              transition: 'all 0.13s',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = DT.footerBtnHoverBg;
-              e.currentTarget.style.borderColor = DT.footerBtnHoverBorder;
-              e.currentTarget.style.color = DT.footerBtnHoverText;
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = DT.footerBtnBg;
-              e.currentTarget.style.borderColor = DT.footerBtnBorder;
-              e.currentTarget.style.color = DT.footerBtnText;
-            }}>
-            Close
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {canExportReport && (
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setShowExport(v => !v)} disabled={exporting}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '7px 16px', borderRadius: 10, cursor: exporting ? 'default' : 'pointer',
+                    fontSize: 12, fontWeight: 600, opacity: exporting ? 0.6 : 1,
+                    background: DT.footerBtnBg,
+                    border: `1px solid ${DT.footerBtnBorder}`,
+                    color: meta.color,
+                    transition: 'all 0.13s',
+                  }}
+                  onMouseEnter={e => { if (!exporting) { e.currentTarget.style.background = DT.footerBtnHoverBg; e.currentTarget.style.borderColor = DT.footerBtnHoverBorder; }}}
+                  onMouseLeave={e => { e.currentTarget.style.background = DT.footerBtnBg; e.currentTarget.style.borderColor = DT.footerBtnBorder; }}>
+                  <Download size={12} />
+                  {exporting ? 'Exporting…' : 'Export Report'}
+                </button>
+                {showExport && !exporting && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 10010 }} onClick={() => setShowExport(false)} />
+                    <div style={{
+                      position: 'absolute', bottom: '120%', right: 0, zIndex: 10011,
+                      width: 200, borderRadius: 10, overflow: 'hidden',
+                      background: DT.chartCardBg, border: `1px solid ${DT.chartCardBorder}`,
+                      boxShadow: DT.chartCardShadow,
+                    }}>
+                      <p style={{ fontSize: 9.5, fontWeight: 700, color: DT.sectionLabelColor, textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0, padding: '8px 12px 6px' }}>
+                        Tasks, projects &amp; sessions
+                      </p>
+                      {[
+                        { id: 'csv', label: 'Export as CSV' },
+                        { id: 'pdf', label: 'Export as PDF' },
+                      ].map(o => (
+                        <button key={o.id}
+                          onClick={() => { setShowExport(false); doExportReport(o.id); }}
+                          style={{
+                            width: '100%', textAlign: 'left', padding: '8px 12px',
+                            fontSize: 12, color: DT.textSecondary, background: 'transparent',
+                            border: 'none', cursor: 'pointer', transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = DT.footerBtnHoverBg}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <button onClick={onClose}
+              style={{
+                padding: '7px 18px', borderRadius: 10, cursor: 'pointer',
+                fontSize: 12, fontWeight: 500,
+                background: DT.footerBtnBg,
+                border: `1px solid ${DT.footerBtnBorder}`,
+                color: DT.footerBtnText,
+                transition: 'all 0.13s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = DT.footerBtnHoverBg;
+                e.currentTarget.style.borderColor = DT.footerBtnHoverBorder;
+                e.currentTarget.style.color = DT.footerBtnHoverText;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = DT.footerBtnBg;
+                e.currentTarget.style.borderColor = DT.footerBtnBorder;
+                e.currentTarget.style.color = DT.footerBtnText;
+              }}>
+              Close
+            </button>
+          </div>
         </div>
 
       </div>

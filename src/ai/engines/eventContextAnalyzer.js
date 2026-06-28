@@ -5,6 +5,8 @@
  * preserving the semantic meaning of what was actually worked on.
  */
 
+import { isGenericSubject } from './genericKeywordFilter.js';
+
 // ─── App → Work Category Map ──────────────────────────────────────────────────
 
 const APP_CATEGORIES = {
@@ -705,6 +707,24 @@ function assessFocusQuality(autoSessions = [], totalDurationMins = 0) {
  *
  * Key addition vs v1: windowTitlePhrases, bestWindowTitle, workSubtype
  */
+// ─── Linked Task Title ────────────────────────────────────────────────────────
+// When a session is explicitly linked to a task, the task's title is
+// user-curated ground truth — far more reliable than anything inferred from
+// window titles or app usage. Reject it only if it's too short, vague, or
+// contains the same noise patterns we reject for window-title phrases.
+
+const VAGUE_TASK_TITLE_RE = /^(task|todo|to-do|bug|fix|item|note|misc|untitled|new task|chore|wip)\s*#?\d*$/i;
+
+export function extractLinkedTaskTitle(session) {
+  const raw = (session?.task_title || '').trim();
+  if (raw.length < 4) return null;
+  if (VAGUE_TASK_TITLE_RE.test(raw)) return null;
+  if (HARD_REJECT_PATTERNS.some(re => re.test(raw))) return null;
+  if (containsSystemPath(raw)) return null;
+  if (isGenericSubject(raw)) return null;
+  return raw;
+}
+
 // ─── AI Conversation Topic Extractor ─────────────────────────────────────────
 // Claude/ChatGPT window titles often contain the most precise description of what
 // was being worked on. Extract these as a priority signal.
@@ -767,6 +787,9 @@ export function analyzeContext(input = {}) {
   const apps     = aggregateApps(autoSessions);
   const websites = aggregateWebsites(autoSessions);
 
+  // ── Linked task — explicit, user-curated ground truth ─────────────────────
+  const linkedTaskTitle = extractLinkedTaskTitle(session);
+
   // ── Phrase-level window title analysis (from dominant sessions only) ──
   const windowTitlePhrases = extractWindowTitlePhrases(phraseSessions);
 
@@ -796,12 +819,25 @@ export function analyzeContext(input = {}) {
         .slice(0, 8)
     : [];
 
-  const fallbackKeywords   = [...notesKeywords, ...extractFallbackKeywords(phraseSessions)]
+  const taskKeywords = linkedTaskTitle
+    ? linkedTaskTitle
+        .replace(/[^a-zA-Z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .map(w => w.toLowerCase().trim())
+        .filter(w => w.length >= 4 && !STOP_WORDS.has(w) && !/^\d+$/.test(w))
+    : [];
+
+  const fallbackKeywords   = [...taskKeywords, ...notesKeywords, ...extractFallbackKeywords(phraseSessions)]
     .filter((w, i, arr) => arr.indexOf(w) === i) // deduplicate
     .slice(0, 20);
 
   const appNames           = apps.map(a => normalize(a.name));
-  const workSubtype        = detectWorkSubtype(mergedPhrases, fallbackKeywords, appNames);
+  // Linked task text gets the strongest subtype-detection weight (treated as a
+  // long-duration phrase) since it's explicit ground truth, not inference.
+  const subtypePhrases = linkedTaskTitle
+    ? [{ phrase: linkedTaskTitle, durationSecs: 3600 }, ...mergedPhrases]
+    : mergedPhrases;
+  const workSubtype        = detectWorkSubtype(subtypePhrases, fallbackKeywords, appNames);
 
   // Time signals
   const sessionStart = session?.started_at || autoSessions[0]?.started_at;
@@ -830,6 +866,7 @@ export function analyzeContext(input = {}) {
     windowTitlePhrases: mergedPhrases,  // Ranked list: AI topics + window title phrases
     aiTopics,                           // AI conversation topics (Claude/ChatGPT sessions)
     bestWindowTitle,                    // Single best phrase (AI topic if present)
+    linkedTaskTitle,                    // Explicit task assignment — outranks every inferred signal
     workSubtype,                        // Specific work type (debugging, implementing, etc.)
     fallbackKeywords,                   // Keywords from window titles + session notes
 
