@@ -6,7 +6,7 @@ import {
   Square, RectangleVertical, Smartphone, Sun, CalendarDays, CalendarRange,
 } from 'lucide-react';
 import { buildSnapshotData } from '../../utils/snapshotData';
-import ActivitySnapshotTemplate, { SNAPSHOT_DIMENSIONS } from './ActivitySnapshotTemplate';
+import ActivitySnapshotTemplate, { SNAPSHOT_DIMENSIONS, SNAPSHOT_THEMES } from './ActivitySnapshotTemplate';
 
 const PERIOD_OPTIONS = [
   { id: 'day',   label: 'Today',      Icon: Sun },
@@ -20,14 +20,36 @@ const FORMAT_OPTIONS = [
   { id: 'story',    label: 'Story',    desc: '9:16 · IG/Stories', Icon: Smartphone },
 ];
 
+const THEME_OPTIONS = Object.entries(SNAPSHOT_THEMES).map(([id, t]) => ({ id, label: t.label, t }));
+
+const GENERATING_MESSAGES = [
+  'Crunching your activity data…',
+  'Rendering your timeline…',
+  'Polishing the visuals…',
+  'Almost there…',
+];
+
 function canvasToBlob(canvas) {
   return new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+}
+
+function triggerDownload(blob, period) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `flow-ledger-snapshot-${period}-${Date.now()}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 export default function ActivitySnapshotModal({ open, onClose, userId, accountName, initials, logoSrc }) {
   const [period, setPeriod]     = useState('day');
   const [format, setFormat]     = useState('square');
+  const [theme,  setTheme]      = useState('midnight');
   const [stage,  setStage]      = useState('configure'); // configure | generating | ready | error
+  const [progress, setProgress] = useState(0);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [error, setError]       = useState('');
   const [toast, setToast]       = useState(null);
@@ -53,6 +75,29 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
     return () => window.removeEventListener('keydown', h);
   }, [open, onClose]);
 
+  // Premium generation animation — eases toward 92% over ~1.6s regardless of
+  // how fast the real work finishes, then handleGenerate snaps it to 100%
+  // once the canvas is actually ready. Never blocks on real timing, just
+  // gives the action room to feel deliberate instead of instantaneous.
+  useEffect(() => {
+    if (stage !== 'generating') { setProgress(0); return; }
+    const start = Date.now();
+    let raf;
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const pct = Math.min(92, (elapsed / 1600) * 92);
+      setProgress(pct);
+      if (pct < 92) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [stage]);
+
+  const generatingMessage = GENERATING_MESSAGES[Math.min(
+    GENERATING_MESSAGES.length - 1,
+    Math.floor((progress / 92) * GENERATING_MESSAGES.length),
+  )];
+
   const showToast = useCallback((msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2600);
@@ -77,6 +122,7 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
           <ActivitySnapshotTemplate
             data={data}
             variant={format}
+            theme={theme}
             accountName={accountName}
             initials={initials}
             logoSrc={logoSrc}
@@ -89,8 +135,9 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
 
       const node = host.firstElementChild;
       const { width, height } = SNAPSHOT_DIMENSIONS[format] || SNAPSHOT_DIMENSIONS.story;
+      const bgColor = SNAPSHOT_THEMES[theme]?.bg?.[0] || '#0A0810';
       const canvas = await html2canvas(node, {
-        width, height, scale: 2, backgroundColor: '#0A0810',
+        width, height, scale: 2, backgroundColor: bgColor,
         useCORS: true, logging: false,
       });
       root.unmount();
@@ -99,24 +146,24 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
       const blob = await canvasToBlob(canvas);
       blobRef.current = blob;
       setPreviewUrl(URL.createObjectURL(blob));
+      // Let the progress bar visibly reach 100% before switching views —
+      // snapping straight from 92% to the preview feels abrupt.
+      setProgress(100);
+      await new Promise(r => setTimeout(r, 280));
       setStage('ready');
+      // Auto-download on completion, then confirm with a toast.
+      triggerDownload(blob, period);
+      showToast('Snapshot generated & downloaded');
     } catch (err) {
       console.error('[ActivitySnapshot] generation failed:', err);
       setError('Could not generate the snapshot. Please try again.');
       setStage('error');
     }
-  }, [userId, period, format, accountName, initials, logoSrc]);
+  }, [userId, period, format, theme, accountName, initials, logoSrc, showToast]);
 
   const handleDownload = useCallback(() => {
     if (!blobRef.current) return;
-    const url = URL.createObjectURL(blobRef.current);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `flow-ledger-snapshot-${period}-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    triggerDownload(blobRef.current, period);
     showToast('Snapshot downloaded');
   }, [period, showToast]);
 
@@ -236,14 +283,53 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
                   </div>
                 </div>
 
+                <div>
+                  <p className="fl-export-section-label">Theme</p>
+                  <div className="grid grid-cols-6 gap-2">
+                    {THEME_OPTIONS.map(({ id, label, t }) => {
+                      const active = theme === id;
+                      return (
+                        <button key={id} onClick={() => setTheme(id)} title={label}
+                          className="flex flex-col items-center gap-1.5">
+                          <span
+                            className="block h-9 w-9 rounded-full transition-all"
+                            style={{
+                              background: `linear-gradient(135deg, ${t.bg[1]} 0%, ${t.bg[2]} 100%)`,
+                              border: active ? `2px solid ${t.accent}` : '1px solid rgba(255,255,255,0.14)',
+                              boxShadow: active ? `0 0 0 3px ${t.accent}33` : 'none',
+                            }}
+                          />
+                          <span className={`text-[9px] font-semibold leading-tight ${active ? 'text-tx-primary' : 'text-tx-faint'}`}>{label.split(' ')[0]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {error && (
                   <p className="text-[11.5px] font-medium text-red-400">{error}</p>
                 )}
               </div>
             ) : stage === 'generating' ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-12">
-                <Loader2 size={28} className="animate-spin" style={{ color: '#A78BFA' }} />
-                <p className="text-[12.5px] font-medium text-tx-secondary">Rendering your snapshot…</p>
+              <div className="flex flex-col items-center justify-center gap-5 py-10">
+                <div className="relative flex h-16 w-16 items-center justify-center">
+                  <Loader2 size={32} className="animate-spin" style={{ color: '#A78BFA' }} />
+                  <Camera size={14} className="absolute" style={{ color: '#A78BFA' }} />
+                </div>
+                <div className="w-full text-center">
+                  <p className="text-[13px] font-semibold text-tx-primary">Generating your Activity Snapshot…</p>
+                  <p className="mt-1 text-[11.5px] text-tx-faint">{generatingMessage}</p>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${progress}%`,
+                      background: 'linear-gradient(90deg, #6D28D9, #A78BFA)',
+                      transition: 'width 0.15s linear',
+                    }}
+                  />
+                </div>
               </div>
             ) : (
               <div className="space-y-4">

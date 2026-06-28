@@ -162,8 +162,11 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
     ? generateDailySummary(prevRange.anchorDate, prevSessions, prevAutoSessions, [], projects, clients)
     : generateWeeklySummary(prevRange.anchorDate, prevSessions, prevAutoSessions, projects);
   const prevTotalSecs = Math.round((prevSummary.totalMins || 0) * 60);
+  const prevDeepWorkSecs = Math.round((prevSummary.deepWorkMins || 0) * 60);
   const prevSessionsCount = prevSummary.totalSessions || 0;
   const prevProductivityScore = computeScore(prevAutoSessions);
+  const prevActiveAutoSessions = (prevAutoSessions || []).filter(s => !s.is_idle);
+  const prevFocusScore = computeFocusQuality(prevActiveAutoSessions, prevTotalSecs).overall;
 
   // ── Scores — same formulas the rest of the app uses ─────────────────────────
   const productivityScore = computeScore(autoSessions);
@@ -173,8 +176,10 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
   const comparison = {
     label: COMPARISON_LABEL[period] || 'vs previous period',
     totalPct:      pctChange(totalSecs, prevTotalSecs),
+    deepWorkPct:   pctChange(deepWorkSecs, prevDeepWorkSecs),
     sessionsDelta: (totalSessions ?? 0) - prevSessionsCount,
     scorePct:      pctChange(productivityScore, prevProductivityScore),
+    focusScorePct: pctChange(focusResult.overall, prevFocusScore),
     meetingsCount,
   };
 
@@ -189,11 +194,19 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
   }));
 
   // ── Top apps ──────────────────────────────────────────────────────────────
+  // Icons are resolved via the same native-OS-icon IPC call AppIcon.jsx uses
+  // (app:getIcon → a base64 data: URL), never a remote favicon fetch — this
+  // keeps the exported canvas free of cross-origin taint risk.
   const appTotalSecs = (appUsage || []).reduce((s, app) => s + app.mins * 60, 0);
-  const topApps = (appUsage || []).slice(0, 5).map(app => ({
-    name: app.name,
-    secs: Math.round(app.mins * 60),
-    pct:  pctOf(app.mins * 60, appTotalSecs),
+  const topApps = await Promise.all((appUsage || []).slice(0, 5).map(async app => {
+    let icon = null;
+    try { icon = await a.getAppIcon?.({ appName: app.name }); } catch { /* falls back to initials badge */ }
+    return {
+      name: app.name,
+      secs: Math.round(app.mins * 60),
+      pct:  pctOf(app.mins * 60, appTotalSecs),
+      icon,
+    };
   }));
 
   // ── Top projects ──────────────────────────────────────────────────────────
@@ -224,6 +237,20 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
     end:      s.ended_at,
     durationSecs: s.ended_at - s.started_at,
   }));
+
+  // ── Timeline axis ────────────────────────────────────────────────────────
+  // 'day' always plots against the full midnight-to-midnight scale (so the
+  // card reads "12 AM ── 11 PM" regardless of when tracking started); week
+  // and month plot against the actual range fetched above.
+  const axisStart = from;
+  const axisEnd   = period === 'day' ? from + 86400 : to;
+
+  // ── Achievement — the single most meaningful highlight for the period ───────
+  // Derived entirely from data already computed above (session durations,
+  // focus/productivity scores) — not a separate analytics pass.
+  const achievement = determineAchievement({
+    sessionRows, focusScore: focusResult.overall, productivityScore, sessionsCompleted: totalSessions ?? completedSessions.length,
+  });
 
   // ── AI insights — period-specific first, then adaptive/historical ───────────
   // (analyticsIntelligenceEngine reads the same adaptive behavior profile
@@ -261,6 +288,7 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
     productivityScore,
     focusScore: focusResult.overall,
     comparison,
+    achievement,
 
     distribution,
     topApps,
@@ -271,5 +299,34 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
 
     rangeStart: from,
     rangeEnd: to,
+    axisStart,
+    axisEnd,
   };
+}
+
+/**
+ * Pick the single most meaningful highlight for the period, in priority
+ * order, from data already computed by buildSnapshotData — no separate
+ * analytics pass. Always returns something so the Achievement card never
+ * renders empty.
+ */
+function determineAchievement({ sessionRows, focusScore, productivityScore, sessionsCompleted }) {
+  const deepCandidates = sessionRows.filter(s => /deep|focus/i.test(s.category));
+  const longestDeep = [...deepCandidates].sort((a, b) => b.durationSecs - a.durationSecs)[0];
+
+  if (longestDeep && longestDeep.durationSecs >= 90 * 60) {
+    const hrs = Math.round((longestDeep.durationSecs / 3600) * 10) / 10;
+    return { icon: '🔥', title: `${hrs}h Focus Streak`, detail: `Longest deep work block: ${longestDeep.title}` };
+  }
+  if (focusScore >= 85) {
+    return { icon: '⭐', title: 'Excellent Focus Score', detail: `Focus score of ${focusScore} — among your sharpest sessions` };
+  }
+  if (productivityScore >= 80) {
+    return { icon: '🏆', title: 'Productivity Goal Achieved', detail: `Productivity score of ${productivityScore} today` };
+  }
+  if (longestDeep) {
+    const mins = Math.round(longestDeep.durationSecs / 60);
+    return { icon: '🚀', title: 'Deep Work Logged', detail: `${mins}m of focused work in a single session` };
+  }
+  return { icon: '✨', title: 'Tracked Day', detail: `${sessionsCompleted} session${sessionsCompleted === 1 ? '' : 's'} completed` };
 }
