@@ -76,6 +76,17 @@ export const SNAPSHOT_THEMES = {
   },
 };
 
+// Truncate manually instead of relying on CSS `overflow:hidden` +
+// `text-overflow:ellipsis` — html2canvas's handling of that combo is buggy
+// and clips text vertically (cutting glyphs top/bottom) even when the box
+// has an explicit height, regardless of whether truncation actually fires.
+// A plain string truncation + `overflow:visible` sidesteps the bug entirely.
+function truncate(text = '', maxChars = 40) {
+  const str = String(text || '');
+  if (str.length <= maxChars) return str;
+  return str.slice(0, maxChars - 1).trimEnd() + '…';
+}
+
 function fmtClock(unixSecs) {
   if (!unixSecs) return '';
   return new Date(unixSecs * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -162,7 +173,7 @@ function ScoreRing({ score, t, size = 168, stroke = 14 }) {
         <span style={{ fontSize: 52, fontWeight: 800, color: t.text.primary, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
           {score}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: t.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <span style={{ fontSize: 13, lineHeight: 1.3, fontWeight: 700, color: t.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Score
         </span>
       </div>
@@ -174,8 +185,8 @@ function TrendBadge({ text, up, t }) {
   if (!text) return null;
   const color = up === undefined ? t.text.muted : up ? '#6EE7A8' : '#F8A6A6';
   return (
-    <span style={{ fontSize: 18, fontWeight: 700, color, display: 'flex', alignItems: 'center', gap: 5 }}>
-      {up !== undefined && <span style={{ fontSize: 14 }}>{up ? '▲' : '▼'}</span>}
+    <span style={{ fontSize: 18, lineHeight: 1.3, fontWeight: 700, color, display: 'flex', alignItems: 'center', gap: 5 }}>
+      {up !== undefined && <span style={{ fontSize: 14, lineHeight: 1.3 }}>{up ? '▲' : '▼'}</span>}
       {text}
     </span>
   );
@@ -183,20 +194,25 @@ function TrendBadge({ text, up, t }) {
 
 function StatTile({ Icon, iconColor, iconBg, label, value, trendText, trendUp: up, t }) {
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{
         width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center', background: iconBg,
       }}>
         <Icon size={20} style={{ color: iconColor }} />
       </div>
-      <span style={{ fontSize: 15, fontWeight: 700, color: t.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      <span style={{ fontSize: 15, lineHeight: 1.3, fontWeight: 700, color: t.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
         {label}
       </span>
-      <span style={{ fontSize: 34, fontWeight: 800, color: t.text.primary, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ fontSize: 34, lineHeight: 1.3, fontWeight: 800, color: t.text.primary, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
         {value}
       </span>
-      <TrendBadge text={trendText} up={up} t={t} />
+      {/* Fixed-height slot regardless of whether a tile has trend text, so all
+          four tiles' content stops at the same baseline instead of the ones
+          without a trend line appearing to sit "higher" than the others. */}
+      <div style={{ minHeight: 26, display: 'flex', alignItems: 'center' }}>
+        <TrendBadge text={trendText} up={up} t={t} />
+      </div>
     </div>
   );
 }
@@ -204,7 +220,7 @@ function StatTile({ Icon, iconColor, iconBg, label, value, trendText, trendUp: u
 function SectionLabel({ children, t }) {
   return (
     <p style={{
-      margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: t.text.muted,
+      margin: '0 0 24px', fontSize: 18, lineHeight: 1.3, fontWeight: 700, color: t.text.muted,
       textTransform: 'uppercase', letterSpacing: '0.09em',
     }}>
       {children}
@@ -216,7 +232,7 @@ function Card({ children, t, style }) {
   return (
     <div style={{
       background: t.card.bg, border: `1px solid ${t.card.border}`,
-      borderRadius: 24, padding: '30px 32px',
+      borderRadius: 24, padding: '32px 32px',
       boxShadow: t.isLight ? '0 8px 24px rgba(20,16,40,0.06)' : '0 8px 24px rgba(0,0,0,0.20)',
       ...style,
     }}>
@@ -238,7 +254,7 @@ function ActivityTimeline({ data, t }) {
       }}>
         {data.timelineBlocks.length === 0 ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 16, color: t.text.muted, fontWeight: 600 }}>No tracked activity yet</span>
+            <span style={{ fontSize: 16, lineHeight: 1.3, color: t.text.muted, fontWeight: 600 }}>No tracked activity yet</span>
           </div>
         ) : data.timelineBlocks.map((b, i) => {
           const left  = Math.max(0, ((b.start - data.axisStart) / span) * 100);
@@ -252,19 +268,60 @@ function ActivityTimeline({ data, t }) {
           );
         })}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <Moon size={15} style={{ color: t.text.muted }} />
-          <span style={{ fontSize: 16, fontWeight: 600, color: t.text.secondary }}>{fmtHourTick(data.axisStart)}</span>
+          <span style={{ fontSize: 16, lineHeight: 1.3, fontWeight: 600, color: t.text.secondary }}>{fmtHourTick(data.axisStart)}</span>
         </div>
         {ticks.slice(1, -1).map((tk, i) => (
-          <span key={i} style={{ fontSize: 15, fontWeight: 600, color: t.text.muted }}>{fmtHourTick(tk)}</span>
+          <span key={i} style={{ fontSize: 15, lineHeight: 1.3, fontWeight: 600, color: t.text.muted }}>{fmtHourTick(tk)}</span>
         ))}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: t.text.secondary }}>{fmtHourTick(data.axisEnd)}</span>
+          <span style={{ fontSize: 16, lineHeight: 1.3, fontWeight: 600, color: t.text.secondary }}>{fmtHourTick(data.axisEnd)}</span>
           <Sun size={15} style={{ color: t.accent }} />
         </div>
       </div>
+    </Card>
+  );
+}
+
+// Day-by-day bar chart — used for week/month periods where an hour-of-day
+// timeline doesn't apply (see snapshotData.js dailyBuckets comment).
+function DailyBarChart({ buckets, t }) {
+  const maxSecs = Math.max(1, ...buckets.map(b => b.secs));
+  const showEveryNth = buckets.length > 14 ? 7 : buckets.length > 8 ? 2 : 1;
+  return (
+    <Card t={t}>
+      <SectionLabel t={t}>Daily Activity</SectionLabel>
+      {buckets.every(b => b.secs === 0) ? (
+        <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 16, lineHeight: 1.3, color: t.text.muted, fontWeight: 600 }}>No tracked activity yet</span>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: Math.max(3, 10 - Math.floor(buckets.length / 6)), height: 120 }}>
+          {buckets.map((b, i) => {
+            const heightPct = Math.max(b.secs > 0 ? 4 : 1.5, (b.secs / maxSecs) * 100);
+            const isToday = i === buckets.length - 1;
+            return (
+              <div key={i} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, height: '100%', justifyContent: 'flex-end' }}>
+                <div style={{
+                  width: '100%', maxWidth: 28, borderRadius: 5,
+                  height: `${heightPct}%`,
+                  background: isToday ? t.accent : (t.isLight ? 'rgba(20,16,40,0.14)' : 'rgba(255,255,255,0.16)'),
+                  boxShadow: isToday ? `0 0 14px ${t.glow1}` : 'none',
+                }} />
+                <span style={{ fontSize: 13, lineHeight: 1.3, fontWeight: 600, color: isToday ? t.text.primary : t.text.muted }}>
+                  {/* "today" always gets a label; the regular every-Nth tick is
+                      suppressed near the end so it doesn't crowd right next to it
+                      (e.g. day 29's "every 7th" tick sitting beside day 30's "today"). */}
+                  {isToday || (i % showEveryNth === 0 && i < buckets.length - 1 - showEveryNth / 2)
+                    ? b.date.toLocaleDateString('en-US', { day: 'numeric' }) : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
@@ -273,20 +330,20 @@ function BreakdownBars({ items, t }) {
   return (
     <Card t={t}>
       <SectionLabel t={t}>Productivity Breakdown</SectionLabel>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {items.map((d, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-            <span style={{ width: 180, flexShrink: 0, fontSize: 19, fontWeight: 600, color: t.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {d.label}
+            <span style={{ display: 'flex', alignItems: 'center', height: 24, width: 180, flexShrink: 0, fontSize: 19, lineHeight: 1.3, fontWeight: 600, color: t.text.primary, whiteSpace: 'nowrap' }}>
+              {truncate(d.label, 18)}
             </span>
             <div style={{ flex: 1, height: 13, borderRadius: 7, background: t.isLight ? 'rgba(20,16,40,0.06)' : 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${Math.max(2, d.pct)}%`, background: d.color, borderRadius: 7 }} />
             </div>
-            <span style={{ width: 96, flexShrink: 0, textAlign: 'right', fontSize: 18, fontWeight: 700, color: t.text.primary, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 24, width: 96, flexShrink: 0, fontSize: 18, lineHeight: 1.3, fontWeight: 700, color: t.text.primary, fontVariantNumeric: 'tabular-nums' }}>
               {fmtDuration(d.secs)}
             </span>
-            <span style={{ width: 54, flexShrink: 0, textAlign: 'right', fontSize: 17, fontWeight: 600, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 24, width: 54, flexShrink: 0, fontSize: 17, lineHeight: 1.3, fontWeight: 600, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>
               {d.pct}%
             </span>
           </div>
@@ -300,9 +357,9 @@ function InsightsCard({ insights, t }) {
   return (
     <Card t={t}>
       <SectionLabel t={t}>AI Insights</SectionLabel>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {insights.map((text, i) => (
-          <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             <span style={{ fontSize: 19, lineHeight: 1.3, flexShrink: 0, color: t.accent }}>✦</span>
             <span style={{ fontSize: 19, fontWeight: 500, color: t.text.secondary, lineHeight: 1.4 }}>{text}</span>
           </div>
@@ -318,7 +375,7 @@ function TopProjects({ items, t }) {
       <SectionLabel t={t}>Top Projects</SectionLabel>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {items.map((p, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{
               width: 34, height: 34, borderRadius: 9, flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -326,11 +383,11 @@ function TopProjects({ items, t }) {
             }}>
               <FolderOpen size={15} style={{ color: t.accent }} />
             </div>
-            <span style={{ flex: 1, fontSize: 19, fontWeight: 600, color: t.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {p.name}
+            <span style={{ display: 'flex', alignItems: 'center', height: 34, flex: 1, minWidth: 0, fontSize: 19, lineHeight: 1.3, fontWeight: 600, color: t.text.primary, whiteSpace: 'nowrap' }}>
+              {truncate(p.name, 45)}
             </span>
-            <span style={{ fontSize: 19, fontWeight: 700, color: t.text.primary, fontVariantNumeric: 'tabular-nums' }}>{fmtDuration(p.secs)}</span>
-            <span style={{ width: 54, textAlign: 'right', fontSize: 17, fontWeight: 600, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>{p.pct}%</span>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 34, width: 88, flexShrink: 0, fontSize: 19, lineHeight: 1.3, fontWeight: 700, color: t.text.primary, fontVariantNumeric: 'tabular-nums' }}>{fmtDuration(p.secs)}</span>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 34, width: 54, flexShrink: 0, fontSize: 17, lineHeight: 1.3, fontWeight: 600, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>{p.pct}%</span>
           </div>
         ))}
       </div>
@@ -344,7 +401,7 @@ function TopApps({ items, t }) {
       <SectionLabel t={t}>Top Applications</SectionLabel>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {items.map((app, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10, flexShrink: 0, overflow: 'hidden',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -352,13 +409,13 @@ function TopApps({ items, t }) {
             }}>
               {app.icon
                 ? <img src={app.icon} alt="" width={22} height={22} style={{ objectFit: 'contain' }} />
-                : <span style={{ fontSize: 16, fontWeight: 800, color: t.accent }}>{(app.name || '?').charAt(0).toUpperCase()}</span>}
+                : <span style={{ fontSize: 16, lineHeight: 1.3, fontWeight: 800, color: t.accent }}>{(app.name || '?').charAt(0).toUpperCase()}</span>}
             </div>
-            <span style={{ flex: 1, fontSize: 19, fontWeight: 600, color: t.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {app.name}
+            <span style={{ display: 'flex', alignItems: 'center', height: 36, flex: 1, minWidth: 0, fontSize: 19, lineHeight: 1.3, fontWeight: 600, color: t.text.primary, whiteSpace: 'nowrap' }}>
+              {truncate(app.name, 45)}
             </span>
-            <span style={{ fontSize: 19, fontWeight: 700, color: t.text.primary, fontVariantNumeric: 'tabular-nums' }}>{fmtDuration(app.secs)}</span>
-            <span style={{ width: 54, textAlign: 'right', fontSize: 17, fontWeight: 600, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>{app.pct}%</span>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 36, width: 88, flexShrink: 0, fontSize: 19, lineHeight: 1.3, fontWeight: 700, color: t.text.primary, fontVariantNumeric: 'tabular-nums' }}>{fmtDuration(app.secs)}</span>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 36, width: 54, flexShrink: 0, fontSize: 17, lineHeight: 1.3, fontWeight: 600, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>{app.pct}%</span>
           </div>
         ))}
       </div>
@@ -366,29 +423,43 @@ function TopApps({ items, t }) {
   );
 }
 
-function SessionSummary({ rows, t }) {
+function fmtDayShort(unixSecs) {
+  if (!unixSecs) return '';
+  return new Date(unixSecs * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function SessionSummary({ rows, period, t }) {
   const shown = rows.slice(0, 6);
   const overflow = rows.length - shown.length;
+  // Week/month snapshots span multiple days — without a date, two sessions at
+  // the same time-of-day on different days look identical, and a session late
+  // on day N followed by one earlier in the day on day N+1 reads as "out of
+  // order" even though it's correctly sorted chronologically. Show the date
+  // for any period wider than a single day.
+  const showDate = period !== 'day';
   return (
     <Card t={t}>
       <SectionLabel t={t}>Session Summary</SectionLabel>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {shown.map((s, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: 18, fontWeight: 600, color: t.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {s.title}
+            <span style={{ display: 'flex', alignItems: 'center', height: 24, flex: 1, minWidth: 0, fontSize: 18, lineHeight: 1.3, fontWeight: 600, color: t.text.primary, whiteSpace: 'nowrap' }}>
+              {truncate(s.title, 55)}
             </span>
-            <span style={{ fontSize: 16, fontWeight: 500, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>
-              {fmtClock(s.start)} – {fmtClock(s.end)}
+            {/* Fixed width (not just flexShrink:0) so the time-range text forms
+                a straight, right-aligned column instead of floating left/right
+                by a few px depending on how many digits each timestamp has. */}
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 24, width: showDate ? 280 : 190, flexShrink: 0, fontSize: 16, lineHeight: 1.3, fontWeight: 500, color: t.text.muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              {showDate && `${fmtDayShort(s.start)} · `}{fmtClock(s.start)} – {fmtClock(s.end)}
             </span>
-            <span style={{ width: 70, textAlign: 'right', fontSize: 17, fontWeight: 700, color: t.text.secondary, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 24, width: 70, flexShrink: 0, fontSize: 17, lineHeight: 1.3, fontWeight: 700, color: t.text.secondary, fontVariantNumeric: 'tabular-nums' }}>
               {fmtDuration(s.durationSecs)}
             </span>
           </div>
         ))}
         {overflow > 0 && (
-          <span style={{ fontSize: 15, fontWeight: 600, color: t.text.muted, marginTop: 4 }}>+{overflow} more session{overflow === 1 ? '' : 's'}</span>
+          <span style={{ fontSize: 15, lineHeight: 1.3, fontWeight: 600, color: t.text.muted, marginTop: 4 }}>+{overflow} more session{overflow === 1 ? '' : 's'}</span>
         )}
       </div>
     </Card>
@@ -398,14 +469,14 @@ function SessionSummary({ rows, t }) {
 function AchievementCard({ achievement, t }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 20,
+      display: 'flex', alignItems: 'center', gap: 24,
       background: `linear-gradient(120deg, ${t.glow1.replace(/[\d.]+\)$/, '0.22)')} 0%, ${t.card.bg} 60%)`,
-      border: `1px solid ${t.card.border}`, borderRadius: 24, padding: '26px 32px',
+      border: `1px solid ${t.card.border}`, borderRadius: 24, padding: '32px 32px',
     }}>
       <span style={{ fontSize: 48, lineHeight: 1, flexShrink: 0 }}>{achievement.icon}</span>
       <div style={{ minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 23, fontWeight: 800, color: t.text.primary }}>{achievement.title}</p>
-        <p style={{ margin: '4px 0 0', fontSize: 17, fontWeight: 500, color: t.text.secondary }}>{achievement.detail}</p>
+        <p style={{ margin: 0, fontSize: 23, lineHeight: 1.3, fontWeight: 800, color: t.text.primary }}>{achievement.title}</p>
+        <p style={{ margin: '4px 0 0', fontSize: 17, lineHeight: 1.3, fontWeight: 500, color: t.text.secondary }}>{achievement.detail}</p>
       </div>
     </div>
   );
@@ -414,18 +485,18 @@ function AchievementCard({ achievement, t }) {
 function Footer({ data, accountName, logoSrc, t }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Sparkles size={16} style={{ color: t.text.muted }} />
-        <span style={{ fontSize: 16, fontWeight: 500, color: t.text.muted, fontStyle: 'italic' }}>Focus. Plan. Build.</span>
+        <span style={{ fontSize: 16, lineHeight: 1.3, fontWeight: 500, color: t.text.muted, fontStyle: 'italic' }}>Focus. Plan. Build.</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <span style={{ fontSize: 14, fontWeight: 500, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <span style={{ fontSize: 14, lineHeight: 1.3, fontWeight: 500, color: t.text.muted, fontVariantNumeric: 'tabular-nums' }}>
           {data.generatedAt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
         </span>
         <div style={{ width: 1, height: 16, background: t.card.border }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {logoSrc && <img src={logoSrc} alt="" width={18} height={18} style={{ objectFit: 'contain' }} />}
-          <span style={{ fontSize: 15, fontWeight: 700, color: t.text.primary }}>Made with Flow Ledger</span>
+          <span style={{ fontSize: 15, lineHeight: 1.3, fontWeight: 700, color: t.text.primary }}>Made with Flow Ledger</span>
         </div>
       </div>
     </div>
@@ -476,10 +547,10 @@ export default function ActivitySnapshotTemplate({ data, variant = 'square', the
             <BarChart3 size={24} style={{ color: t.isLight ? '#fff' : '#fff' }} />
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: t.text.primary, letterSpacing: '0.03em', fontFamily: "'SF Mono','JetBrains Mono','Menlo',monospace" }}>
+            <p style={{ margin: 0, fontSize: 24, lineHeight: 1.3, fontWeight: 800, color: t.text.primary, letterSpacing: '0.03em', fontFamily: "'SF Mono','JetBrains Mono','Menlo',monospace" }}>
               ACTIVITY SNAPSHOT
             </p>
-            <p style={{ margin: '5px 0 0', fontSize: 18, fontWeight: 500, color: t.text.secondary }}>{dateLine}</p>
+            <p style={{ margin: '5px 0 0', fontSize: 18, lineHeight: 1.3, fontWeight: 500, color: t.text.secondary }}>{dateLine}</p>
           </div>
         </div>
         <div style={{
@@ -494,13 +565,13 @@ export default function ActivitySnapshotTemplate({ data, variant = 'square', the
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 48 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: t.text.muted, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+          <span style={{ fontSize: 18, lineHeight: 1.3, fontWeight: 700, color: t.text.muted, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
             Total Time Tracked
           </span>
           <div style={{ fontSize: 104, fontWeight: 800, color: t.text.primary, lineHeight: 1, letterSpacing: '-0.02em', marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
             {fmtDuration(data.totalSecs)}
           </div>
-          <div style={{ marginTop: 14 }}>
+          <div style={{ marginTop: 16 }}>
             <TrendBadge
               text={fmtSignedPct(comparison.totalPct) ? `${fmtSignedPct(comparison.totalPct)} ${comparison.label}` : null}
               up={trendUp(comparison.totalPct)} t={t}
@@ -511,7 +582,7 @@ export default function ActivitySnapshotTemplate({ data, variant = 'square', the
       </div>
 
       {/* ── Secondary stats ─────────────────────────────────────────────── */}
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 28 }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 24 }}>
         <StatTile t={t} Icon={Gauge} iconColor="#C4B5FD" iconBg="rgba(167,139,250,0.18)"
           label="Deep Work" value={fmtDuration(data.deepWorkSecs)}
           trendText={`${data.deepWorkPct}% of tracked time`} />
@@ -530,7 +601,9 @@ export default function ActivitySnapshotTemplate({ data, variant = 'square', the
 
       {/* ── Timeline ─────────────────────────────────────────────────────── */}
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <ActivityTimeline data={data} t={t} />
+        {data.period === 'day'
+          ? <ActivityTimeline data={data} t={t} />
+          : <DailyBarChart buckets={data.dailyBuckets || []} t={t} />}
       </div>
 
       {/* ── Achievement ──────────────────────────────────────────────────── */}
@@ -569,13 +642,13 @@ export default function ActivitySnapshotTemplate({ data, variant = 'square', the
       {/* ── Session summary ──────────────────────────────────────────────── */}
       {showSessions && data.sessionRows.length > 0 && (
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <SessionSummary rows={data.sessionRows} t={t} />
+          <SessionSummary rows={data.sessionRows} period={data.period} t={t} />
         </div>
       )}
 
       <div style={{ flex: 1 }} />
 
-      <div style={{ position: 'relative', zIndex: 1, borderTop: `1px solid ${t.card.border}`, paddingTop: 28 }}>
+      <div style={{ position: 'relative', zIndex: 1, borderTop: `1px solid ${t.card.border}`, paddingTop: 32 }}>
         <Footer data={data} accountName={accountName} logoSrc={logoSrc} t={t} />
       </div>
     </div>

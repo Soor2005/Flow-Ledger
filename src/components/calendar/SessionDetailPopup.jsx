@@ -185,7 +185,7 @@ function OverflowMenu({ items, isLight = false }) {
         }}>
           {visibleItems.map((item, i) => (
             <button key={i}
-              onClick={() => { setOpen(false); item.onClick(); }}
+              onClick={() => { setOpen(false); setTimeout(() => item.onClick(), 0); }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 9, width: '100%',
                 padding: '8px 10px', borderRadius: 7, border: 'none', background: 'transparent',
@@ -765,6 +765,10 @@ export default function SessionDetailPopup({
   const endTs   = isCalendar ? block.end_time    : (block.ended_at || Math.floor(Date.now() / 1000));
   const dur     = Math.max(0, endTs - startTs);
 
+  // Reschedule only makes sense for calendar events that haven't started yet —
+  // tracked focus/work sessions already happened, so moving them is meaningless.
+  const canReschedule = isCalendar && startTs > Math.floor(Date.now() / 1000);
+
   // Focus score — same engine the Timer uses for completed sessions, so the
   // number here matches whatever's reported elsewhere for this session.
   const focusQuality = (isSession && dur > 0)
@@ -1006,7 +1010,7 @@ export default function SessionDetailPopup({
           display: 'flex', flexDirection: 'column', gap: 12,
           padding: '16px 18px 14px',
           borderBottom: `1px solid ${isLight ? 'rgba(15,23,42,0.07)' : 'rgba(255,255,255,0.055)'}`,
-          flexShrink: 0, position: 'relative', zIndex: 1,
+          flexShrink: 0, position: 'relative', zIndex: 2,
         }}>
           {/* Row 1: type/duration badges (left) + actions (right).
               flexWrap is a safety net only — sizes below are tuned to fit
@@ -1125,7 +1129,7 @@ export default function SessionDetailPopup({
                   {/* Everything else lives in the overflow menu so the action
                       row never grows wide enough to squeeze the title. */}
                   <OverflowMenu isLight={isLight} items={[
-                    onReschedule && {
+                    onReschedule && canReschedule && {
                       icon: Move, label: 'Reschedule',
                       onClick: () => { onClose(); onReschedule(block); },
                     },

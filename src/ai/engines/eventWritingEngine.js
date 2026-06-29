@@ -161,8 +161,9 @@ function extractSubject(context) {
   } = context;
 
   // ── 1. Best window title phrase ──────────────────────────────────────────
-  // Guard: never use a phrase that contains a URL, system path, or executable
-  const DIRTY_PHRASE_RE = /https?:\/\/|[A-Z]:\\|\.exe(\s|$)|system32|\(\d+\)/i;
+  // Guard: never use a phrase that contains a URL (including malformed/truncated
+  // fragments like "https:/" with one slash), system path, or executable
+  const DIRTY_PHRASE_RE = /https?:\/{0,2}|[A-Z]:\\|\.exe(\s|$)|system32|\(\d+\)/i;
 
   // Also exclude phrases whose entire content is generic app terminology
   // e.g. "productivity", "dashboard", "system overview" should never become subjects.
@@ -555,7 +556,7 @@ export function generateDescription(context, generatedTitle = '', variantIndex =
 
   // Reject vague, auto-prefixed, URL-containing, system-path subjects
   const VAGUE_SUBJECT_RE = /^(auto\s*:|auto\s*-|general|work|task|untitled|session|focus|chrome|firefox|safari|arc|brave|edge|new tab)/i;
-  const DIRTY_SUBJECT_RE = /https?:\/\/|[A-Z]:\\Windows|\.exe(\s|$)|c:\\windows|system32|\(\d+\)/i;
+  const DIRTY_SUBJECT_RE = /https?:\/{0,2}|[A-Z]:\\Windows|\.exe(\s|$)|c:\\windows|system32|\(\d+\)/i;
 
   if (!subject || VAGUE_SUBJECT_RE.test(subject) || DIRTY_SUBJECT_RE.test(subject) || subject.length < 4) subject = '';
 

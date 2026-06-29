@@ -7,6 +7,7 @@ import {
 import DetailAnalyticsModal from '../shared/DetailAnalyticsModal';
 import CsvImportModal from '../shared/CsvImportModal';
 import { downloadCSV } from '../../utils/csv';
+import { CURRENCIES, currencySymbol, fmtMoneyCompact } from '../../utils/currency';
 
 const api = window.electron || {};
 
@@ -138,6 +139,7 @@ function ClientModal({ client, onClose, onSave }) {
     keywords:        client?.keywords         || '',
     billingType:     client?.billing_type     || 'none',
     status:          client?.status           || 'active',
+    currency:        client?.currency         || 'USD',
   });
   const [createMore, setCreateMore] = useState(false);
   const [saving,     setSaving]     = useState(false);
@@ -153,7 +155,7 @@ function ClientModal({ client, onClose, onSave }) {
     await onSave({ ...form, hourlyRate: parseFloat(form.hourlyRate) || 0, monthlyRetainer: parseFloat(form.monthlyRetainer) || 0, includedHours: parseFloat(form.includedHours) || 0 });
     setSaving(false);
     if (createMore && !client) {
-      setForm({ name: '', email: '', company: '', color: '#7c6cf2', hourlyRate: '', monthlyRetainer: '', includedHours: '', keywords: '', billingType: 'none', status: 'active' });
+      setForm({ name: '', email: '', company: '', color: '#7c6cf2', hourlyRate: '', monthlyRetainer: '', includedHours: '', keywords: '', billingType: 'none', status: 'active', currency: 'USD' });
     } else {
       onClose();
     }
@@ -262,13 +264,19 @@ function ClientModal({ client, onClose, onSave }) {
             {/* ── Billing Rates (conditional) ── */}
             {(showRetainer || showHourly) && (
               <div style={{ background: T.sectionBg, border: `1px solid ${T.sectionBorder}`, borderRadius: 12 }}>
-                <div style={{ padding: '9px 14px 0' }}><span style={{ fontSize: 9.5, fontWeight: 700, color: T.sectionTitle, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Billing Rates</span></div>
+                <div style={{ padding: '9px 14px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: T.sectionTitle, textTransform: 'uppercase', letterSpacing: '0.09em' }}>Billing Rates</span>
+                  <select value={form.currency} onChange={set('currency')}
+                    style={{ background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 7, padding: '3px 6px', fontSize: 10.5, fontWeight: 600, color: T.inputText, outline: 'none', colorScheme: T.colorScheme }}>
+                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
+                  </select>
+                </div>
                 <div style={{ padding: '8px 14px 12px', display: 'grid', gridTemplateColumns: showRetainer && showHourly ? '1fr 1fr 1fr' : showRetainer ? '1fr 1fr' : '1fr', gap: 10 }}>
                   {showRetainer && (
                     <div>
                       <p style={{ fontSize: 9.5, fontWeight: 700, color: T.labelColor, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Monthly Retainer</p>
                       <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: T.iconColor, pointerEvents: 'none' }}>$</span>
+                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: T.iconColor, pointerEvents: 'none' }}>{currencySymbol(form.currency)}</span>
                         <input type="number" min="0" value={form.monthlyRetainer} onChange={set('monthlyRetainer')} placeholder="0.00"
                           style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 9, padding: '8px 10px 8px 22px', fontSize: 12, color: T.inputText, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s, box-shadow 0.15s', colorScheme: T.colorScheme }}
                           onFocus={inputFocus} onBlur={inputBlur} />
@@ -292,7 +300,7 @@ function ClientModal({ client, onClose, onSave }) {
                         {form.billingType === 'hybrid' ? 'Overage Rate' : 'Hourly Rate'}
                       </p>
                       <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: T.iconColor, pointerEvents: 'none' }}>$</span>
+                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: T.iconColor, pointerEvents: 'none' }}>{currencySymbol(form.currency)}</span>
                         <input type="number" min="0" value={form.hourlyRate} onChange={set('hourlyRate')} placeholder="0.00"
                           style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.inputBorder}`, borderRadius: 9, padding: '8px 32px 8px 22px', fontSize: 12, color: T.inputText, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s, box-shadow 0.15s', colorScheme: T.colorScheme }}
                           onFocus={inputFocus} onBlur={inputBlur} />
@@ -792,12 +800,12 @@ export default function ClientsPage({ user }) {
                       <div className="flex flex-col gap-0.5">
                         <BillingBadge type={client.billing_type || 'none'} />
                         {(client.billing_type === 'retainer' || client.billing_type === 'hybrid') && client.monthly_retainer > 0 && (
-                          <p className="text-[9px] text-tx-faint mt-0.5">${client.monthly_retainer.toLocaleString()}/mo
+                          <p className="text-[9px] text-tx-faint mt-0.5">{currencySymbol(client.currency)}{client.monthly_retainer.toLocaleString()}/mo
                             {client.included_hours > 0 && ` · ${client.included_hours}h incl.`}
                           </p>
                         )}
                         {(client.billing_type === 'hourly' || client.billing_type === 'hybrid') && client.hourly_rate > 0 && (
-                          <p className="text-[9px] text-tx-faint">${client.hourly_rate}/hr</p>
+                          <p className="text-[9px] text-tx-faint">{currencySymbol(client.currency)}{client.hourly_rate}/hr</p>
                         )}
                       </div>
                     </td>
@@ -805,7 +813,7 @@ export default function ClientsPage({ user }) {
                     {/* Revenue */}
                     <td className={`${TD} text-right`}>
                       <span className={`text-[12px] font-semibold tabular-nums ${revenue > 0 ? 'text-emerald-400' : 'text-tx-faint'}`}>
-                        {revenue > 0 ? `$${Math.round(revenue).toLocaleString()}` : '—'}
+                        {revenue > 0 ? fmtMoneyCompact(revenue, client.currency) : '—'}
                       </span>
                     </td>
 

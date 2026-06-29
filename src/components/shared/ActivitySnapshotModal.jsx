@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import html2canvas from 'html2canvas';
 import {
   Camera, X, Download, Copy, Share2, CheckCircle2, Loader2,
   Square, RectangleVertical, Smartphone, Sun, CalendarDays, CalendarRange,
@@ -29,8 +28,11 @@ const GENERATING_MESSAGES = [
   'Almost there…',
 ];
 
-function canvasToBlob(canvas) {
-  return new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+function base64PngToBlob(base64) {
+  const byteChars = atob(base64);
+  const bytes = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+  return new Blob([bytes], { type: 'image/png' });
 }
 
 function triggerDownload(blob, period) {
@@ -56,8 +58,7 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
   const [copying, setCopying]   = useState(false);
   const [sharing, setSharing]   = useState(false);
 
-  const renderHostRef = useRef(null);
-  const blobRef        = useRef(null);
+  const blobRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -109,41 +110,29 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
     try {
       const data = await buildSnapshotData({ userId, period });
 
-      // Render the dedicated off-screen template, then rasterize it.
-      // Mount target lives outside the viewport (not display:none — html2canvas
-      // needs real layout) so this never shows the actual interactive app UI.
-      const { default: ReactDOM } = await import('react-dom/client');
-      const host = renderHostRef.current;
-      host.innerHTML = '';
-      const root = ReactDOM.createRoot(host);
-
-      await new Promise(resolve => {
-        root.render(
-          <ActivitySnapshotTemplate
-            data={data}
-            variant={format}
-            theme={theme}
-            accountName={accountName}
-            initials={initials}
-            logoSrc={logoSrc}
-          />
-        );
-        // Two RAFs: one for React to commit, one for the browser to paint
-        // (images like the logo need a layout pass before capture).
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      });
-
-      const node = host.firstElementChild;
+      // Render the template to a static HTML string and hand it to the main
+      // process, which loads it in a hidden window and captures it natively
+      // via capturePage() — see export:snapshotImage in electron/main.js for
+      // why this replaced html2canvas.
+      const { renderToStaticMarkup } = await import('react-dom/server');
       const { width, height } = SNAPSHOT_DIMENSIONS[format] || SNAPSHOT_DIMENSIONS.story;
       const bgColor = SNAPSHOT_THEMES[theme]?.bg?.[0] || '#0A0810';
-      const canvas = await html2canvas(node, {
-        width, height, scale: 2, backgroundColor: bgColor,
-        useCORS: true, logging: false,
-      });
-      root.unmount();
-      host.innerHTML = '';
+      const markup = renderToStaticMarkup(
+        <ActivitySnapshotTemplate
+          data={data}
+          variant={format}
+          theme={theme}
+          accountName={accountName}
+          initials={initials}
+          logoSrc={logoSrc}
+        />
+      );
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:${bgColor}">${markup}</body></html>`;
 
-      const blob = await canvasToBlob(canvas);
+      const result = await window.electron.exportSnapshotImage({ html, width, height });
+      if (!result?.success) throw new Error(result?.error || 'Snapshot capture failed');
+
+      const blob = base64PngToBlob(result.dataBase64);
       blobRef.current = blob;
       setPreviewUrl(URL.createObjectURL(blob));
       // Let the progress bar visibly reach 100% before switching views —
@@ -219,11 +208,6 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
 
   return createPortal(
     <>
-      {/* Off-screen render host for the export template — present in the DOM
-          (so layout/measurement works for html2canvas) but positioned far
-          outside the viewport, never visible to the user. */}
-      <div ref={renderHostRef} style={{ position: 'fixed', top: 0, left: -99999, zIndex: -1, pointerEvents: 'none' }} />
-
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Activity Snapshot">
         <div className="absolute inset-0 bg-black/[0.55] backdrop-blur-[5px]" onClick={onClose} />
 

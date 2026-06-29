@@ -571,19 +571,35 @@ function detectAIToolDominance(compressed) {
 
 // ─── Intent Detection ─────────────────────────────────────────────────────────
 
+// Word-boundary keyword counting — a plain .includes() substring match lets
+// generic words like "issue" or "fix" match inside completely unrelated text,
+// which is how a Calendar+Chrome session previously got tagged as "debugging".
+function countKeywordHits(text, signals) {
+  return signals.filter(kw => {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
+  }).length;
+}
+
+// Strong technical claims require solid evidence — a single ambiguous keyword
+// hit must never be enough to assert debugging/testing/refactoring/deploying/
+// reviewing/designing happened. Require 2+ keyword hits or an app-level match.
+const STRONG_EVIDENCE_TYPES = new Set(['debugging', 'testing', 'refactoring', 'deploying', 'reviewing', 'designing']);
+
 function detectIntentType(keywords, appNames, workMode, compressed) {
   const allText = [...keywords, ...appNames].join(' ').toLowerCase();
   const isAIDominant = detectAIToolDominance(compressed);
 
   const scores = {};
+  const evidence = {};
   for (const rule of INTENT_RULES) {
     // In AI-dominant sessions, only allow research/review/implement/analyze intents
     if (isAIDominant && !AI_ONLY_INTENTS.has(rule.type)) continue;
 
     let score = 0;
 
-    // Keyword match
-    const kwMatches = rule.keywordSignals.filter(kw => allText.includes(kw)).length;
+    // Keyword match (word-boundary, not substring)
+    const kwMatches = countKeywordHits(allText, rule.keywordSignals);
     score += kwMatches * 20;
 
     // App match
@@ -595,6 +611,7 @@ function detectIntentType(keywords, appNames, workMode, compressed) {
       score += 25;
     }
 
+    evidence[rule.type] = { kwMatches, appMatches };
     if (score > 0) scores[rule.type] = score;
   }
 
@@ -610,11 +627,26 @@ function detectIntentType(keywords, appNames, workMode, compressed) {
     }
   }
 
+  // Evidence floor for strong technical claims: require 2+ keyword hits or an
+  // actual app-signal match (e.g. Figma for "designing", GitHub for "reviewing").
+  // A workMode boost alone, or a single stray keyword, is not enough.
+  for (const type of STRONG_EVIDENCE_TYPES) {
+    if (scores[type] === undefined) continue;
+    const { kwMatches, appMatches } = evidence[type];
+    if (kwMatches < 2 && appMatches < 1) {
+      delete scores[type];
+    }
+  }
+
   const sorted = Object.entries(scores).sort(([, a], [, b]) => b - a);
   if (!sorted.length) {
-    // Default for AI-dominant sessions: researching
-    const defaultType = isAIDominant ? 'researching' : 'implementing';
-    return { type: defaultType, confidence: 0.40 };
+    // No rule matched at all — there is no evidence for any specific claim.
+    // Defaulting to 'implementing' here would invent coding work that never
+    // happened. Only claim implementation when an actual IDE app was open;
+    // otherwise fall back to a neutral, low-confidence type.
+    const hasIDEApp = appNames.some(a => /vscode|cursor|webstorm|intellij|xcode/i.test(a));
+    const defaultType = isAIDominant ? 'researching' : hasIDEApp ? 'implementing' : 'planning';
+    return { type: defaultType, confidence: 0.35 };
   }
 
   const topScore = sorted[0][1];

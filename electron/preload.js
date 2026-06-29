@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Report export
   exportReportPDF:        (d) => ipcRenderer.invoke('export:pdf', d),
+  exportSnapshotImage:    (d) => ipcRenderer.invoke('export:snapshotImage', d),
 
   // Manual sessions
   startSession:           (d) => ipcRenderer.invoke('sessions:start', d),
@@ -151,6 +152,13 @@ contextBridge.exposeInMainWorld('electron', {
   updateClient:  (d) => ipcRenderer.invoke('clients:update', d),
   deleteClient:  (d) => ipcRenderer.invoke('clients:delete', d),
   clientStats:   (d) => ipcRenderer.invoke('clients:stats', d),
+
+  // Invoices
+  listInvoices:    (d) => ipcRenderer.invoke('invoices:list', d),
+  getInvoice:      (d) => ipcRenderer.invoke('invoices:get', d),
+  generateInvoice: (d) => ipcRenderer.invoke('invoices:generate', d),
+  updateInvoice:   (d) => ipcRenderer.invoke('invoices:update', d),
+  deleteInvoice:   (d) => ipcRenderer.invoke('invoices:delete', d),
 
   // Tasks
   listTasks:        (d) => ipcRenderer.invoke('tasks:list', d),

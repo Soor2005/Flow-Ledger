@@ -13,7 +13,7 @@
 import { INTENT_TYPES, getIntentVerb, inferDomain, inferCapability } from './intentInferenceEngine.js';
 import { getMeaningfulTools, getTopPhrases } from './signalRankingEngine.js';
 import { FEATURE_ONTOLOGY } from './productivityOntologyEngine.js';
-import { isGenericSubject, filterGenericKeywords, checkTitleRejectPatterns } from './genericKeywordFilter.js';
+import { isGenericSubject, filterGenericKeywords, checkTitleRejectPatterns, containsDirtyContent } from './genericKeywordFilter.js';
 import { isTitleAcceptable, checkNarrativeQuality } from './narrativeQualityEngine.js';
 import { inferAction } from './actionInferenceEngine.js';
 import { buildToolEcosystemPhrase } from './workflowOwnershipEngine.js';
@@ -259,7 +259,10 @@ function humanizeTechTermDirect(term = '') {
 }
 
 // App names that are too generic to use as standalone activity phrases.
-const VAGUE_APP_RE = /^(claude|chatgpt|gemini|copilot|perplexity|poe|phind|codex|new chat|assistant|ai assistant)$/i;
+// Includes browsers — a bare app name like "chrome" carries no work evidence
+// and must never become (or get joined into) a title/description subject
+// (previously produced titles like "Debugging Google Calendar ... and chrome").
+const VAGUE_APP_RE = /^(claude|chatgpt|gemini|copilot|perplexity|poe|phind|codex|new chat|assistant|ai assistant|chrome|google chrome|safari|firefox|edge|arc|brave|opera)$/i;
 
 // Convert "eventWritingEngine.js — Flow Ledger" → "Event Writing Engine in Flow Ledger"
 // Returns null when the phrase does not match an IDE-title pattern.
@@ -288,7 +291,8 @@ function buildActivityPhrase(intentType, featureId, topPhrases) {
     p.length >= 5 &&
     !FEATURE_LABEL_SET.has(p.toLowerCase()) &&
     !VAGUE_APP_RE.test(p.trim()) &&
-    !isGenericSubject(p)
+    !isGenericSubject(p) &&
+    !containsDirtyContent(p)
   );
 
   if (workPhrases.length > 0) {
@@ -328,7 +332,8 @@ function buildContextPhrase(intentType, secondaryFeatureId, secondaryPhrases) {
     p.length >= 5 &&
     !FEATURE_LABEL_SET.has(p.toLowerCase()) &&
     !VAGUE_APP_RE.test(p.trim()) &&
-    !isGenericSubject(p)
+    !isGenericSubject(p) &&
+    !containsDirtyContent(p)
   );
 
   if (workPhrases.length > 0) {

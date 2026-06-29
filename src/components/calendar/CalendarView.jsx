@@ -2856,9 +2856,15 @@ export default function CalendarView({ user, categories, activeSession, setActiv
   };
 
   const deleteCalendarEvent = async (id) => {
-    await api.calendarDeleteEvent?.({ eventId: id });
+    // Update UI immediately so the popup always closes/removes the event,
+    // even if the backend call below throws or hangs.
     setCalEvents(prev => prev.filter(ev => ev.id !== id));
     setSelectedBlock(null);
+    try {
+      await api.calendarDeleteEvent?.({ eventId: id });
+    } catch (err) {
+      console.error('[deleteCalendarEvent] API call failed:', err);
+    }
   };
 
   // ─── Reschedule handlers ──────────────────────────────────────────────────

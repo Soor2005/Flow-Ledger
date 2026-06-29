@@ -1021,14 +1021,18 @@ export function BlockContextMenu({ block, position, onClose, onReschedule, onEdi
   const color = blockEventColor(block);
   const title = block._type === 'calendar' ? block.title : (block.title || block.category || 'Session');
 
+  // Reschedule only makes sense for calendar events that haven't started yet —
+  // tracked focus/work sessions already happened, so moving them is meaningless.
+  const canReschedule = block._type === 'calendar' && block.start_time > Math.floor(Date.now() / 1000);
+
   const items = [
-    { icon: Move, label: 'Reschedule', action: onReschedule, accent: '#a78bfa' },
+    canReschedule && { icon: Move, label: 'Reschedule', action: onReschedule, accent: '#a78bfa' },
     { icon: Zap, label: 'Edit details', action: onEdit },
     { divider: true },
     { icon: Copy, label: 'Duplicate', action: onDuplicate },
     { divider: true },
     { icon: X, label: 'Delete', action: onDelete, danger: true },
-  ];
+  ].filter(Boolean);
 
   return ReactDOM.createPortal(
     <div ref={ref} style={{

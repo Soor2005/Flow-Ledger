@@ -892,6 +892,26 @@ function createSchema() {
       active INTEGER DEFAULT 1,
       created_at INTEGER DEFAULT (strftime('%s','now'))
     );
+    CREATE TABLE IF NOT EXISTS invoices (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      invoice_number TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      currency TEXT NOT NULL DEFAULT 'USD',
+      issue_date INTEGER NOT NULL,
+      due_date INTEGER,
+      period_from INTEGER,
+      period_to INTEGER,
+      line_items_json TEXT NOT NULL DEFAULT '[]',
+      subtotal REAL DEFAULT 0,
+      tax_rate REAL DEFAULT 0,
+      tax_amount REAL DEFAULT 0,
+      total REAL DEFAULT 0,
+      notes TEXT,
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      paid_at INTEGER
+    );
     CREATE TABLE IF NOT EXISTS goals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -1075,6 +1095,7 @@ function createSchema() {
   tryAlter('ALTER TABLE clients      ADD COLUMN keywords     TEXT');
   tryAlter('ALTER TABLE clients      ADD COLUMN billing_type TEXT DEFAULT "none"');
   tryAlter('ALTER TABLE clients      ADD COLUMN status       TEXT DEFAULT "active"');
+  tryAlter('ALTER TABLE clients      ADD COLUMN currency     TEXT DEFAULT "USD"');
   tryAlter('ALTER TABLE projects     ADD COLUMN keywords            TEXT');
   tryAlter('ALTER TABLE projects     ADD COLUMN status              TEXT DEFAULT "active"');
   tryAlter('ALTER TABLE projects     ADD COLUMN weekly_budget_hours REAL DEFAULT 0');
@@ -3845,15 +3866,15 @@ ipcMain.handle('projects:stats', (_, { userId, projectId, from, to }) => {
 
 // ─── CLIENTS ─────────────────────────────────────────────────────────────────
 ipcMain.handle('clients:list',   (_, { userId }) => all('SELECT * FROM clients WHERE user_id=? AND active=1 ORDER BY name', [userId]));
-ipcMain.handle('clients:create', (_, { userId, name, email, company, color, hourlyRate, monthlyRetainer, includedHours, keywords, billingType, status }) => {
+ipcMain.handle('clients:create', (_, { userId, name, email, company, color, hourlyRate, monthlyRetainer, includedHours, keywords, billingType, status, currency }) => {
   const id = uuidv4();
-  run('INSERT INTO clients (id,user_id,name,email,company,color,hourly_rate,monthly_retainer,included_hours,keywords,billing_type,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-    [id, userId, name, email||null, company||null, color||'#6366f1', hourlyRate||0, monthlyRetainer||0, includedHours||0, keywords||null, billingType||'none', status||'active']);
-  return { id, name, email, company, color: color||'#6366f1', hourly_rate: hourlyRate||0, monthly_retainer: monthlyRetainer||0, included_hours: includedHours||0, keywords: keywords||null, billing_type: billingType||'none', status: status||'active' };
+  run('INSERT INTO clients (id,user_id,name,email,company,color,hourly_rate,monthly_retainer,included_hours,keywords,billing_type,status,currency) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    [id, userId, name, email||null, company||null, color||'#6366f1', hourlyRate||0, monthlyRetainer||0, includedHours||0, keywords||null, billingType||'none', status||'active', currency||'USD']);
+  return { id, name, email, company, color: color||'#6366f1', hourly_rate: hourlyRate||0, monthly_retainer: monthlyRetainer||0, included_hours: includedHours||0, keywords: keywords||null, billing_type: billingType||'none', status: status||'active', currency: currency||'USD' };
 });
-ipcMain.handle('clients:update', (_, { clientId, name, email, company, color, hourlyRate, monthlyRetainer, includedHours, keywords, billingType, status }) => {
-  run('UPDATE clients SET name=?,email=?,company=?,color=?,hourly_rate=?,monthly_retainer=?,included_hours=?,keywords=?,billing_type=?,status=? WHERE id=?',
-    [name, email||null, company||null, color, hourlyRate||0, monthlyRetainer||0, includedHours||0, keywords||null, billingType||'none', status||'active', clientId]);
+ipcMain.handle('clients:update', (_, { clientId, name, email, company, color, hourlyRate, monthlyRetainer, includedHours, keywords, billingType, status, currency }) => {
+  run('UPDATE clients SET name=?,email=?,company=?,color=?,hourly_rate=?,monthly_retainer=?,included_hours=?,keywords=?,billing_type=?,status=?,currency=? WHERE id=?',
+    [name, email||null, company||null, color, hourlyRate||0, monthlyRetainer||0, includedHours||0, keywords||null, billingType||'none', status||'active', currency||'USD', clientId]);
   return { success: true };
 });
 ipcMain.handle('clients:delete', (_, { clientId }) => { run('UPDATE clients SET active=0 WHERE id=?', [clientId]); return { success: true }; });
@@ -3877,6 +3898,145 @@ ipcMain.handle('clients:stats', (_, { userId, clientId, from, to }) => {
   const revenue    = sessions.reduce((a,r) => a+((r.duration_seconds||0)/3600)*(r.hourly_rate||0), 0)
                    + autoRows.reduce((a,r) => a+((r.duration_seconds||0)/3600)*(r.hourly_rate||0), 0);
   return { sessions, totalSeconds: manualSecs + autoSecs, revenue, sessionCount: sessions.length };
+});
+
+// ─── INVOICES ─────────────────────────────────────────────────────────────────
+ipcMain.handle('invoices:list', (_, { userId, clientId }) => {
+  if (clientId) {
+    return all(
+      `SELECT i.*, c.name as client_name, c.color as client_color FROM invoices i
+       LEFT JOIN clients c ON i.client_id=c.id
+       WHERE i.user_id=? AND i.client_id=? ORDER BY i.issue_date DESC`,
+      [userId, clientId]
+    );
+  }
+  return all(
+    `SELECT i.*, c.name as client_name, c.color as client_color FROM invoices i
+     LEFT JOIN clients c ON i.client_id=c.id
+     WHERE i.user_id=? ORDER BY i.issue_date DESC`,
+    [userId]
+  );
+});
+
+ipcMain.handle('invoices:get', (_, { invoiceId }) => {
+  return get(
+    `SELECT i.*, c.name as client_name, c.email as client_email, c.company as client_company, c.color as client_color
+     FROM invoices i LEFT JOIN clients c ON i.client_id=c.id WHERE i.id=?`,
+    [invoiceId]
+  );
+});
+
+// Generates a draft invoice by aggregating billable tracked time for a client
+// over a date range into per-project line items. Uses the same billable
+// heuristic as profitability:summary (project/client rate > 0, notes don't
+// contain "[non-billable]") so invoice totals always match what the
+// Profitability page already reports for that period.
+ipcMain.handle('invoices:generate', (_, { userId, clientId, from, to, taxRate, dueDate, notes }) => {
+  const client = get('SELECT * FROM clients WHERE id=?', [clientId]);
+  if (!client) return { success: false, error: 'Client not found' };
+
+  const rows = all(
+    `SELECT s.duration_seconds, s.notes, s.project_id, p.name as project_name, p.hourly_rate as project_rate
+     FROM sessions s LEFT JOIN projects p ON s.project_id=p.id
+     WHERE s.user_id=? AND (s.client_id=? OR p.client_id=?) AND s.ended_at IS NOT NULL
+       AND s.started_at>=? AND s.started_at<=?`,
+    [userId, clientId, clientId, from, to]
+  );
+  const billable = rows.filter(r => !String(r.notes || '').includes('[non-billable]'));
+  const totalHours = billable.reduce((s, r) => s + (r.duration_seconds || 0) / 3600, 0);
+
+  // Billing line items depend on the client's billing model:
+  //   - retainer: flat monthly fee, independent of hours tracked
+  //   - hybrid:   flat monthly fee + overage hours beyond included_hours, billed
+  //               at the client's hourly_rate (used as the "overage rate" for hybrid)
+  //   - hourly/none: per-project hours × rate (project rate overrides client rate)
+  let lineItems = [];
+
+  if (client.billing_type === 'retainer' || client.billing_type === 'hybrid') {
+    lineItems.push({
+      description: 'Monthly Retainer',
+      hours: Math.round(totalHours * 100) / 100,
+      rate: null, // flat fee — not hours × rate
+      amount: client.monthly_retainer || 0,
+    });
+
+    if (client.billing_type === 'hybrid' && client.hourly_rate > 0) {
+      const overageHours = Math.max(0, totalHours - (client.included_hours || 0));
+      if (overageHours > 0) {
+        lineItems.push({
+          description: 'Overage Hours',
+          hours: Math.round(overageHours * 100) / 100,
+          rate: client.hourly_rate,
+          amount: Math.round(overageHours * client.hourly_rate * 100) / 100,
+        });
+      }
+    }
+  } else {
+    // Group by project name (falls back to "General" for direct client-tagged
+    // sessions with no project), using the project's own rate when set,
+    // otherwise the client's hourly rate.
+    const groups = {};
+    for (const r of billable) {
+      const key  = r.project_name || 'General';
+      const rate = (r.project_rate && r.project_rate > 0) ? r.project_rate : (client.hourly_rate || 0);
+      if (!groups[key]) groups[key] = { description: key, hours: 0, rate };
+      groups[key].hours += (r.duration_seconds || 0) / 3600;
+    }
+    lineItems = Object.values(groups)
+      .filter(g => g.hours > 0 && g.rate > 0)
+      .map(g => ({
+        description: g.description,
+        hours: Math.round(g.hours * 100) / 100,
+        rate: g.rate,
+        amount: Math.round(g.hours * g.rate * 100) / 100,
+      }));
+  }
+
+  const subtotal  = Math.round(lineItems.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+  const tax       = taxRate || 0;
+  const taxAmount = Math.round(subtotal * (tax / 100) * 100) / 100;
+  const total     = Math.round((subtotal + taxAmount) * 100) / 100;
+
+  // Sequential, human-readable invoice numbers: INV-0001, INV-0002, ...
+  const countRow      = get('SELECT COUNT(*) as n FROM invoices WHERE user_id=?', [userId]);
+  const invoiceNumber = `INV-${String((countRow?.n || 0) + 1).padStart(4, '0')}`;
+
+  const id  = uuidv4();
+  const now = Math.floor(Date.now() / 1000);
+  run(
+    `INSERT INTO invoices
+       (id,user_id,client_id,invoice_number,status,currency,issue_date,due_date,period_from,period_to,line_items_json,subtotal,tax_rate,tax_amount,total,notes,created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, userId, clientId, invoiceNumber, 'draft', client.currency || 'USD', now, dueDate || null, from, to,
+     JSON.stringify(lineItems), subtotal, tax, taxAmount, total, notes || null, now]
+  );
+
+  return get('SELECT * FROM invoices WHERE id=?', [id]);
+});
+
+ipcMain.handle('invoices:update', (_, { invoiceId, status, notes, dueDate, taxRate }) => {
+  const inv = get('SELECT * FROM invoices WHERE id=?', [invoiceId]);
+  if (!inv) return { success: false, error: 'Invoice not found' };
+
+  const newTaxRate = taxRate != null ? taxRate : inv.tax_rate;
+  const taxAmount  = Math.round(inv.subtotal * (newTaxRate / 100) * 100) / 100;
+  const total      = Math.round((inv.subtotal + taxAmount) * 100) / 100;
+
+  let paidAt = inv.paid_at;
+  if (status === 'paid' && inv.status !== 'paid') paidAt = Math.floor(Date.now() / 1000);
+  if (status && status !== 'paid') paidAt = null;
+
+  run(
+    `UPDATE invoices SET status=?, notes=?, due_date=?, tax_rate=?, tax_amount=?, total=?, paid_at=? WHERE id=?`,
+    [status || inv.status, notes != null ? notes : inv.notes, dueDate != null ? dueDate : inv.due_date,
+     newTaxRate, taxAmount, total, paidAt, invoiceId]
+  );
+  return { success: true };
+});
+
+ipcMain.handle('invoices:delete', (_, { invoiceId }) => {
+  run('DELETE FROM invoices WHERE id=?', [invoiceId]);
+  return { success: true };
 });
 
 // ─── TASKS ───────────────────────────────────────────────────────────────────
@@ -4131,6 +4291,39 @@ ipcMain.handle('export:pdf', async (_, { html, headerTemplate, footerTemplate, d
     return { success: true, path: filePath };
   } catch (err) {
     console.error('[export:pdf] failed:', err.message);
+    return { success: false, error: err.message };
+  } finally {
+    if (win && !win.isDestroyed()) win.destroy();
+  }
+});
+
+// ─── ACTIVITY SNAPSHOT IMAGE EXPORT ─────────────────────────────────────────────
+// Renders the snapshot template's static HTML (from react-dom/server) in a
+// hidden, offscreen window and captures it with Chromium's native
+// capturePage() — a literal screenshot of what was actually rendered.
+// Deliberately NOT html2canvas: html2canvas re-implements text/box painting
+// in JS and has long-standing bugs where it correctly reads a flex child's
+// position/size from the real layout but then paints the text glyphs at the
+// wrong vertical offset within that box (confirmed here — icons centered via
+// the exact same CSS technique rendered correctly, only text didn't).
+// capturePage has no such gap: it captures Chromium's own composited output.
+ipcMain.handle('export:snapshotImage', async (_, { html, width, height }) => {
+  let win = null;
+  try {
+    win = new BrowserWindow({
+      show: false,
+      width, height, useContentSize: true,
+      webPreferences: { offscreen: true, sandbox: true },
+    });
+    await win.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(html));
+    // Let images (logo, app icons) finish a paint cycle before capturing.
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    const image = await win.webContents.capturePage();
+    const png = image.toPNG();
+    return { success: true, dataBase64: png.toString('base64') };
+  } catch (err) {
+    console.error('[export:snapshotImage] failed:', err.message);
     return { success: false, error: err.message };
   } finally {
     if (win && !win.isDestroyed()) win.destroy();

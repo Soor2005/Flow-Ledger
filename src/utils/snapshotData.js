@@ -240,10 +240,38 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
 
   // ── Timeline axis ────────────────────────────────────────────────────────
   // 'day' always plots against the full midnight-to-midnight scale (so the
-  // card reads "12 AM ── 11 PM" regardless of when tracking started); week
-  // and month plot against the actual range fetched above.
+  // card reads "12 AM ── 11 PM" regardless of when tracking started).
   const axisStart = from;
-  const axisEnd   = period === 'day' ? from + 86400 : to;
+  const axisEnd   = from + 86400;
+
+  // ── Daily buckets (week/month periods) ──────────────────────────────────
+  // An hour-of-day timeline only makes sense for a single day. For week/month
+  // periods, plotting absolute timestamps against an hour-of-day axis produces
+  // a near-empty bar (a few minutes of tracked time is invisible across a
+  // month-wide span) and tick labels that coincidentally cluster on the same
+  // hour (a ~28-day span's quartile points land within minutes of each other
+  // hour-of-day, since 28 days is so close to an exact multiple of 24h).
+  // Show one bar per calendar day instead.
+  function localDateKey(ts) {
+    const d = new Date(ts * 1000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  let dailyBuckets = [];
+  if (period !== 'day') {
+    const bucketSecs = {};
+    for (const s of (autoSessions || [])) {
+      if (s.is_idle || !s.started_at) continue;
+      const dur = s.duration_seconds || Math.max(0, (s.ended_at || s.started_at) - s.started_at);
+      const key = localDateKey(s.started_at);
+      bucketSecs[key] = (bucketSecs[key] || 0) + dur;
+    }
+    const dayCount = Math.max(1, Math.round((to - from) / 86400) + 1);
+    for (let i = 0; i < dayCount; i++) {
+      const dayTs = from + i * 86400;
+      if (dayTs > to + 86400) break;
+      dailyBuckets.push({ date: new Date(dayTs * 1000), secs: bucketSecs[localDateKey(dayTs)] || 0 });
+    }
+  }
 
   // ── Achievement — the single most meaningful highlight for the period ───────
   // Derived entirely from data already computed above (session durations,
@@ -295,6 +323,7 @@ export async function buildSnapshotData({ userId, period = 'day', projects: proj
     topProjects,
     insights,
     timelineBlocks,
+    dailyBuckets,
     sessionRows,
 
     rangeStart: from,

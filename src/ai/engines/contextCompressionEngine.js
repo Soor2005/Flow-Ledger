@@ -80,7 +80,14 @@ function aggregateApps(sessions) {
 // ─── Domain Aggregation ───────────────────────────────────────────────────────
 
 // Domains that should never appear as "tools used" — entertainment and personal
-const SUPPRESS_DOMAIN_RE = /^(www\.)?(youtube|netflix|twitch|spotify|disneyplus|primevideo|hulu|peacock|hbomax|crunchyroll|soundcloud|vimeo|dailymotion|reddit|twitter|x\.com|instagram|facebook|tiktok|pinterest|tumblr|imgur|9gag|buzzfeed|quora|wikipedia|medium|gmail|mail\.google|calendar\.google|drive\.google|docs\.google|sheets\.google|slides\.google|meet\.google)\./i;
+// NOTE: Google Workspace productivity domains (calendar/docs/sheets/slides/drive/meet)
+// were previously suppressed here alongside entertainment sites — that discarded the
+// ONLY evidence the system had that a session involved real Calendar/Docs/Sheets work,
+// leaving downstream engines with nothing but "Chrome" (category: research) and no
+// way to ground a title in what was actually open. They're removed from suppression
+// so DOMAIN_TOPICS' correct category mapping (planning/writing/data/meeting) can flow
+// through to primaryCategory and the work-mode rules.
+const SUPPRESS_DOMAIN_RE = /^(www\.)?(youtube|netflix|twitch|spotify|disneyplus|primevideo|hulu|peacock|hbomax|crunchyroll|soundcloud|vimeo|dailymotion|reddit|twitter|x\.com|instagram|facebook|tiktok|pinterest|tumblr|imgur|9gag|buzzfeed|quora|wikipedia|medium|gmail|mail\.google)\./i;
 
 function aggregateDomains(sessions) {
   const map = {};

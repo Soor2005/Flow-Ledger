@@ -60,9 +60,17 @@ const WORK_MODE_RULES = [
   {
     mode: 'debugging',
     weight: 95,
+    // Evidence requirement: a single ambiguous keyword (e.g. "issue", "fix") is not
+    // enough to claim debugging happened — that word can appear in totally unrelated
+    // text (calendar events, casual browsing). Require either 2+ distinct debugging
+    // signals, or 1 signal corroborated by an actual dev/terminal tool being open.
     test: (c) => {
       const kwText = c.keywords.join(' ');
-      return ['debug', 'fix', 'bug', 'error', 'issue', 'crash', 'broken'].some(k => kwText.includes(k));
+      const signals = ['debug', 'fix', 'bug', 'error', 'issue', 'crash', 'exception', 'broken'];
+      const hits = signals.filter(k => new RegExp(`\\b${k}\\b`, 'i').test(kwText)).length;
+      const devApps = ['vscode', 'cursor', 'webstorm', 'intellij', 'xcode', 'terminal', 'iterm'];
+      const hasDevContext = c.apps.some(a => devApps.some(d => a.normalizedName.includes(d)));
+      return hits >= 2 || (hits >= 1 && hasDevContext);
     },
   },
   {
@@ -84,7 +92,12 @@ const WORK_MODE_RULES = [
     weight: 80,
     test: (c) => {
       const planApps = ['notion', 'linear', 'jira', 'trello', 'asana'];
-      return c.apps.some(a => planApps.some(p => a.normalizedName.includes(p)));
+      const hasPlanApp = c.apps.some(a => planApps.some(p => a.normalizedName.includes(p)));
+      // Calendar/scheduling domains (Google Calendar, etc.) are direct planning
+      // evidence — previously these were discarded entirely by domain suppression
+      // upstream, leaving sessions like "Calendar + Chrome" with no real signal.
+      const hasPlanDomain = (c.domains || []).some(d => d.category === 'planning');
+      return hasPlanApp || hasPlanDomain;
     },
   },
   {
@@ -92,7 +105,11 @@ const WORK_MODE_RULES = [
     weight: 78,
     test: (c) => {
       const kwText = c.keywords.join(' ');
-      return ['refactor', 'cleanup', 'restructure', 'simplify', 'optimize', 'clean'].some(k => kwText.includes(k));
+      const signals = ['refactor', 'cleanup', 'restructure', 'simplify', 'optimize', 'clean'];
+      const hits = signals.filter(k => new RegExp(`\\b${k}\\b`, 'i').test(kwText)).length;
+      const devApps = ['vscode', 'cursor', 'webstorm', 'intellij', 'xcode'];
+      const hasDevContext = c.apps.some(a => devApps.some(d => a.normalizedName.includes(d)));
+      return hits >= 2 || (hits >= 1 && hasDevContext);
     },
   },
   {
@@ -245,10 +262,22 @@ function resolveWorkMode(compressed) {
     };
   }
 
+  // No rule matched and no archetype matched — there is no real evidence of any
+  // specific work mode. Defaulting to 'deep_implementation' here would invent
+  // "Implementing" work out of thin air. Fall back to category/domain signals
+  // that are actually present, and only reach for implementation as a last resort
+  // when there's genuine dev-tool evidence.
+  const hasDevApp = compressed.apps.some(a =>
+    ['vscode', 'cursor', 'webstorm', 'intellij', 'xcode'].some(d => a.normalizedName.includes(d)));
+  let fallbackMode = 'research';
+  if (compressed.primaryCategory === 'design') fallbackMode = 'design_work';
+  else if (compressed.primaryCategory === 'planning') fallbackMode = 'planning';
+  else if (hasDevApp) fallbackMode = 'deep_implementation';
+
   return {
-    primary: compressed.primaryCategory === 'design' ? 'design_work' : 'deep_implementation',
+    primary: fallbackMode,
     secondary: null,
-    confidence: 0.35,
+    confidence: 0.30,
   };
 }
 

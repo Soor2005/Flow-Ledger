@@ -292,3 +292,17 @@ export function pickBestSubject(candidates = []) {
   }
   return null;
 }
+
+// ─── Dirty Content Detection ──────────────────────────────────────────────────
+// Catches raw/malformed URLs, system paths, and executables so they never leak
+// into a generated title or description subject. Matches `https?:` followed by
+// 0-2 slashes (not just well-formed "://") so truncated/malformed URL fragments
+// like "https:/" (single slash) are caught too — these slip past stricter
+// "https://" regexes elsewhere and have been observed producing titles like
+// "Google Calendar - https:/ and chrome".
+
+const DIRTY_CONTENT_RE = /\bhttps?:\/{0,2}\S*|[A-Z]:\\(Windows|Program Files|ProgramData|Users)|\/(usr|System|bin|etc|Applications|Library)\/|\.exe(\s|$)|\.dll(\s|$)|system32/i;
+
+export function containsDirtyContent(text = '') {
+  return DIRTY_CONTENT_RE.test(text);
+}

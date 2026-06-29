@@ -203,7 +203,7 @@ const APP_ONLY_PATTERN = /^(claude|chatgpt|vscode|figma|notion|chrome|firefox|sl
 
 // Patterns that unconditionally disqualify a title phrase from being used
 const HARD_REJECT_PATTERNS = [
-  /https?:\/\//,                              // raw URLs
+  /https?:\/{0,2}/i,                           // raw or malformed/truncated URLs (e.g. "https:/")
   /[A-Z]:\\(Windows|Program Files|Users)/i,  // Windows system paths
   /\/(usr|System|bin|etc)\//,                 // Unix system paths
   /\.exe(\s|$)/i,                             // executables
@@ -327,9 +327,12 @@ export function cleanWindowTitle(title = '', appName = '') {
   clean = clean.replace(/^\(\d+\)\s*/, '');
 
   // ── Strip raw URL suffixes: "Title - https://..." → "Title" ──────────────
+  // {0,2} on the slash catches malformed/truncated URLs too (e.g. "https:/"
+  // with one slash), which a strict "https://" match misses entirely and lets
+  // through verbatim into generated titles.
   clean = clean
-    .replace(/\s*[—–\-]\s*https?:\/\/[^\s]+/g, '')   // "Title - https://url"
-    .replace(/\s*https?:\/\/[^\s]+/g, '')              // bare "https://url" anywhere
+    .replace(/\s*[—–\-]\s*https?:\/{0,2}\S*/g, '')   // "Title - https://url" or "Title - https:/"
+    .replace(/\s*https?:\/{0,2}\S*/g, '')              // bare url fragment anywhere
     .trim();
 
   // ── Strip pipe-separated video-style suffixes: "Title | Sony LIV" ─────────
@@ -357,8 +360,8 @@ export function cleanWindowTitle(title = '', appName = '') {
     .replace(/^(New Tab|about:blank)\s*$/i, '')
     .trim();
 
-  // Final: reject if still contains a raw URL or system path
-  if (/https?:\/\//.test(clean)) return '';
+  // Final: reject if still contains a raw or malformed URL fragment, or system path
+  if (/https?:\/{0,2}/i.test(clean)) return '';
   if (containsSystemPath(clean)) return '';
 
   return clean;
@@ -459,8 +462,8 @@ function scoreTitlePhrase(phrase) {
   // Penalize: noise patterns
   if (NOISE_TITLE_PATTERN.test(phrase)) score -= 80;
 
-  // Penalize: URL-like content
-  if (/https?:\/\//.test(phrase)) score -= 30;
+  // Penalize: URL-like content (including malformed/truncated fragments)
+  if (/https?:\/{0,2}/i.test(phrase)) score -= 30;
 
   // Penalize: looks like a file path
   if (/^\/[a-z]/.test(phrase)) score -= 20;

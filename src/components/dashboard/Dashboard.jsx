@@ -4,6 +4,7 @@ import {
   Briefcase, FileText, Cpu, Zap, Users, TrendingUp, Hash, Shield,
   Music, Command, Flame, Search, Sun, Moon, Star, Home, Bell,
   ChevronDown, BarChart2, Download, ArrowDown, PanelLeftClose, PanelLeftOpen,
+  Receipt,
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { usePrefs } from '../../hooks/usePrefs';
@@ -15,6 +16,7 @@ import TimerPage from '../timer/TimerPage';
 import ActivityPage from '../activity/ActivityPage';
 import ProjectsPage from '../projects/ProjectsPage';
 import ClientsPage from '../clients/ClientsPage';
+import InvoicesPage from '../invoices/InvoicesPage';
 import TasksPage from '../tasks/TasksPage';
 import ReportsPage from '../reports/ReportsPage';
 import ProjectAnalyticsPage from '../reports/ProjectAnalyticsPage';
@@ -153,6 +155,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'projects', label: 'Projects', Icon: Briefcase },
       { id: 'clients', label: 'Clients', Icon: Users },
+      { id: 'invoices', label: 'Invoices', Icon: Receipt },
       { id: 'tasks', label: 'Tasks', Icon: Hash },
     ],
   },
@@ -528,6 +531,7 @@ export default function Dashboard() {
     || user.username
     || user.email
     || 'Workspace';
+  sharedProps.accountName = accountName;
   const accountMeta = user.username ? `@${user.username}` : (profile?.email || user.email || 'Local workspace');
   const initials =
     accountName
@@ -909,6 +913,7 @@ export default function Dashboard() {
             {page === 'activity'      && <ActivityPage {...sharedProps} />}
             {page === 'projects'      && <ProjectsPage {...sharedProps} />}
             {page === 'clients'       && <ClientsPage {...sharedProps} />}
+            {page === 'invoices'      && <InvoicesPage {...sharedProps} />}
             {page === 'tasks'         && <TasksPage {...sharedProps} />}
             {page === 'reports'       && <ReportsPage {...sharedProps} />}
             {page === 'analytics'     && <ProjectAnalyticsPage {...sharedProps} />}
