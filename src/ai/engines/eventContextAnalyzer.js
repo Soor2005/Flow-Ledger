@@ -702,6 +702,50 @@ function assessFocusQuality(autoSessions = [], totalDurationMins = 0) {
   return 'low';
 }
 
+// ─── Session Continuity (recent history) ──────────────────────────────────────
+// Looks at the user's already-completed sessions from earlier today to detect
+// whether the current session is a continuation of the same work, rather than
+// generating each event in isolation. This is real collected data — not an
+// inference from window titles — so it's high-confidence when present.
+
+const CONTINUITY_GAP_CAP_MINS = 240; // beyond 4h gap, don't call it a "continuation"
+
+export function detectRecentContinuity(session, recentSessions = [], project = null) {
+  if (!recentSessions.length) return null;
+
+  const curStart = toTimestamp(session?.started_at) || Math.floor(Date.now() / 1000);
+  const dayStart = new Date(curStart * 1000); dayStart.setHours(0, 0, 0, 0);
+  const dayStartUnix = Math.floor(dayStart.getTime() / 1000);
+
+  const matchesGroup = (s) => {
+    if (project?.id) return s.project_id === project.id;
+    if (session?.category) return s.category === session.category;
+    return false;
+  };
+
+  const priorToday = recentSessions
+    .filter(s => s.id !== session?.id)
+    .filter(s => toTimestamp(s.started_at) >= dayStartUnix && toTimestamp(s.started_at) < curStart)
+    .filter(matchesGroup)
+    .sort((a, b) => toTimestamp(b.started_at) - toTimestamp(a.started_at));
+
+  if (!priorToday.length) return null;
+
+  const last = priorToday[0];
+  const lastEnd = toTimestamp(last.ended_at) || (toTimestamp(last.started_at) + (last.duration_seconds || 0));
+  const gapMins = Math.max(0, Math.round((curStart - lastEnd) / 60));
+  const priorMinutesToday = Math.round(
+    priorToday.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) / 60
+  );
+
+  return {
+    isContinuation: gapMins <= CONTINUITY_GAP_CAP_MINS,
+    sessionNumberToday: priorToday.length + 1,
+    priorMinutesToday,
+    gapMins,
+  };
+}
+
 // ─── Main Context Analyzer ────────────────────────────────────────────────────
 
 /**
@@ -726,6 +770,30 @@ export function extractLinkedTaskTitle(session) {
   if (containsSystemPath(raw)) return null;
   if (isGenericSubject(raw)) return null;
   return raw;
+}
+
+// ─── Linked Task Description & Keywords ──────────────────────────────────────
+// The task's own description and curated keyword list are explicit, user-written
+// signals — richer ground truth than anything inferred from window titles. They
+// don't replace the title, but they sharpen the purpose clause in descriptions
+// and feed the subtype/keyword scoring with high-confidence terms.
+
+export function extractLinkedTaskDescription(session) {
+  const raw = (session?.task_description || '').trim();
+  if (raw.length < 8) return null;
+  if (HARD_REJECT_PATTERNS.some(re => re.test(raw))) return null;
+  if (containsSystemPath(raw)) return null;
+  return raw.length > 220 ? raw.slice(0, 217).trim() + '…' : raw;
+}
+
+export function extractLinkedTaskKeywords(session) {
+  const raw = (session?.task_keywords || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(/[,;\n]+/)
+    .map(w => w.toLowerCase().trim())
+    .filter(w => w.length >= 3 && w.length <= 30)
+    .slice(0, 10);
 }
 
 // ─── AI Conversation Topic Extractor ─────────────────────────────────────────
@@ -778,6 +846,11 @@ export function analyzeContext(input = {}) {
     // ensuring title generation reflects the PRIMARY workflow rather than
     // brief distractions or the most-recent (but minor) app switch.
     dominantSessions = null,
+    // recentSessions: the user's other completed sessions (typically today's),
+    // used to detect whether this session continues earlier work on the same
+    // project/category. Optional — callers that don't have this handy simply
+    // omit it and continuity is skipped.
+    recentSessions = [],
   } = input;
 
   // If the caller already ran dominance analysis, use the filtered sessions
@@ -791,7 +864,12 @@ export function analyzeContext(input = {}) {
   const websites = aggregateWebsites(autoSessions);
 
   // ── Linked task — explicit, user-curated ground truth ─────────────────────
-  const linkedTaskTitle = extractLinkedTaskTitle(session);
+  const linkedTaskTitle       = extractLinkedTaskTitle(session);
+  const linkedTaskDescription = extractLinkedTaskDescription(session);
+  const linkedTaskKeywords    = extractLinkedTaskKeywords(session);
+
+  // ── Continuity — was this a continuation of earlier work today? ──────────
+  const continuity = detectRecentContinuity(session, recentSessions, project);
 
   // ── Phrase-level window title analysis (from dominant sessions only) ──
   const windowTitlePhrases = extractWindowTitlePhrases(phraseSessions);
@@ -830,15 +908,35 @@ export function analyzeContext(input = {}) {
         .filter(w => w.length >= 4 && !STOP_WORDS.has(w) && !/^\d+$/.test(w))
     : [];
 
-  const fallbackKeywords   = [...taskKeywords, ...notesKeywords, ...extractFallbackKeywords(phraseSessions)]
+  // Task description — explicit user-written context, ranked between the task
+  // title and freeform session notes.
+  const taskDescKeywords = linkedTaskDescription
+    ? linkedTaskDescription
+        .replace(/[^a-zA-Z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .map(w => w.toLowerCase().trim())
+        .filter(w => w.length >= 4 && !STOP_WORDS.has(w) && !/^\d+$/.test(w))
+        .slice(0, 10)
+    : [];
+
+  // taskKeywords (the curated `t.keywords` column) are explicit, user-tagged
+  // ground truth — the single highest-confidence keyword source available,
+  // so they go first, ahead of even the task title's own derived words.
+  const fallbackKeywords   = [...linkedTaskKeywords, ...taskKeywords, ...taskDescKeywords, ...notesKeywords, ...extractFallbackKeywords(phraseSessions)]
     .filter((w, i, arr) => arr.indexOf(w) === i) // deduplicate
-    .slice(0, 20);
+    .slice(0, 24);
 
   const appNames           = apps.map(a => normalize(a.name));
   // Linked task text gets the strongest subtype-detection weight (treated as a
   // long-duration phrase) since it's explicit ground truth, not inference.
+  // The task description is included too (shorter weight) since it often
+  // contains the actual verb/action ("debug the login redirect") the title alone lacks.
   const subtypePhrases = linkedTaskTitle
-    ? [{ phrase: linkedTaskTitle, durationSecs: 3600 }, ...mergedPhrases]
+    ? [
+        { phrase: linkedTaskTitle, durationSecs: 3600 },
+        ...(linkedTaskDescription ? [{ phrase: linkedTaskDescription, durationSecs: 1800 }] : []),
+        ...mergedPhrases,
+      ]
     : mergedPhrases;
   const workSubtype        = detectWorkSubtype(subtypePhrases, fallbackKeywords, appNames);
 
@@ -870,8 +968,11 @@ export function analyzeContext(input = {}) {
     aiTopics,                           // AI conversation topics (Claude/ChatGPT sessions)
     bestWindowTitle,                    // Single best phrase (AI topic if present)
     linkedTaskTitle,                    // Explicit task assignment — outranks every inferred signal
+    linkedTaskDescription,               // Task's own description — sharpens the purpose clause
+    linkedTaskKeywords,                  // Task's curated keyword tags — highest-confidence keyword source
     workSubtype,                        // Specific work type (debugging, implementing, etc.)
-    fallbackKeywords,                   // Keywords from window titles + session notes
+    fallbackKeywords,                   // Keywords from task data + window titles + session notes
+    continuity,                         // { isContinuation, sessionNumberToday, priorMinutesToday, gapMins } or null
 
     // App signals
     apps: apps.slice(0, 8),

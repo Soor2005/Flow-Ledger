@@ -772,8 +772,13 @@ export default function NotificationCentre({ onClose, onNavigate }) {
     const subs = [];
     const sub = (fn) => { if (fn) subs.push(fn); };
 
+    // Log-only — the actual reminder is a native OS notification fired by the
+    // main process (see electron/main.js fireBreakReminder). Using
+    // pushNotification() instead of pushToast() here records it in the
+    // notification center without firing a second, redundant desktop
+    // notification or floating toast on top of the native one.
     sub(api.onBreakReminder?.((d) =>
-      pushToast('break_reminder', `Time for a break`, `${d?.activeMins || '?'}m of focus. Step away for ${d?.duration || 10} mins.`, { priority: 'high' })
+      pushNotification('break_reminder', `Time for a break`, `${d?.activeMins || '?'}m of focus. Step away for ${d?.duration || 10} mins.`, { priority: 'high' })
     ));
     sub(api.onSessionStopped?.((d) => {
       // This IPC path fires for sessions stopped outside Dashboard/Timer

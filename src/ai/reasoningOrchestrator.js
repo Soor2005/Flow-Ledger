@@ -26,6 +26,7 @@
  */
 
 import { sanitizeSessions }                  from './engines/telemetrySanitizer.js';
+import { detectRecentContinuity }            from './engines/eventContextAnalyzer.js';
 
 import { rankSignals, getTopPhrases, getMeaningfulTools } from './engines/signalRankingEngine.js';
 import { compressContext }                   from './engines/contextCompressionEngine.js';
@@ -67,7 +68,8 @@ function setCached(fp, result) {
 
 // ─── Core Pipeline Stages ─────────────────────────────────────────────────────
 
-function runCorePipeline(autoSessions, project, client, sessionDurationMins, variantIndex = 0) {
+function runCorePipeline(autoSessions, project, client, sessionDurationMins, variantIndex = 0, extra = {}) {
+  const { recentSessions = [], sessionStartedAt = null, sessionId = null, linkedTaskDescription = null } = extra;
   // ── Stage 1: Sanitize ──────────────────────────────────────────────────────
   const { sessions: cleanSessions, stats: sanitizeStats } = sanitizeSessions(autoSessions);
 
@@ -116,6 +118,17 @@ function runCorePipeline(autoSessions, project, client, sessionDurationMins, var
   // Per-call verb usage tracker — prevents module-level state across sessions
   const _usedVerbs = [];
 
+  // ── Same-day continuity — real collected history, not inference. Only
+  // computed when the caller supplies recentSessions + a start time; both are
+  // optional so existing callers are unaffected.
+  const continuity = (recentSessions.length && (sessionStartedAt || autoSessions[0]?.started_at))
+    ? detectRecentContinuity(
+        { id: sessionId, started_at: sessionStartedAt || autoSessions[0]?.started_at, project_id: project?.id },
+        recentSessions,
+        project,
+      )
+    : null;
+
   // ── Stage 8: Build partial reasoning result (for workblock fusion) ────────
   const partialReasoning = {
     compressed,
@@ -134,6 +147,8 @@ function runCorePipeline(autoSessions, project, client, sessionDurationMins, var
     sessionDurationMins: sessionDurationMins ?? compressed.totalActiveMins,
     project,
     client,
+    continuity,
+    linkedTaskDescription,
     _usedVerbs,
   };
 
@@ -411,8 +426,14 @@ export function orchestrateSync(autoSessions = [], options = {}) {
     useContinuity      = false,
     sessionId          = null,
     linkedTaskTitle    = null,
+    linkedTaskDescription = null,
     rewriteAttempt     = 0,
     bypassCache        = false,
+    // recentSessions + sessionStartedAt: optional same-day history so the
+    // description can note "2nd session on this today" etc. Both optional —
+    // omitting them simply skips continuity (no behavior change for existing callers).
+    recentSessions     = [],
+    sessionStartedAt   = null,
   } = options;
 
   if (!autoSessions.length) {
@@ -434,7 +455,7 @@ export function orchestrateSync(autoSessions = [], options = {}) {
   const firstTs = autoSessions[0]?.started_at ?? '';
   const lastTs  = autoSessions[autoSessions.length - 1]?.started_at ?? '';
   const sessionKey = sessionId || `${firstTs}_${lastTs}`;
-  const fp = contextFingerprint(compForFP) + `|${project?.id || ''}|${sessionKey}|${linkedTaskTitle || ''}|${rewriteAttempt}`;
+  const fp = contextFingerprint(compForFP) + `|${project?.id || ''}|${sessionKey}|${linkedTaskTitle || ''}|${rewriteAttempt}|${recentSessions.length}`;
 
   if (!bypassCache) {
     const cached = getCached(fp);
@@ -444,6 +465,7 @@ export function orchestrateSync(autoSessions = [], options = {}) {
   // Run pipeline
   const { reasoning, intent, ranking, humanized, fusedWorkblock } = runCorePipeline(
     autoSessions, project, client, sessionDurationMins, rewriteAttempt,
+    { recentSessions, sessionStartedAt, sessionId, linkedTaskDescription },
   );
 
   // Optional: run continuity engine (updates localStorage)

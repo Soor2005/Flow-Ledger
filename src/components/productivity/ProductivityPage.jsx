@@ -11,6 +11,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import { getFocusAnalytics, getBurnoutAnalytics, getContextSwitchAnalytics } from '../../ai/adaptive/analyticsIntelligenceEngine.js';
+import { classifyActivityApp, SMART_CATEGORY_DEFS } from '../../utils/activityCategories.js';
 
 const api    = window.electron || {};
 const callApi = (name, fallback, payload) => {
@@ -27,31 +28,11 @@ const TT      = {
   itemStyle    : { color:'#cbd5e1', fontWeight:600 },
   cursor       : { fill:'rgba(124,108,242,0.06)' },
 };
-const APP_CATS = {
-  productive: [
-    'code','editor','terminal','design','figma','notion','linear','github','vscode','xcode',
-    'intellij','webstorm','cursor','windsurf','zed','pycharm','rider','clion','phpstorm',
-    'rubymine','androidstudio','sublime','vim','neovim','emacs','docs','sheets','word','excel',
-    'powerpoint','pages','numbers','keynote','tableau','powerbi','libreoffice','openoffice',
-    'photoshop','illustrator','premiere','aftereffects','lightroom','sketch','framer','miro',
-    'blender','davinci','resolve','obsidian','typora','craft','logseq','ulysses','roam',
-    'jira','trello','asana','monday','clickup','airtable','coda','retool','postman','insomnia',
-    'sequel','tableplus','dbeaver','pgadmin','docker','lens','sourcetree','tower','fork',
-    'warp','hyper','iterm','kitty','alacritty','powershell','bash','python','node',
-  ],
-  distracting: [
-    'twitter','instagram','facebook','youtube','reddit','tiktok','netflix','twitch','9gag',
-    'social','hulu','disney','primevideo','peacock','paramount','hbomax','appletv',
-    'steam','epicgames','roblox','minecraft','valorant','fortnite','csgo','leagueoflegends',
-    'spotify','soundcloud','deezer','tidal','pandora','applemusic','amazon music',
-    'buzzfeed','imgur','tumblr','pinterest','snapchat','whatsapp','telegram','signal',
-    'messenger','wechat','line','kik','okcupid','tinder','bumble',
-  ],
-  neutral: [
-    'slack','teams','zoom','meet','email','chrome','safari','firefox','browser','edge',
-    'brave','arc','vivaldi','opera','thunderbird','outlook','gmail','superhuman',
-    'calendar','finder','explorer','spotlight','alfred','raycast','1password','lastpass',
-  ],
+// Maps a canonical category "type" (from utils/activityCategories.js, which
+// mirrors the Activity → Apps source of truth) to this module's 3-bucket view.
+const TYPE_TO_BUCKET = {
+  deep: 'productive', meeting: 'neutral', shallow: 'neutral',
+  neutral: 'neutral', distraction: 'distracting',
 };
 const MODULES = [
   { id:'overview',  label:'Overview',        icon: BarChart2 },
@@ -92,15 +73,15 @@ function sessionQuality(block) {
   const sScore = sw === 0 ? 100 : sw <= 2 ? 75 : sw <= 5 ? 45 : 20;
   return Math.round(dScore * 0.6 + sScore * 0.4);
 }
-function classifyApp(name = '') {
-  const n = name.toLowerCase()
-    .replace(/\.exe$/i, '')
-    .replace(/\s+\d+(\.\d+)*\s*$/, '')
-    .trim();
-  if (APP_CATS.distracting.some(k => n.includes(k))) return 'distracting';
-  if (APP_CATS.productive.some(k => n.includes(k)))  return 'productive';
-  if (APP_CATS.neutral.some(k => n.includes(k)))     return 'neutral';
-  return 'neutral';
+// Respects the category assigned on the Activity → Apps page (ai_category)
+// first; only falls back to the shared heuristic classifier when an app has
+// no explicit override yet. Never recomputes category independently.
+function classifyApp(name = '', aiCategory = '') {
+  const key = (aiCategory || '').toLowerCase().trim();
+  const type = (key && SMART_CATEGORY_DEFS[key])
+    ? SMART_CATEGORY_DEFS[key].type
+    : classifyActivityApp(name).type;
+  return TYPE_TO_BUCKET[type] || 'neutral';
 }
 function cleanAppName(raw = '') {
   return (raw || '')
@@ -715,7 +696,7 @@ function FocusModule({ D, behavioralFocus }) {
   const apps = useMemo(() => {
     const arr = normArr(rawApps);
     return arr
-      .map(a => ({ ...a, class: classifyApp(a.name || '') }))
+      .map(a => ({ ...a, class: classifyApp(a.name || '', a.category || '') }))
       .sort((a,b) => b.seconds - a.seconds)
       .slice(0, 15);
   }, [rawApps]);
@@ -1311,11 +1292,13 @@ export default function ProductivityPage({ user }) {
       durationSec : b.duration_seconds || b.durationSec  || 0,
       switches    : b.context_switches || b.switches     || 0,
     })),
-    // Normalize topApps: backend returns app_name / total (not name / seconds)
+    // Normalize topApps: backend returns app_name / total (not name / seconds),
+    // plus the authoritative ai_category set on the Activity → Apps page.
     topApps: normArr(raw.topApps).map(a => ({
       ...a,
       name    : cleanAppName(a.app_name || a.name || a.app || ''),
       seconds : a.total || a.seconds || a.totalSec || 0,
+      category: a.ai_category || a.category || '',
     })),
     effectiveDays: range,
   }), [raw, dailyArr, range]);

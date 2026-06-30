@@ -16,6 +16,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import { mergeWorkflowSessions } from '../../utils/workflowSessionMerge';
+import {
+  SMART_CATEGORY_DEFS as CANONICAL_CATEGORY_DEFS,
+  classifyActivityApp,
+  classifyActivitySession,
+} from '../../utils/activityCategories';
 
 const api = window.electron || {};
 
@@ -79,145 +84,35 @@ function makeKeywordSeed(item = {}) {
   return domain || app || 'keyword';
 }
 
-const SMART_CATEGORY_DEFS = {
-  development:   { type: 'deep',        label: 'Development',   color: '#6366f1', Icon: Code2 },
-  design:        { type: 'deep',        label: 'Design',        color: '#f43f5e', Icon: PenLine },
-  writing:       { type: 'deep',        label: 'Writing',       color: '#34d399', Icon: PenLine },
-  research:      { type: 'shallow',     label: 'Research',      color: '#60a5fa', Icon: Globe },
-  communication: { type: 'shallow',     label: 'Communication', color: '#a78bfa', Icon: MessageSquare },
-  meeting:       { type: 'meeting',     label: 'Meetings',      color: '#f87171', Icon: Users },
-  planning:      { type: 'shallow',     label: 'Planning',      color: '#fbbf24', Icon: Calendar },
-  learning:      { type: 'shallow',     label: 'Learning',      color: '#2dd4bf', Icon: Sparkles },
-  admin:         { type: 'neutral',     label: 'Admin',         color: '#94a3b8', Icon: Briefcase },
-  distraction:   { type: 'distraction', label: 'Distraction',   color: '#fb923c', Icon: AlertTriangle },
-  break:         { type: 'neutral',     label: 'Break',         color: '#cbd5e1', Icon: Moon },
-  focus:         { type: 'deep',        label: 'Focus',         color: '#8b5cf6', Icon: Zap },
+// ─── Category icons (presentation-only; category data itself comes from the
+// canonical utils/activityCategories.js, which mirrors the Activity → Apps
+// source of truth so colors/labels/types never diverge from other pages) ──────
+const CATEGORY_ICONS = {
+  development: Code2, design: PenLine, writing: PenLine, research: Globe,
+  communication: MessageSquare, meeting: Users, planning: Calendar,
+  learning: Sparkles, admin: Briefcase, distraction: AlertTriangle,
+  break: Moon, focus: Zap, browser: Globe, ai: Sparkles, terminal: Terminal,
+  productivity: BarChart2, analysis: BarChart2, social: AlertTriangle,
+  entertainment: AlertTriangle, other: Monitor,
 };
+const SMART_CATEGORY_DEFS = Object.fromEntries(
+  Object.entries(CANONICAL_CATEGORY_DEFS).map(([key, def]) => (
+    [key, { ...def, Icon: CATEGORY_ICONS[key] || Monitor }]
+  ))
+);
 
 // ─── App classifier ───────────────────────────────────────────────────────────
-// Handles both friendly app names AND Windows/macOS process names (.exe stripped)
-function classifyApp(name = '') {
-  const n = (name || '').toLowerCase().replace(/\.exe$/i, '').trim();
-  if (!n || n === 'unknown') return { type: 'neutral', label: 'Other', color: '#6b7280', Icon: Monitor };
-
-  // ── Video / Meetings ──────────────────────────────────────────────────────
-  if (/zoom|webex|whereby|jitsi|gotomeeting/.test(n) ||
-      /\bteams\b/.test(n))
-    return { type: 'meeting', label: 'Meetings', color: '#f87171', Icon: Users };
-
-  // ── Coding / Dev tools ────────────────────────────────────────────────────
-  if (/\bcode\b|vscode|cursor|windsurf|zed|helix/.test(n) ||
-      /\bvim\b|nvim|neovim|emacs/.test(n) ||
-      /intellij|webstorm|pycharm|phpstorm|rider|clion|goland|datagrip|rubymine|rustrover/.test(n) ||
-      /androidstudio|xcode|eclipse|netbeans|atom|brackets/.test(n) ||
-      /notepad\+\+|notepadplusplus|npp/.test(n) ||
-      /rstudio|spyder|jupyter|matlab|octave/.test(n) ||
-      /postman|insomnia|tableplus|dbeaver|sequelpro|sequel pro|beekeeper/.test(n) ||
-      /github desktop|sourcetree|fork|gitkraken|tower/.test(n))
-    return { type: 'deep', label: 'Coding', color: '#6366f1', Icon: Code2 };
-
-  // ── Terminal / CLI ────────────────────────────────────────────────────────
-  if (/windowsterminal|alacritty|kitty|hyper|warp|iterm2?|gnome-terminal|konsole/.test(n) ||
-      /\bwt\b|xterm|rxvt|terminator|urxvt/.test(n) ||
-      /powershell|pwsh|\bbash\b|\bzsh\b|\bfish\b/.test(n))
-    return { type: 'deep', label: 'Terminal', color: '#f59e0b', Icon: Terminal };
-
-  // ── Design / Creative ─────────────────────────────────────────────────────
-  if (/figma|sketch|photoshop|illustrator|canva|affinity/.test(n) ||
-      /blender|inkscape|\bgimp\b|krita|procreate|mspaint|paint\.net|paintdotnet/.test(n) ||
-      /premiere|aftereffects|finalcut|davinci|resolve|lightroom|captureone/.test(n) ||
-      /framer|penpot|lunacy|marvel/.test(n))
-    return { type: 'deep', label: 'Design', color: '#a78bfa', Icon: PenLine };
-
-  // ── Writing / Notes ───────────────────────────────────────────────────────
-  if (/winword|libreoffice writer|abiword/.test(n) ||
-      /notion|obsidian|\bbear\b|typora|logseq|roamresearch|craft|ulysses|ia writer/.test(n) ||
-      /scrivener|quill|marktext|zettlr/.test(n) ||
-      /evernote|onenote|simplenote|joplin|standard notes/.test(n) ||
-      /^notepad$|^wordpad$|textedit/.test(n) ||
-      /^sublime/.test(n))
-    return { type: 'deep', label: 'Writing', color: '#34d399', Icon: PenLine };
-
-  // ── Spreadsheet / Data ────────────────────────────────────────────────────
-  if (/\bexcel\b|msexcel|libreoffice calc|gnumeric/.test(n) ||
-      /tableau|powerbi|looker|metabase|grafana|superset/.test(n))
-    return { type: 'deep', label: 'Analysis', color: '#60a5fa', Icon: BarChart2 };
-
-  // ── Presentation ──────────────────────────────────────────────────────────
-  if (/powerpnt|powerpoint|keynote|libreoffice impress|prezi/.test(n))
-    return { type: 'deep', label: 'Presentations', color: '#818cf8', Icon: BarChart2 };
-
-  // ── Email ─────────────────────────────────────────────────────────────────
-  if (/outlook|thunderbird|spark|airmail|mimestream|newton|mailspring|postbox/.test(n) ||
-      /^mail$/.test(n))
-    return { type: 'shallow', label: 'Email', color: '#64748b', Icon: MessageSquare };
-
-  // ── Chat / Messaging ──────────────────────────────────────────────────────
-  if (/slack|discord|telegram|whatsapp|\bsignal\b|messenger|googlechat/.test(n) ||
-      /rocketchat|mattermost|wechat|\bline\b|viber|\bskype\b/.test(n))
-    return { type: 'shallow', label: 'Chat', color: '#64748b', Icon: MessageSquare };
-
-  // ── Browser ───────────────────────────────────────────────────────────────
-  if (/chrome|msedge|\bedge\b|firefox|opera|brave|vivaldi|iexplore|maxthon|safari/.test(n) ||
-      /\barc\b/.test(n))
-    return { type: 'shallow', label: 'Browser', color: '#64748b', Icon: Globe };
-
-  // ── Productivity / Tools ──────────────────────────────────────────────────
-  if (/jira|linear|asana|monday|trello|basecamp|clickup|notion(?!.*desktop)/.test(n) ||
-      /toggl|harvest|clockify|timely/.test(n) ||
-      /calendar|fantastical|busycal/.test(n) ||
-      /todoist|things|omnifocus|ticktick|habitica/.test(n))
-    return { type: 'shallow', label: 'Productivity', color: '#38bdf8', Icon: BarChart2 };
-
-  // ── Social Media ──────────────────────────────────────────────────────────
-  if (/twitter|instagram|facebook|tiktok|\breddit\b|mastodon|bluesky|threads|linkedin|pinterest/.test(n))
-    return { type: 'distraction', label: 'Social', color: '#ef4444', Icon: AlertTriangle };
-
-  // ── Entertainment / Media ─────────────────────────────────────────────────
-  if (/youtube|netflix|twitch|hulu|disneyplus|primevideo|hbomax/.test(n) ||
-      /spotify|applemusic|tidal|soundcloud|deezer|\bvlc\b|\biina\b|\bmpv\b|quicktime/.test(n) ||
-      /steam|epicgames|xboxapp|playnite|gamepass/.test(n))
-    return { type: 'distraction', label: 'Entertainment', color: '#ef4444', Icon: AlertTriangle };
-
-  return { type: 'neutral', label: 'Other', color: '#6b7280', Icon: Monitor };
+// Thin wrappers around the canonical classifiers so heuristic fallbacks match
+// every other page (Home, Reports, Calendar, Analytics) exactly. Icons are
+// attached locally since they're a presentation concern, not category data.
+function withIcon(result) {
+  return { ...result, Icon: CATEGORY_ICONS[result.categoryKey] || Monitor };
 }
-
+function classifyApp(name = '') {
+  return withIcon(classifyActivityApp(name));
+}
 function classifySession(item = {}) {
-  const aiKey = (item.ai_category || '').toLowerCase().trim();
-  if (aiKey && SMART_CATEGORY_DEFS[aiKey]) {
-    return {
-      ...SMART_CATEGORY_DEFS[aiKey],
-      label: item.ai_label || SMART_CATEGORY_DEFS[aiKey].label,
-      categoryKey: aiKey,
-      source: 'ai',
-    };
-  }
-
-  const merged = [item.app_name, item.window_title, item.url].filter(Boolean).join(' ').toLowerCase();
-  const url = item.url || '';
-
-  if (/github\.com|gitlab\.com|localhost|127\.0\.0\.1|npmjs\.com|vercel\.app|render\.com/.test(url)) {
-    return { ...SMART_CATEGORY_DEFS.development, categoryKey: 'development', source: 'url' };
-  }
-  if (/figma\.com|canva\.com|dribbble\.com|behance\.net|framer\.com/.test(url)) {
-    return { ...SMART_CATEGORY_DEFS.design, categoryKey: 'design', source: 'url' };
-  }
-  if (/docs\.google\.com|notion\.so|developer\.mozilla|readthedocs|coursera|udemy|wikipedia\.org/.test(url)) {
-    return { ...SMART_CATEGORY_DEFS.research, categoryKey: 'research', source: 'url' };
-  }
-  if (/slack\.com|discord\.com|teams\.microsoft\.com|mail\.google\.com|web\.whatsapp\.com/.test(url)) {
-    return { ...SMART_CATEGORY_DEFS.communication, categoryKey: 'communication', source: 'url' };
-  }
-  if (/invoice|billing|settings|roadmap|backlog|calendar|admin/.test(merged)) {
-    return { ...SMART_CATEGORY_DEFS.admin, categoryKey: 'admin', source: 'text' };
-  }
-
-  const base = classifyApp(item.app_name || '');
-  return {
-    ...base,
-    categoryKey: (base.label || 'other').toLowerCase().replace(/\s+/g, '_'),
-    source: 'heuristic',
-  };
+  return withIcon(classifyActivitySession(item));
 }
 
 const TYPE_COLORS = {

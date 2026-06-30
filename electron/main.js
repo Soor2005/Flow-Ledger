@@ -2047,6 +2047,70 @@ function scheduleFlowState(sessionTitle) {
 // ─── BREAK REMINDER ───────────────────────────────────────────────────────────
 // snoozeMs lets a caller (e.g. the "Snooze 10m" button) override the normal
 // work-interval delay with a short one-off wait instead.
+
+// Tracks the currently-shown native break notification so a second reminder
+// (e.g. a fast re-schedule) closes the stale one instead of stacking duplicates.
+let pendingBreakNotification = null;
+// Renderer's "Desktop notifications" master toggle (prefs.desktopNotifications),
+// synced down via the 'prefs:syncDesktopNotif' IPC call below. Defaults to true
+// (matches DEFAULT_PREFS) so reminders work before the renderer's first sync.
+let rendererWantsDesktopNotif = true;
+// Only surface the "desktop notifications unavailable" notice once per app
+// run — it would be noisy to repeat it on every single break interval.
+let breakNotifUnavailableNotified = false;
+
+ipcMain.handle('prefs:syncDesktopNotif', (_, { enabled } = {}) => {
+  rendererWantsDesktopNotif = enabled !== false;
+  return { success: true };
+});
+
+/**
+ * Fire a break reminder as a native OS notification (Windows toast / macOS
+ * banner / Linux notification), so it appears even while Flow Ledger is
+ * minimized or sitting in the system tray — no in-app popup is shown unless
+ * the user actually clicks it, or native notifications aren't available.
+ */
+function fireBreakReminder(userId, payload) {
+  // Prevent duplicate notifications for the same reminder cycle.
+  if (pendingBreakNotification) {
+    try { pendingBreakNotification.close(); } catch {}
+    pendingBreakNotification = null;
+  }
+
+  const osSupportsNotif = Notification.isSupported();
+  const useNative = osSupportsNotif && rendererWantsDesktopNotif;
+
+  if (useNative) {
+    const intensityLabel = payload.intensity >= 70 ? 'High-intensity' : payload.intensity >= 40 ? 'Focused' : 'Light';
+    const notif = new Notification({
+      title: '☕ Time for a Break — Flow Ledger',
+      body:  `${intensityLabel} ${payload.activeMins}-min stretch. Recharge for ${payload.duration} min.`,
+      icon:  getNotifIcon(),
+      silent: false,
+    });
+    // Clicking the toast brings the app forward and opens the break card —
+    // it never appears unprompted while the window is hidden/minimized.
+    notif.on('click', () => {
+      showMainWindow();
+      mainWindow?.webContents.send('break:reminder', payload);
+    });
+    notif.on('close', () => {
+      if (pendingBreakNotification === notif) pendingBreakNotification = null;
+    });
+    notif.show();
+    pendingBreakNotification = notif;
+  } else if (mainWindow) {
+    // Graceful fallback: OS-level notifications aren't available (unsupported
+    // platform/session, or the OS itself has them disabled) — surface the
+    // in-app reminder directly instead of losing the prompt entirely.
+    mainWindow.webContents.send('break:reminder', payload);
+    if (!osSupportsNotif && !breakNotifUnavailableNotified) {
+      breakNotifUnavailableNotified = true;
+      mainWindow.webContents.send('break:notifUnavailable');
+    }
+  }
+}
+
 function scheduleBreakReminder(userId, snoozeMs = null) {
   clearTimeout(breakReminderTimeout);
   const settings = get('SELECT * FROM break_settings WHERE user_id=?', [userId]);
@@ -2063,7 +2127,7 @@ function scheduleBreakReminder(userId, snoozeMs = null) {
     const activeSecs = activeRow?.total || 0;
     const activeRatio = activeSecs / windowSecs;
     if (activeRatio >= 0.5) {
-      if (mainWindow) mainWindow.webContents.send('break:reminder', {
+      fireBreakReminder(userId, {
         duration: settings.break_duration_mins || 17,
         activeMins: Math.round(activeSecs / 60),
         intensity: Math.min(100, Math.round(activeRatio * 100)),
@@ -3296,7 +3360,8 @@ ipcMain.handle('sessions:list', (_, { userId, from, to, includeAutoBlocks = fals
   //    have future start times — the user intentionally placed them there.
   //
   const nowSec = Math.floor(Date.now() / 1000);
-  let q = `SELECT s.*, p.name as project_name, p.color as project_color, c.name as client_name, t.title as task_title
+  let q = `SELECT s.*, p.name as project_name, p.color as project_color, c.name as client_name, c.company as client_company,
+                  t.title as task_title, t.description as task_description, t.keywords as task_keywords
            FROM sessions s LEFT JOIN projects p ON s.project_id=p.id LEFT JOIN clients c ON s.client_id=c.id LEFT JOIN tasks t ON s.task_id=t.id
            WHERE s.user_id=? AND s.ended_at IS NOT NULL`;
   const params = [userId];
@@ -3330,7 +3395,8 @@ ipcMain.handle('sessions:active', (_, { userId }) =>
 ipcMain.handle('sessions:active_scheduled', (_, { userId }) => {
   const nowSec = Math.floor(Date.now() / 1000);
   return get(
-    `SELECT s.*, p.name as project_name, p.color as project_color, c.name as client_name, t.title as task_title
+    `SELECT s.*, p.name as project_name, p.color as project_color, c.name as client_name, c.company as client_company,
+            t.title as task_title, t.description as task_description, t.keywords as task_keywords
      FROM sessions s
      LEFT JOIN projects p ON s.project_id = p.id
      LEFT JOIN clients  c ON s.client_id  = c.id
@@ -4251,6 +4317,10 @@ ipcMain.handle('break:updateSettings', (_, { userId, enabled, workIntervalMins, 
   return { success: true };
 });
 ipcMain.handle('break:dismiss', (_, { userId, snoozeMins }) => {
+  if (pendingBreakNotification) {
+    try { pendingBreakNotification.close(); } catch {}
+    pendingBreakNotification = null;
+  }
   scheduleBreakReminder(userId, snoozeMins ? snoozeMins * 60 * 1000 : null);
   return { success: true };
 });
@@ -4734,7 +4804,7 @@ ipcMain.handle('stats:topApps', (_, { userId, from, to, limit = 20 }) => {
   const now = Math.floor(Date.now() / 1000);
   const f = from || now - 7 * 86400, t = to || now;
   // Normalise app_name: strip trailing .exe (case-insensitive) so Chrome.exe and chrome are merged
-  return all(
+  const rows = all(
     `SELECT
        LOWER(REPLACE(REPLACE(app_name, '.exe', ''), '.EXE', '')) AS app_name,
        SUM(duration_seconds) AS total,
@@ -4747,6 +4817,37 @@ ipcMain.handle('stats:topApps', (_, { userId, from, to, limit = 20 }) => {
      ORDER BY total DESC LIMIT ?`,
     [userId, f, t, limit]
   );
+
+  // Attach the authoritative category (set on the Activity → Apps page) for
+  // each app so consumers never re-derive their own classification. We pick
+  // the duration-weighted dominant ai_category/ai_label per app rather than a
+  // simple SQL GROUP BY, since a handful of stray sessions may predate a bulk
+  // category reassignment.
+  if (rows.length) {
+    const catRows = all(
+      `SELECT
+         LOWER(REPLACE(REPLACE(app_name, '.exe', ''), '.EXE', '')) AS app_name,
+         ai_category, ai_label, SUM(duration_seconds) AS secs
+       FROM auto_sessions
+       WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<=?
+         AND app_name IS NOT NULL AND app_name != '' AND duration_seconds > 0
+         AND ai_category IS NOT NULL AND ai_category != ''
+       GROUP BY LOWER(REPLACE(REPLACE(app_name, '.exe', ''), '.EXE', '')), ai_category, ai_label`,
+      [userId, f, t]
+    );
+    const dominant = {};
+    for (const r of catRows) {
+      const cur = dominant[r.app_name];
+      if (!cur || r.secs > cur.secs) dominant[r.app_name] = r;
+    }
+    for (const row of rows) {
+      const d = dominant[row.app_name];
+      row.ai_category = d ? d.ai_category : null;
+      row.ai_label = d ? d.ai_label : null;
+    }
+  }
+
+  return rows;
 });
 
 // Billable summary: billable vs non-billable, utilization rate, ROI

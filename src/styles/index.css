@@ -271,6 +271,37 @@
     border: 2px solid transparent;
     background-clip: padding-box;
   }
+
+  /* Thinner, subtler scrollbar for compact inspector/panel content — used by
+     SessionInspectorPanel so it reads as part of the page chrome, not a
+     heavy app-wide scrollbar. */
+  .fl-thin-scroll {
+    scrollbar-width: thin;
+  }
+  .fl-thin-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .fl-thin-scroll::-webkit-scrollbar-track {
+    background: transparent;
+    margin-block: 6px;
+  }
+  .fl-thin-scroll::-webkit-scrollbar-thumb {
+    background: rgba(124, 108, 242, 0.20);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+  .fl-thin-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(124, 108, 242, 0.34);
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  .theme-light .fl-thin-scroll::-webkit-scrollbar-thumb {
+    background: rgba(107, 92, 242, 0.18);
+  }
+  .theme-light .fl-thin-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 92, 242, 0.30);
+  }
 }
 
 @layer utilities {

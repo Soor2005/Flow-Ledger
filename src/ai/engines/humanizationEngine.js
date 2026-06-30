@@ -454,6 +454,7 @@ export function humanize(intent, ranking, reasoning, options = {}) {
   const {
     featureGraph, behaviorProfile, sessionDurationMins,
     workMode, primaryCategory, project, compressed,
+    client, continuity, linkedTaskDescription,
   } = reasoning;
 
   const topFeature  = featureGraph?.activeCluster?.[0];
@@ -562,6 +563,7 @@ export function humanize(intent, ranking, reasoning, options = {}) {
     intent,
     project,
     variantIndex,
+    { client, continuity, linkedTaskDescription },
   );
 
   // ── Productivity note ───────────────────────────────────────────────────────
@@ -629,7 +631,8 @@ function buildTitle(verb, activity, project) {
 
 // ─── Description Builder ──────────────────────────────────────────────────────
 
-function buildDescription(pastVerb, activity, context, _tools, duration, intent, project, variantIndex = 0) {
+function buildDescription(pastVerb, activity, context, _tools, duration, intent, project, variantIndex = 0, extra = {}) {
+  const { client = null, continuity = null, linkedTaskDescription = null } = extra;
   // Strip leading gerunds to prevent double-verb patterns like "Reviewed reviewing..."
   const cleanActivity = activity.replace(LEADING_GERUND_RE, '');
   const cleanContext  = context ? context.replace(LEADING_GERUND_RE, '') : null;
@@ -653,7 +656,13 @@ function buildDescription(pastVerb, activity, context, _tools, duration, intent,
   // Pass the primary subject only (before any "and") to the purpose function
   // so domain matching works on a specific noun, not a compound chain.
   const primarySubject = cleanActivity.split(' and ')[0].trim();
-  const purposePhrase = buildPurposePhrase(intentType, primarySubject, project);
+  let purposePhrase = buildPurposePhrase(intentType, primarySubject, project);
+
+  // Fall back to the linked task's own description when the purpose-template
+  // map didn't produce a clause — explicit user-written scope beats nothing.
+  if (!purposePhrase && linkedTaskDescription) {
+    purposePhrase = `as scoped in the linked task: ${linkedTaskDescription.charAt(0).toLowerCase() + linkedTaskDescription.slice(1)}`;
+  }
 
   // Assemble: main clause + purpose + duration (no tool list)
   let sentence = purposePhrase
@@ -663,7 +672,24 @@ function buildDescription(pastVerb, activity, context, _tools, duration, intent,
   sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
 
   const note = duration ? ` ${capitalizeFirst(duration)}.` : '';
-  return (sentence + note).trim();
+
+  // Client / continuity note — real collected data, appended as its own clause.
+  const extraNotes = [];
+  if (client?.name && client?.company && client.company.toLowerCase() !== client.name.toLowerCase()) {
+    extraNotes.push(`Client: ${client.name} (${client.company})`);
+  } else if (client?.name) {
+    extraNotes.push(`Client: ${client.name}`);
+  } else if (client?.company) {
+    extraNotes.push(`Client: ${client.company}`);
+  }
+  if (continuity?.isContinuation && continuity.sessionNumberToday >= 2) {
+    const ord = continuity.sessionNumberToday;
+    const ordLabel = ord === 2 ? '2nd' : ord === 3 ? '3rd' : `${ord}th`;
+    extraNotes.push(`${ordLabel} session on this today`);
+  }
+  const extraNote = extraNotes.length ? ` ${extraNotes.join(', ')}.` : '';
+
+  return (sentence + note + extraNote).trim();
 }
 
 function capitalizeFirst(str = '') {

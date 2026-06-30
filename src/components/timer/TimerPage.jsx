@@ -15,6 +15,7 @@ import { generateTitle, generateDescription } from '../../ai/engines/eventWritin
 import { useTimerAI } from '../../hooks/useTimerAI.js';
 import AIStatusPanel, { PostSessionAICard } from './AIStatusPanel.jsx';
 import { finalizeSessionIntelligence } from '../../ai/timer/timerAIEngine.js';
+import SessionInspectorPanel from './SessionInspectorPanel.jsx';
 
 const api = window.electron || {};
 
@@ -927,7 +928,7 @@ function SessionProjectPicker({ session, projects, onUpdateProject }) {
 }
 
 // ─── Session timeline (auto mode log) ────────────────────────────────────────
-function SessionTimeline({ sessions, categories, projects, onDelete, onUpdateProject }) {
+function SessionTimeline({ sessions, categories, projects, onDelete, onUpdateProject, selectedSessionId, onSelectSession }) {
   const todayS = todayStart();
   const [filter,       setFilter]       = useState('all'); // all | deep | auto
   const [mergeGroups,  setMergeGroups]  = useState([]);
@@ -1052,10 +1053,16 @@ function SessionTimeline({ sessions, categories, projects, onDelete, onUpdatePro
                       ? classifyApp(s.title.replace('Auto: ', ''))
                       : null;
                     const isRunning = !s.ended_at;
+                    const isSelected = s.id === selectedSessionId;
                     return (
                       <div key={s.id}
-                        className="group relative flex items-stretch gap-0 rounded-xl border border-brd-subtle bg-bg-input overflow-hidden transition-all duration-150 hover:border-brd-hover hover:bg-bg-hover/50 hover:shadow-sm"
-                        style={isRunning ? { borderColor: `${color}35`, background: `${color}06` } : undefined}>
+                        onClick={() => onSelectSession?.(s.id)}
+                        className="group relative flex items-stretch gap-0 rounded-xl border bg-bg-input overflow-hidden transition-all duration-150 hover:border-brd-hover hover:bg-bg-hover/50 hover:shadow-sm cursor-pointer"
+                        style={{
+                          borderColor: isSelected ? color : (isRunning ? `${color}35` : 'var(--color-brd-subtle, rgba(255,255,255,0.08))'),
+                          background: isSelected ? `${color}0c` : (isRunning ? `${color}06` : undefined),
+                          boxShadow: isSelected ? `0 0 0 1px ${color}55` : undefined,
+                        }}>
                         {/* Category stripe */}
                         <div className="w-[3px] shrink-0" style={{ background: isRunning ? `linear-gradient(180deg, ${color}, ${color}88)` : color }} />
 
@@ -1085,11 +1092,13 @@ function SessionTimeline({ sessions, categories, projects, onDelete, onUpdatePro
                               </span>
                               {appCls && <TypeChip type={appCls.type} size="xs" />}
                               {onUpdateProject && (
-                                <SessionProjectPicker
-                                  session={s}
-                                  projects={projects || []}
-                                  onUpdateProject={onUpdateProject}
-                                />
+                                <span onClick={e => e.stopPropagation()}>
+                                  <SessionProjectPicker
+                                    session={s}
+                                    projects={projects || []}
+                                    onUpdateProject={onUpdateProject}
+                                  />
+                                </span>
                               )}
                             </div>
                           </div>
@@ -1104,7 +1113,7 @@ function SessionTimeline({ sessions, categories, projects, onDelete, onUpdatePro
                               }}>
                               {isRunning ? formatTimer(Math.floor(Date.now() / 1000) - s.started_at) : formatDuration(s.duration_seconds)}
                             </span>
-                            <button onClick={() => onDelete?.(s.id)}
+                            <button onClick={(e) => { e.stopPropagation(); if (selectedSessionId === s.id) onSelectSession?.(null); onDelete?.(s.id); }}
                               className="rounded-lg p-1.5 text-tx-faint opacity-0 transition hover:bg-status-red/10 hover:text-status-red group-hover:opacity-100">
                               <Trash2 size={12} />
                             </button>
@@ -1224,6 +1233,8 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
   const [newCatColor,  setNewCatColor]  = useState('#7c6cf2');
   const [showCatForm,  setShowCatForm]  = useState(false);
   const [projects,     setProjects]     = useState([]);
+  const [clients,      setClients]      = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [tasks,        setTasks]        = useState([]);
   const [selProjectId, setSelProjectId] = useState(null);
   const [selTaskId,    setSelTaskId]    = useState(null);
@@ -1252,6 +1263,7 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
   }, [user.id]);
 
   useEffect(() => { api.listProjects?.({ userId: user.id }).then(l => setProjects(l || [])); }, [user.id]);
+  useEffect(() => { api.listClients?.({ userId: user.id }).then(l => setClients(l || [])); }, [user.id]);
 
   useEffect(() => {
     if (!selProjectId) { setTasks([]); setSelTaskId(null); return; }
@@ -1263,6 +1275,11 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
   }, [selProjectId, user.id]);
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
+
+  const handleInspectorMutate = useCallback(async (nextSelectedId) => {
+    await loadSessions();
+    setSelectedSessionId(nextSelectedId);
+  }, [loadSessions]);
 
   // Set initial category when categories load and none is selected yet
   useEffect(() => {
@@ -1709,8 +1726,10 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
         </div>
       </section>
 
-      {/* Session log */}
-      <section className="fl-card overflow-hidden flex flex-col" style={{ minHeight: 520 }}>
+      {/* Session log + inspector — flex row so opening the inspector resizes
+          the log instead of covering it; both share this row's height. */}
+      <div className="flex min-w-0 gap-4" style={{ minHeight: 520 }}>
+      <section className="fl-card flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* Post-session card — shown at the top of the results column so it
             never displaces the Focus Session timer on the left */}
@@ -1785,10 +1804,16 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
                     {daySessions.map(s => {
                       const sColor = getCategoryColor(s.category, categories);
                       const isRunning = !s.ended_at;
+                      const isSelected = s.id === selectedSessionId;
                       return (
                       <div key={s.id}
-                        className="group relative flex items-stretch rounded-xl border border-brd-subtle bg-bg-input overflow-hidden transition-all duration-150 hover:border-brd-hover hover:bg-bg-hover/50 hover:shadow-sm"
-                        style={isRunning ? { borderColor: `${sColor}35`, background: `${sColor}06` } : undefined}>
+                        onClick={() => setSelectedSessionId(s.id)}
+                        className="group relative flex items-stretch rounded-xl border bg-bg-input overflow-hidden transition-all duration-150 hover:border-brd-hover hover:bg-bg-hover/50 hover:shadow-sm cursor-pointer"
+                        style={{
+                          borderColor: isSelected ? sColor : (isRunning ? `${sColor}35` : 'var(--color-brd-subtle, rgba(255,255,255,0.08))'),
+                          background: isSelected ? `${sColor}0c` : (isRunning ? `${sColor}06` : undefined),
+                          boxShadow: isSelected ? `0 0 0 1px ${sColor}55` : undefined,
+                        }}>
                         <div className="w-[3px] shrink-0" style={{ background: sColor }} />
                         <div className="flex min-w-0 flex-1 items-center gap-3 px-3.5 py-2.5">
                           <div className="min-w-0 flex-1">
@@ -1806,25 +1831,27 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
                                 <span className="mx-1 opacity-40">–</span>
                                 {s.ended_at ? formatTime(s.ended_at) : <span className="text-status-green animate-pulse">now</span>}
                               </span>
-                              <SessionProjectPicker
-                                session={s}
-                                projects={projects}
-                                onUpdateProject={async (sessionId, projectId, projectName, sess) => {
-                                  await api.updateSession?.({
-                                    sessionId,
-                                    title:     sess?.title     ?? null,
-                                    category:  sess?.category  ?? null,
-                                    notes:     sess?.notes     ?? null,
-                                    projectId: projectId       ?? null,
-                                    clientId:  sess?.client_id ?? null,
-                                  });
-                                  setSessions(prev => prev.map(x =>
-                                    x.id === sessionId
-                                      ? { ...x, project_id: projectId ?? null, project_name: projectName ?? null }
-                                      : x
-                                  ));
-                                }}
-                              />
+                              <span onClick={e => e.stopPropagation()}>
+                                <SessionProjectPicker
+                                  session={s}
+                                  projects={projects}
+                                  onUpdateProject={async (sessionId, projectId, projectName, sess) => {
+                                    await api.updateSession?.({
+                                      sessionId,
+                                      title:     sess?.title     ?? null,
+                                      category:  sess?.category  ?? null,
+                                      notes:     sess?.notes     ?? null,
+                                      projectId: projectId       ?? null,
+                                      clientId:  sess?.client_id ?? null,
+                                    });
+                                    setSessions(prev => prev.map(x =>
+                                      x.id === sessionId
+                                        ? { ...x, project_id: projectId ?? null, project_name: projectName ?? null }
+                                        : x
+                                    ));
+                                  }}
+                                />
+                              </span>
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
@@ -1836,7 +1863,9 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
                               }}>
                               {formatDuration(s.duration_seconds)}
                             </span>
-                            <button onClick={async () => {
+                            <button onClick={async (e) => {
+                              e.stopPropagation();
+                              if (selectedSessionId === s.id) setSelectedSessionId(null);
                               setSessions(p => p.filter(x => x.id !== s.id));
                               try { await api.deleteSession?.({ sessionId: s.id }); }
                               catch { setSessions(p => [...p, s].sort((a, b) => b.started_at - a.started_at)); }
@@ -1856,6 +1885,18 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
           )}
         </div>
       </section>
+
+      <SessionInspectorPanel
+        session={sessions.find(s => s.id === selectedSessionId) || null}
+        userId={user.id}
+        categories={categories}
+        projects={projects}
+        clients={clients}
+        recentSessions={sessions}
+        onClose={() => setSelectedSessionId(null)}
+        onAfterMutate={handleInspectorMutate}
+      />
+      </div>
 
     </div>
   );
@@ -1911,6 +1952,11 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
   useEffect(() => {
     api.listProjects?.({ userId: user.id }).then(l => setAutoProjects(l || [])).catch(() => {});
   }, [user.id]);
+  const [autoClients,      setAutoClients]      = useState([]);
+  useEffect(() => {
+    api.listClients?.({ userId: user.id }).then(l => setAutoClients(l || [])).catch(() => {});
+  }, [user.id]);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
 
   // ── Recent auto-sessions for AI (live window: last 30 min) ───────────────────
   const [recentAutoSessions, setRecentAutoSessions] = useState([]);
@@ -2012,6 +2058,11 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
     const t = setInterval(loadStats, 30_000);
     return () => clearInterval(t);
   }, [loadStats, activeSession]);
+
+  const handleAutoInspectorMutate = useCallback(async (nextId) => {
+    await loadStats();
+    setSelectedSessionId(nextId);
+  }, [loadStats]);
 
   // Keep stable refs in sync with their reactive counterparts
   useEffect(() => { trackingModeRef.current  = trackingMode;  }, [trackingMode]);
@@ -2455,14 +2506,31 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
               )}
             </div>
 
-            {/* Right column — session timeline */}
-            <SessionTimeline
-              sessions={todaySessions}
-              categories={categories}
-              projects={autoProjects}
-              onDelete={deleteSession}
-              onUpdateProject={updateSessionProject}
-            />
+            {/* Right column — session timeline + inspector, sharing one row so
+                opening the inspector resizes the timeline instead of covering it */}
+            <div className="flex min-w-0 flex-1 gap-4">
+              <div className="min-w-0 flex-1">
+                <SessionTimeline
+                  sessions={todaySessions}
+                  categories={categories}
+                  projects={autoProjects}
+                  onDelete={deleteSession}
+                  onUpdateProject={updateSessionProject}
+                  selectedSessionId={selectedSessionId}
+                  onSelectSession={setSelectedSessionId}
+                />
+              </div>
+              <SessionInspectorPanel
+                session={todaySessions.find(s => s.id === selectedSessionId) || null}
+                userId={user.id}
+                categories={categories}
+                projects={autoProjects}
+                clients={autoClients}
+                recentSessions={todaySessions}
+                onClose={() => setSelectedSessionId(null)}
+                onAfterMutate={handleAutoInspectorMutate}
+              />
+            </div>
           </div>
 
         ) : (

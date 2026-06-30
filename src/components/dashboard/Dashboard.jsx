@@ -390,6 +390,25 @@ export default function Dashboard() {
     return () => cleanup?.();
   }, []);
 
+  // Keep the main process in sync with the "Desktop notifications" toggle —
+  // it lives in renderer localStorage, but break reminders are scheduled and
+  // fired from the main process so it can show them even while minimized.
+  useEffect(() => {
+    api.syncDesktopNotifPref?.({ enabled: prefs.desktopNotifications !== false });
+  }, [prefs.desktopNotifications]);
+
+  // One-time notice when the OS doesn't support native notifications at all —
+  // break reminders still work, just as the in-app card instead.
+  useEffect(() => {
+    const cleanup = api.onBreakNotifUnavailable?.(() => {
+      pushToast('info', 'Desktop notifications unavailable',
+        'Your system doesn’t support native notifications — break reminders will show in-app instead.',
+        { priority: 'low' }
+      );
+    });
+    return () => cleanup?.();
+  }, []);
+
   useEffect(() => {
     const handler = (e) => {
       // Command palette — respects the user's configured shortcut (default Ctrl+K)

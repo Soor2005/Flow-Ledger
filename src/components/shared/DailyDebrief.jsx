@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  X, TrendingUp, Clock, Zap, Target, Star, Award,
+  X, TrendingUp, Clock, Zap, Target, Award,
   Flame, BarChart2, ArrowUp, ArrowDown, Minus,
-  Brain, Trophy, ChevronRight, Activity, Sparkles,
+  Brain, Trophy, ChevronRight, Activity,
 } from 'lucide-react';
 
 const api = window.electron || {};
@@ -27,115 +27,95 @@ function fmtHour(h) {
 }
 
 // ─── Theme palette ────────────────────────────────────────────────────────────
+// Deliberately restrained: one accent color, flat surfaces, no gradients/glow.
+// Text contrast is kept high — "faint" still needs to be comfortably readable,
+// not decorative.
 function buildTheme(isLight) {
   return isLight ? {
-    overlay:        'rgba(80,70,120,0.35)',
+    overlay:        'rgba(40,35,70,0.40)',
     modalBg:        '#FFFFFF',
-    modalBorder:    'rgba(124,108,242,0.22)',
-    modalShadow:    '0 32px 80px rgba(100,80,200,0.18), 0 0 0 1px rgba(124,108,242,0.12)',
-    headerBg:       'linear-gradient(135deg, rgba(124,108,242,0.09) 0%, rgba(124,108,242,0.03) 60%, transparent 100%)',
-    headerBorder:   'rgba(124,108,242,0.14)',
-    iconBoxBg:      'rgba(124,108,242,0.12)',
-    iconBoxBorder:  'rgba(124,108,242,0.28)',
-    iconBoxShadow:  '0 0 16px rgba(124,108,242,0.15)',
-    closeHoverBg:   'rgba(0,0,0,0.06)',
+    modalBorder:    '#E4E1F0',
+    modalShadow:    '0 24px 60px rgba(40,30,90,0.16)',
+    headerBorder:   '#ECEAF6',
+    closeBg:        'transparent',
+    closeHoverBg:   '#F1EFFA',
     bodyBg:         'transparent',
-    heroBg:         'linear-gradient(135deg, rgba(124,108,242,0.07) 0%, rgba(124,108,242,0.02) 100%)',
-    heroBorder:     'rgba(124,108,242,0.2)',
-    summaryBg:      'rgba(124,108,242,0.06)',
-    summaryBorder:  'rgba(124,108,242,0.2)',
-    summaryLeft:    'rgba(124,108,242,0.5)',
-    summaryText:    '#4A3B8A',
-    cardBg:         '#F8F5FF',
-    cardBorder:     'rgba(124,108,242,0.14)',
-    cardBorder2:    'rgba(124,108,242,0.1)',
-    statLabelColor: '#7D769A',
-    textPrimary:    '#1E1B2E',
-    textSecondary:  '#3D3560',
-    textMuted:      '#6B64A0',
-    textFaint:      '#9B94C4',
-    textFaintest:   '#B8B0D8',
-    sectionLabel:   '#6D5ACE',
-    sectionIconBg:  (c) => `${c}18`,
-    arcTrack:       'rgba(124,108,242,0.12)',
-    heatBarEmpty:   'rgba(124,108,242,0.07)',
-    prodBarTrack:   'rgba(124,108,242,0.08)',
-    appBarTrack:    'rgba(0,0,0,0.06)',
-    tomorrowBg:     'linear-gradient(135deg, rgba(124,108,242,0.07), rgba(124,108,242,0.02))',
-    tomorrowBorder: 'rgba(124,108,242,0.18)',
-    tomorrowIconBg: 'rgba(124,108,242,0.1)',
-    tomorrowIconBd: 'rgba(124,108,242,0.2)',
-    footerBg:       'rgba(248,245,255,0.6)',
-    footerBorder:   'rgba(124,108,242,0.12)',
-    footerTextColor:'#9B94C4',
-    spinnerBorder:  '2px solid rgba(124,108,242,0.15)',
-    spinnerTop:     '#7c6cf2',
-    divider:        'rgba(124,108,242,0.1)',
-    btnBg:          'linear-gradient(135deg, #7c6cf2, #6366F1)',
-    btnShadow:      '0 4px 14px rgba(124,108,242,0.35)',
-    btnShadowHover: '0 6px 20px rgba(124,108,242,0.5)',
+    summaryBg:      '#F6F4FD',
+    summaryBorder:  '#E4E1F0',
+    summaryText:    '#3A3460',
+    cardBg:         '#FAFAFE',
+    cardBg2:        '#FFFFFF',
+    cardBorder:     '#E9E7F3',
+    statLabelColor: '#6A6486',
+    textPrimary:    '#1C1A2B',
+    textSecondary:  '#46415F',
+    textMuted:      '#6A6486',
+    textFaint:      '#857FA0',
+    textFaintest:   '#A6A1C0',
+    sectionLabel:   '#564FA6',
+    arcTrack:       '#EDEBF7',
+    heatBarEmpty:   '#EDEBF7',
+    prodBarTrack:   '#EDEBF7',
+    appBarTrack:    '#EDEBF7',
+    nudgeBg:        '#F6F4FD',
+    nudgeBorder:    '#E4E1F0',
+    footerBg:       '#FAFAFE',
+    footerBorder:   '#ECEAF6',
+    footerTextColor:'#857FA0',
+    spinnerBorder:  '2px solid #E9E7F3',
+    spinnerTop:     '#7C6CF2',
+    btnBg:          '#7C6CF2',
+    btnHoverBg:     '#6D5DE0',
   } : {
-    overlay:        'rgba(0,0,0,0.75)',
-    modalBg:        '#0E1118',
-    modalBorder:    'rgba(124,108,242,0.2)',
-    modalShadow:    '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,108,242,0.1), 0 0 60px rgba(124,108,242,0.05)',
-    headerBg:       'linear-gradient(135deg, rgba(124,108,242,0.12) 0%, rgba(124,108,242,0.04) 60%, transparent 100%)',
-    headerBorder:   'rgba(255,255,255,0.06)',
-    iconBoxBg:      'linear-gradient(135deg, rgba(124,108,242,0.3), rgba(124,108,242,0.1))',
-    iconBoxBorder:  'rgba(124,108,242,0.35)',
-    iconBoxShadow:  '0 0 20px rgba(124,108,242,0.25)',
-    closeHoverBg:   'rgba(255,255,255,0.06)',
+    overlay:        'rgba(0,0,0,0.72)',
+    modalBg:        '#13151D',
+    modalBorder:    '#262A38',
+    modalShadow:    '0 24px 60px rgba(0,0,0,0.5)',
+    headerBorder:   '#23262F',
+    closeBg:        'transparent',
+    closeHoverBg:   '#1E212B',
     bodyBg:         'transparent',
-    heroBg:         'linear-gradient(135deg, rgba(124,108,242,0.07) 0%, rgba(124,108,242,0.02) 100%)',
-    heroBorder:     'rgba(124,108,242,0.18)',
-    summaryBg:      'rgba(124,108,242,0.06)',
-    summaryBorder:  'rgba(124,108,242,0.18)',
-    summaryLeft:    'rgba(124,108,242,0.6)',
-    summaryText:    '#C4B5FD',
-    cardBg:         '#111420',
-    cardBorder:     'rgba(255,255,255,0.06)',
-    cardBorder2:    'rgba(255,255,255,0.05)',
-    statLabelColor: '#4B5263',
-    textPrimary:    '#EAEAF0',
-    textSecondary:  '#9CA3AF',
-    textMuted:      '#6B7280',
-    textFaint:      '#4B5263',
-    textFaintest:   '#3A404F',
-    sectionLabel:   '#C4B5FD',
-    sectionIconBg:  (c) => `${c}18`,
-    arcTrack:       'rgba(255,255,255,0.05)',
-    heatBarEmpty:   'rgba(255,255,255,0.04)',
-    prodBarTrack:   'rgba(255,255,255,0.04)',
-    appBarTrack:    'rgba(255,255,255,0.05)',
-    tomorrowBg:     'linear-gradient(135deg, rgba(124,108,242,0.08), rgba(124,108,242,0.03))',
-    tomorrowBorder: 'rgba(124,108,242,0.2)',
-    tomorrowIconBg: 'rgba(124,108,242,0.15)',
-    tomorrowIconBd: 'rgba(124,108,242,0.28)',
-    footerBg:       'rgba(0,0,0,0.2)',
-    footerBorder:   'rgba(255,255,255,0.06)',
-    footerTextColor:'#3A404F',
-    spinnerBorder:  '2px solid rgba(124,108,242,0.2)',
-    spinnerTop:     '#7c6cf2',
-    divider:        'rgba(255,255,255,0.06)',
-    btnBg:          'linear-gradient(135deg, #7c6cf2, #6366F1)',
-    btnShadow:      '0 4px 14px rgba(124,108,242,0.4)',
-    btnShadowHover: '0 6px 20px rgba(124,108,242,0.55)',
+    summaryBg:      '#181B25',
+    summaryBorder:  '#262A38',
+    summaryText:    '#C7C2EE',
+    cardBg:         '#181B25',
+    cardBg2:        '#1C1F2A',
+    cardBorder:     '#262A38',
+    statLabelColor: '#777E94',
+    textPrimary:    '#F1F1F6',
+    textSecondary:  '#C2C6D4',
+    textMuted:      '#9298AC',
+    textFaint:      '#777E94',
+    textFaintest:   '#565D72',
+    sectionLabel:   '#B6AEEC',
+    arcTrack:       '#23262F',
+    heatBarEmpty:   '#1E212B',
+    prodBarTrack:   '#1E212B',
+    appBarTrack:    '#23262F',
+    nudgeBg:        '#181B25',
+    nudgeBorder:    '#262A38',
+    footerBg:       '#0F1117',
+    footerBorder:   '#23262F',
+    footerTextColor:'#565D72',
+    spinnerBorder:  '2px solid #262A38',
+    spinnerTop:     '#7C6CF2',
+    btnBg:          '#7C6CF2',
+    btnHoverBg:     '#8B7DF5',
   };
 }
 
 // ─── Circular arc progress ────────────────────────────────────────────────────
-function ArcProgress({ percent, size = 110, strokeWidth = 9, arcTrack }) {
+function ArcProgress({ percent, size = 104, strokeWidth = 8, arcTrack }) {
   const r = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;
   const filled = (Math.min(percent, 100) / 100) * circumference;
-  const color = percent >= 100 ? '#34D399' : percent >= 75 ? '#7c6cf2' : percent >= 50 ? '#A78BFA' : '#FBBF24';
-  const glow  = percent >= 100 ? 'rgba(52,211,153,0.5)' : 'rgba(124,108,242,0.5)';
+  const color = percent >= 100 ? '#34D399' : '#7C6CF2';
   return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', filter: `drop-shadow(0 0 6px ${glow})` }}>
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={arcTrack} strokeWidth={strokeWidth} />
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
         strokeDasharray={`${filled} ${circumference}`} strokeLinecap="round"
-        style={{ transition: 'stroke-dasharray 1s cubic-bezier(0.34,1.56,0.64,1)' }} />
+        style={{ transition: 'stroke-dasharray 0.8s ease' }} />
     </svg>
   );
 }
@@ -153,23 +133,21 @@ function HourHeatmap({ sessions = [], from, T }) {
     }
   });
   const maxVal = Math.max(...slots.slice(6, 22), 1);
-  const MAX_H  = 28;
+  const peakHour = slots.indexOf(maxVal);
+  const MAX_H  = 32;
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: MAX_H + 14 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: MAX_H + 14 }}>
       {Array.from({ length: 16 }, (_, i) => i + 6).map(h => {
         const secs = slots[h];
         const barH = secs > 0 ? Math.max(Math.round((secs / maxVal) * MAX_H), 3) : 2;
-        const intensity = secs / maxVal;
+        const isPeak = h === peakHour && secs > 0;
         return (
-          <div key={h} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <div key={h} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <div style={{ width: '100%', height: MAX_H, display: 'flex', alignItems: 'flex-end' }}>
               <div style={{
-                width: '100%', height: barH, borderRadius: 3,
-                background: secs > 0
-                  ? `rgba(124,108,242,${0.25 + intensity * 0.75})`
-                  : T.heatBarEmpty,
-                boxShadow: secs > 0 && intensity > 0.6 ? '0 0 6px rgba(124,108,242,0.4)' : 'none',
-                transition: 'height 0.5s ease',
+                width: '100%', height: barH, borderRadius: 2,
+                background: secs > 0 ? (isPeak ? '#7C6CF2' : '#7C6CF299') : T.heatBarEmpty,
+                transition: 'height 0.4s ease',
               }} />
             </div>
             {h % 3 === 0 && (
@@ -188,33 +166,29 @@ function HourHeatmap({ sessions = [], from, T }) {
 function ProductivityBar({ deepSecs, focusSecs, meetSecs, breakSecs, totalSecs, T }) {
   if (!totalSecs) return null;
   const segs = [
-    { label: 'Deep Work', secs: deepSecs,  color: '#34D399', grad: 'linear-gradient(90deg,#34D399,#10B981)' },
-    { label: 'Focus',     secs: focusSecs, color: '#818CF8', grad: 'linear-gradient(90deg,#9D8FF5,#818CF8)' },
-    { label: 'Meetings',  secs: meetSecs,  color: '#F87171', grad: 'linear-gradient(90deg,#F87171,#EF4444)' },
-    { label: 'Breaks',    secs: breakSecs, color: '#FBBF24', grad: 'linear-gradient(90deg,#FBBF24,#F59E0B)' },
+    { label: 'Deep Work', secs: deepSecs,  color: '#34D399' },
+    { label: 'Focus',     secs: focusSecs, color: '#818CF8' },
+    { label: 'Meetings',  secs: meetSecs,  color: '#F87171' },
+    { label: 'Breaks',    secs: breakSecs, color: '#FBBF24' },
   ].filter(s => s.secs > 0);
   if (!segs.length) return null;
   return (
     <div>
-      <div style={{ height: 10, borderRadius: 99, overflow: 'hidden', display: 'flex', gap: 2, background: T.prodBarTrack, padding: 2, boxSizing: 'border-box' }}>
-        {segs.map((s, i) => (
+      <div style={{ height: 8, borderRadius: 4, overflow: 'hidden', display: 'flex', gap: 1.5, background: T.prodBarTrack }}>
+        {segs.map(s => (
           <div key={s.label} style={{
             width: `${(s.secs / totalSecs) * 100}%`, height: '100%',
-            background: s.grad,
-            borderRadius: i === 0 ? '99px 4px 4px 99px' : i === segs.length - 1 ? '4px 99px 99px 4px' : 4,
-            minWidth: 4,
-            boxShadow: `0 0 6px ${s.color}50`,
-            transition: 'width 0.6s cubic-bezier(0.4,0,0.2,1)',
+            background: s.color, minWidth: 3,
+            transition: 'width 0.5s ease',
           }} />
         ))}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 14px', marginTop: 9 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginTop: 10 }}>
         {segs.map(s => (
-          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 7, height: 7, borderRadius: 2, background: s.color, boxShadow: `0 0 4px ${s.color}60` }} />
-            <span style={{ fontSize: 9.5, color: T.textMuted }}>{s.label}</span>
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: T.textSecondary }}>{fmt(s.secs)}</span>
-            <span style={{ fontSize: 9, color: T.textFaint }}>{pct(s.secs, totalSecs)}%</span>
+          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 7, height: 7, borderRadius: 2, background: s.color }} />
+            <span style={{ fontSize: 10.5, color: T.textMuted }}>{s.label}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: T.textSecondary }}>{fmt(s.secs)}</span>
           </div>
         ))}
       </div>
@@ -223,22 +197,34 @@ function ProductivityBar({ deepSecs, focusSecs, meetSecs, breakSecs, totalSecs, 
 }
 
 // ─── Section header ────────────────────────────────────────────────────────────
-function SectionHead({ icon: Icon, label, sub, T, color = '#7c6cf2' }) {
+function SectionHead({ icon: Icon, label, sub, T }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <div style={{
-          width: 22, height: 22, borderRadius: 6,
-          background: `${color}18`, border: `1px solid ${color}25`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Icon size={11} style={{ color }} />
-        </div>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: T.sectionLabel, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          {label}
-        </span>
+        <Icon size={13} style={{ color: T.sectionLabel }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary }}>{label}</span>
       </div>
-      {sub && <span style={{ fontSize: 9.5, color: T.textFaint }}>{sub}</span>}
+      {sub && <span style={{ fontSize: 10.5, color: T.textFaint, fontWeight: 500 }}>{sub}</span>}
+    </div>
+  );
+}
+
+// ─── Stat tile ────────────────────────────────────────────────────────────────
+function StatTile({ label, value, sub, icon: Icon, color, T }) {
+  return (
+    <div style={{
+      padding: '13px 13px 12px',
+      background: T.cardBg,
+      border: `1px solid ${T.cardBorder}`,
+      borderRadius: 12,
+      display: 'flex', flexDirection: 'column', gap: 4,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 1 }}>
+        <Icon size={12} style={{ color, flexShrink: 0 }} />
+        <span style={{ fontSize: 9.5, fontWeight: 600, color: T.statLabelColor }}>{label}</span>
+      </div>
+      <span style={{ fontSize: 19, fontWeight: 800, color: T.textPrimary, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      <span style={{ fontSize: 10, color: T.textFaint }}>{sub}</span>
     </div>
   );
 }
@@ -247,9 +233,18 @@ function SectionHead({ icon: Icon, label, sub, T, color = '#7c6cf2' }) {
 export default function DailyDebrief({ user, onClose }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
+  const [visible, setVisible] = useState(false);
 
   const isLight = document.documentElement.classList.contains('theme-light');
   const T = useMemo(() => buildTheme(isLight), [isLight]);
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -348,114 +343,99 @@ export default function DailyDebrief({ user, onClose }) {
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: T.overlay, backdropFilter: 'blur(6px)',
+        background: T.overlay,
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 200ms ease',
       }}>
       <div style={{
-        width: 560, maxHeight: '90vh', overflow: 'hidden',
+        width: 560, maxHeight: '88vh', overflow: 'hidden',
         display: 'flex', flexDirection: 'column',
         background: T.modalBg,
         border: `1px solid ${T.modalBorder}`,
-        borderRadius: 20,
+        borderRadius: 16,
         boxShadow: T.modalShadow,
+        transform: visible ? 'translateY(0)' : 'translateY(8px)',
+        opacity: visible ? 1 : 0,
+        transition: 'transform 220ms ease, opacity 200ms ease',
       }}>
 
         {/* ── Header ──────────────────────────────────────────────────────────── */}
         <div style={{
-          padding: '18px 20px 16px',
-          background: T.headerBg,
+          padding: '18px 22px',
           borderBottom: `1px solid ${T.headerBorder}`,
           flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: T.iconBoxBg,
-                border: `1px solid ${T.iconBoxBorder}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: T.iconBoxShadow,
-              }}>
-                <Star size={18} style={{ color: '#A78BFA' }} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 800, color: T.textPrimary, letterSpacing: '-0.02em', margin: 0 }}>
-                  Daily Debrief
-                </h3>
-                <p style={{ fontSize: 11, color: T.textFaint, margin: 0, marginTop: 1 }}>
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-            </div>
-            <button onClick={onClose} style={{
-              width: 28, height: 28, borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'transparent', border: `1px solid ${T.cardBorder}`,
-              cursor: 'pointer', color: T.textFaint, transition: 'all 0.15s',
-            }}
-              onMouseOver={e => { e.currentTarget.style.background = T.closeHoverBg; e.currentTarget.style.color = T.textSecondary; }}
-              onMouseOut={e  => { e.currentTarget.style.background = 'transparent';  e.currentTarget.style.color = T.textFaint; }}>
-              <X size={13} />
-            </button>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: T.textPrimary, margin: 0 }}>
+              Daily Debrief
+            </h3>
+            <p style={{ fontSize: 11.5, color: T.textMuted, margin: 0, marginTop: 2 }}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
           </div>
+          <button onClick={onClose} style={{
+            width: 28, height: 28, borderRadius: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: T.closeBg, border: `1px solid ${T.cardBorder}`,
+            cursor: 'pointer', color: T.textMuted, transition: 'background 0.12s',
+          }}
+            onMouseOver={e => { e.currentTarget.style.background = T.closeHoverBg; }}
+            onMouseOut={e  => { e.currentTarget.style.background = T.closeBg; }}>
+            <X size={14} />
+          </button>
         </div>
 
         {/* ── Scrollable body ──────────────────────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', background: T.bodyBg }}>
           {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220, flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, flexDirection: 'column', gap: 10 }}>
               <div style={{
-                width: 28, height: 28, borderRadius: '50%',
+                width: 26, height: 26, borderRadius: '50%',
                 border: T.spinnerBorder,
                 borderTopColor: T.spinnerTop,
                 animation: 'spin 0.8s linear infinite',
               }} />
-              <p style={{ fontSize: 12, color: T.textFaint }}>Loading your day…</p>
+              <p style={{ fontSize: 12, color: T.textMuted }}>Loading your day…</p>
             </div>
           ) : (
-            <div style={{ padding: '20px 20px 0' }}>
+            <div style={{ padding: '20px 22px 0' }}>
 
-              {/* ── Hero: Arc + totals ────────────────────────────────────────── */}
+              {/* ── Time logged + goal arc ───────────────────────────────────── */}
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 20, padding: '18px 20px',
-                background: T.heroBg, border: `1px solid ${T.heroBorder}`,
-                borderRadius: 16, marginBottom: 14,
+                display: 'flex', alignItems: 'center', gap: 20, padding: '16px 18px',
+                background: T.cardBg, border: `1px solid ${T.cardBorder}`,
+                borderRadius: 14, marginBottom: 14,
               }}>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <ArcProgress percent={data.goalPct} size={110} strokeWidth={9} arcTrack={T.arcTrack} />
+                  <ArcProgress percent={data.goalPct} size={104} strokeWidth={8} arcTrack={T.arcTrack} />
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 22, fontWeight: 900, color: data.goalMet ? '#34D399' : T.textPrimary, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 19, fontWeight: 800, color: data.goalMet ? '#34D399' : T.textPrimary, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
                       {data.goalPct}%
                     </span>
-                    <span style={{ fontSize: 8.5, color: T.textFaint, marginTop: 2, letterSpacing: '0.06em', textTransform: 'uppercase' }}>of goal</span>
+                    <span style={{ fontSize: 8.5, color: T.textFaint, marginTop: 2 }}>of goal</span>
                   </div>
                 </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 9 }}>
                   <div>
-                    <p style={{ fontSize: 10.5, color: T.textFaint, marginBottom: 2, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Time Logged</p>
-                    <p style={{ fontSize: 28, fontWeight: 900, color: T.textPrimary, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmt(data.totalSecs)}</p>
-                    <p style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>target {fmt(data.target)}/day</p>
+                    <p style={{ fontSize: 10.5, color: T.textMuted, marginBottom: 3, fontWeight: 600 }}>Time logged today</p>
+                    <p style={{ fontSize: 26, fontWeight: 800, color: T.textPrimary, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmt(data.totalSecs)}</p>
+                    <p style={{ fontSize: 10.5, color: T.textFaint, marginTop: 3 }}>Target {fmt(data.target)}/day</p>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {data.goalMet && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 99, background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.25)' }}>
-                        <Award size={10} style={{ color: '#34D399' }} />
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#34D399' }}>Goal reached!</span>
-                      </div>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#34D399' }}>
+                        <Award size={11} /> Goal reached
+                      </span>
                     )}
                     {data.vsYesterday !== null && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 99,
-                        background: data.vsYesterday > 0 ? 'rgba(52,211,153,0.1)' : data.vsYesterday < 0 ? 'rgba(248,113,113,0.1)' : 'rgba(124,108,242,0.08)',
-                        border: `1px solid ${data.vsYesterday > 0 ? 'rgba(52,211,153,0.22)' : data.vsYesterday < 0 ? 'rgba(248,113,113,0.22)' : 'rgba(124,108,242,0.18)'}`,
-                      }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600,
+                        color: data.vsYesterday > 0 ? '#34D399' : data.vsYesterday < 0 ? '#F87171' : T.textMuted }}>
                         {data.vsYesterday > 0
-                          ? <ArrowUp size={9} style={{ color: '#34D399' }} />
-                          : data.vsYesterday < 0
-                            ? <ArrowDown size={9} style={{ color: '#F87171' }} />
-                            : <Minus size={9} style={{ color: '#7c6cf2' }} />}
-                        <span style={{ fontSize: 10, fontWeight: 700, color: data.vsYesterday > 0 ? '#34D399' : data.vsYesterday < 0 ? '#F87171' : '#7c6cf2' }}>
-                          {data.vsYesterday > 0 ? '+' : ''}{data.vsYesterday}% vs yesterday
-                        </span>
-                      </div>
+                          ? <ArrowUp size={11} />
+                          : data.vsYesterday < 0 ? <ArrowDown size={11} /> : <Minus size={11} />}
+                        {data.vsYesterday > 0 ? '+' : ''}{data.vsYesterday}% vs yesterday
+                      </span>
                     )}
                   </div>
                 </div>
@@ -463,68 +443,37 @@ export default function DailyDebrief({ user, onClose }) {
 
               {/* ── Summary ───────────────────────────────────────────────────── */}
               <div style={{
-                padding: '13px 15px', borderRadius: 13, marginBottom: 14,
-                background: T.summaryBg,
-                border: `1px solid ${T.summaryBorder}`,
-                borderLeft: `3px solid ${T.summaryLeft}`,
+                padding: '12px 15px', borderRadius: 12, marginBottom: 14,
+                background: T.summaryBg, border: `1px solid ${T.summaryBorder}`,
               }}>
-                <p style={{ fontSize: 12, color: T.summaryText, lineHeight: 1.65, margin: 0 }}>{data.summary}</p>
+                <p style={{ fontSize: 12, color: T.summaryText, lineHeight: 1.6, margin: 0 }}>{data.summary}</p>
               </div>
 
-              {/* ── 4 stats ───────────────────────────────────────────────────── */}
+              {/* ── 4 stat tiles ──────────────────────────────────────────────── */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
-                {[
-                  {
-                    label: 'Focus Score',
-                    value: data.focusScore > 0 ? data.focusScore : '—',
-                    sub:   data.focusScore >= 80 ? 'Exceptional' : data.focusScore >= 60 ? 'Good' : data.focusScore > 0 ? 'Building' : 'No data',
-                    icon: Brain,
-                    color: data.focusScore >= 80 ? '#34D399' : data.focusScore >= 60 ? '#818CF8' : '#FBBF24',
-                  },
-                  {
-                    label: 'Sessions',
-                    value: data.sessionCount,
-                    sub:   data.avgSessionMins > 0 ? `${data.avgSessionMins}m avg` : '—',
-                    icon: Activity,
-                    color: '#60A5FA',
-                  },
-                  {
-                    label: 'Deep Work',
-                    value: data.deepSecs > 0 ? fmt(data.deepSecs) : `${data.deepCount}`,
-                    sub:   data.deepSecs > 0 ? `${data.deepCount} block${data.deepCount!==1?'s':''}` : 'sessions ≥25m',
-                    icon: Zap,
-                    color: '#34D399',
-                  },
-                  {
-                    label: 'Streak',
-                    value: data.streak > 0 ? `${data.streak}d` : '—',
-                    sub:   data.streak >= 7 ? '🔥 On fire!' : data.streak >= 3 ? 'Keep it up' : data.streak > 0 ? 'Just started' : 'Start today',
-                    icon: Flame,
-                    color: data.streak >= 7 ? '#FB923C' : data.streak >= 3 ? '#FBBF24' : T.textFaint,
-                  },
-                ].map(({ label, value, sub, icon: Icon, color }) => (
-                  <div key={label} style={{
-                    padding: '12px 12px 11px',
-                    background: T.cardBg,
-                    border: `1px solid ${T.cardBorder}`,
-                    borderRadius: 13,
-                    display: 'flex', flexDirection: 'column', gap: 3,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                      <Icon size={11} style={{ color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 8.5, fontWeight: 700, color: T.statLabelColor, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
-                    </div>
-                    <span style={{ fontSize: 20, fontWeight: 900, color: T.textPrimary, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-                    <span style={{ fontSize: 9, color: T.textFaint, lineHeight: 1.3 }}>{sub}</span>
-                  </div>
-                ))}
+                <StatTile T={T} icon={Brain} label="FOCUS SCORE"
+                  value={data.focusScore > 0 ? data.focusScore : '—'}
+                  sub={data.focusScore >= 80 ? 'Exceptional' : data.focusScore >= 60 ? 'Good' : data.focusScore > 0 ? 'Building' : 'No data'}
+                  color="#818CF8" />
+                <StatTile T={T} icon={Activity} label="SESSIONS"
+                  value={data.sessionCount}
+                  sub={data.avgSessionMins > 0 ? `${data.avgSessionMins}m avg` : '—'}
+                  color="#60A5FA" />
+                <StatTile T={T} icon={Zap} label="DEEP WORK"
+                  value={data.deepSecs > 0 ? fmt(data.deepSecs) : `${data.deepCount}`}
+                  sub={data.deepSecs > 0 ? `${data.deepCount} block${data.deepCount!==1?'s':''}` : 'sessions ≥25m'}
+                  color="#34D399" />
+                <StatTile T={T} icon={Flame} label="STREAK"
+                  value={data.streak > 0 ? `${data.streak}d` : '—'}
+                  sub={data.streak >= 7 ? 'On fire' : data.streak >= 3 ? 'Keep it up' : data.streak > 0 ? 'Just started' : 'Start today'}
+                  color={data.streak >= 3 ? '#FB923C' : T.textFaint} />
               </div>
 
               {/* ── Productivity Mix ──────────────────────────────────────────── */}
               {data.totalSecs > 0 && (data.deepSecs + data.focusSecs + data.meetSecs + data.breakSecs > 0) && (
                 <div style={{
                   padding: '14px 16px', background: T.cardBg,
-                  border: `1px solid ${T.cardBorder}`, borderRadius: 14, marginBottom: 14,
+                  border: `1px solid ${T.cardBorder}`, borderRadius: 14, marginBottom: 12,
                 }}>
                   <SectionHead icon={BarChart2} label="Productivity Mix" sub={fmt(data.totalSecs) + ' total'} T={T} />
                   <ProductivityBar
@@ -539,50 +488,50 @@ export default function DailyDebrief({ user, onClose }) {
               {data.sessions.length > 0 && (
                 <div style={{
                   padding: '14px 16px', background: T.cardBg,
-                  border: `1px solid ${T.cardBorder}`, borderRadius: 14, marginBottom: 14,
+                  border: `1px solid ${T.cardBorder}`, borderRadius: 14, marginBottom: 12,
                 }}>
                   <SectionHead icon={Clock} label="Activity Timeline"
                     sub={data.peakHourLabel ? `Peak at ${data.peakHourLabel}` : undefined} T={T} />
                   <HourHeatmap sessions={data.sessions} from={data.from} T={T} />
-                  <p style={{ fontSize: 9, color: T.textFaintest, marginTop: 6, textAlign: 'center' }}>6am — 10pm</p>
+                  <p style={{ fontSize: 9.5, color: T.textFaintest, marginTop: 8, textAlign: 'center' }}>6am — 10pm</p>
                 </div>
               )}
 
               {/* ── Best session + Yesterday ──────────────────────────────────── */}
               {(data.bestSession || data.vsYesterday !== null) && (
-                <div style={{ display: 'grid', gridTemplateColumns: data.bestSession && data.vsYesterday !== null ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: data.bestSession && data.vsYesterday !== null ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 12 }}>
                   {data.bestSession && (
                     <div style={{ padding: '13px 14px', background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                        <Trophy size={11} style={{ color: '#FBBF24' }} />
-                        <span style={{ fontSize: 9, fontWeight: 700, color: T.statLabelColor, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Best Session</span>
+                        <Trophy size={12} style={{ color: '#FBBF24' }} />
+                        <span style={{ fontSize: 9.5, fontWeight: 600, color: T.statLabelColor }}>Best Session</span>
                       </div>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+                      <p style={{ fontSize: 12.5, fontWeight: 700, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
                         {data.bestSession.title}
                       </p>
-                      <p style={{ fontSize: 11, color: '#7c6cf2', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(data.bestSession.secs)}</p>
+                      <p style={{ fontSize: 11.5, color: T.textSecondary, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(data.bestSession.secs)}</p>
                     </div>
                   )}
                   {data.vsYesterday !== null && (
                     <div style={{ padding: '13px 14px', background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                        <TrendingUp size={11} style={{ color: '#60A5FA' }} />
-                        <span style={{ fontSize: 9, fontWeight: 700, color: T.statLabelColor, textTransform: 'uppercase', letterSpacing: '0.08em' }}>vs Yesterday</span>
+                        <TrendingUp size={12} style={{ color: '#60A5FA' }} />
+                        <span style={{ fontSize: 9.5, fontWeight: 600, color: T.statLabelColor }}>vs Yesterday</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 3 }}>
                         <span style={{
-                          fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                          fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
                           color: data.vsYesterday > 0 ? '#34D399' : data.vsYesterday < 0 ? '#F87171' : T.textMuted,
                         }}>
                           {data.vsYesterday > 0 ? '+' : ''}{data.vsYesterday}%
                         </span>
                         {data.vsYesterday > 0
-                          ? <ArrowUp size={14} style={{ color: '#34D399' }} />
+                          ? <ArrowUp size={13} style={{ color: '#34D399' }} />
                           : data.vsYesterday < 0
-                            ? <ArrowDown size={14} style={{ color: '#F87171' }} />
-                            : <Minus size={14} style={{ color: T.textMuted }} />}
+                            ? <ArrowDown size={13} style={{ color: '#F87171' }} />
+                            : <Minus size={13} style={{ color: T.textMuted }} />}
                       </div>
-                      <p style={{ fontSize: 9.5, color: T.textFaint }}>Yesterday: {fmt(data.yTotal)}</p>
+                      <p style={{ fontSize: 10.5, color: T.textFaint }}>Yesterday: {fmt(data.yTotal)}</p>
                     </div>
                   )}
                 </div>
@@ -592,10 +541,10 @@ export default function DailyDebrief({ user, onClose }) {
               {data.topApps.length > 0 && (
                 <div style={{
                   padding: '14px 16px', background: T.cardBg,
-                  border: `1px solid ${T.cardBorder}`, borderRadius: 14, marginBottom: 14,
+                  border: `1px solid ${T.cardBorder}`, borderRadius: 14, marginBottom: 12,
                 }}>
                   <SectionHead icon={Activity} label="Top Applications" sub={`${data.topApps.length} apps`} T={T} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {data.topApps.map(({ app, secs }, idx) => {
                       const barPct  = pct(secs, data.topApps[0].secs);
                       const timePct = pct(secs, data.totalSecs || data.topApps[0].secs);
@@ -603,30 +552,25 @@ export default function DailyDebrief({ user, onClose }) {
                       const isTop   = idx === 0;
                       return (
                         <div key={app} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{
-                            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                            background: `${color}18`, border: `1px solid ${color}28`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, color }}>{(app[0]||'?').toUpperCase()}</span>
-                          </div>
+                          <span style={{ width: 14, fontSize: 10.5, fontWeight: 700, color: T.textFaint, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                            {idx + 1}
+                          </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                              <span style={{ fontSize: 11, fontWeight: isTop ? 700 : 500, color: isTop ? T.textPrimary : T.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 11.5, fontWeight: isTop ? 700 : 500, color: isTop ? T.textPrimary : T.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {app}
                               </span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
-                                <span style={{ fontSize: 9.5, fontWeight: 700, color: T.textSecondary, fontVariantNumeric: 'tabular-nums' }}>{fmt(secs)}</span>
-                                {timePct > 0 && <span style={{ fontSize: 9, color: T.textFaint }}>{timePct}%</span>}
+                                <span style={{ fontSize: 10, fontWeight: 700, color: T.textSecondary, fontVariantNumeric: 'tabular-nums' }}>{fmt(secs)}</span>
+                                {timePct > 0 && <span style={{ fontSize: 9.5, color: T.textFaint }}>{timePct}%</span>}
                               </div>
                             </div>
                             <div style={{ height: 4, background: T.appBarTrack, borderRadius: 99, overflow: 'hidden' }}>
                               <div style={{
                                 height: '100%', borderRadius: 99,
-                                background: isTop ? `linear-gradient(90deg,${color},${color}90)` : `${color}80`,
+                                background: color,
                                 width: `${barPct}%`,
-                                transition: 'width 0.6s cubic-bezier(0.4,0,0.2,1)',
-                                boxShadow: isTop ? `0 0 6px ${color}50` : 'none',
+                                transition: 'width 0.5s ease',
                               }} />
                             </div>
                           </div>
@@ -640,27 +584,14 @@ export default function DailyDebrief({ user, onClose }) {
               {/* ── Tomorrow nudge ────────────────────────────────────────────── */}
               <div style={{
                 padding: '14px 16px', marginBottom: 20,
-                background: T.tomorrowBg,
-                border: `1px solid ${T.tomorrowBorder}`,
-                borderRadius: 14,
+                background: T.nudgeBg, border: `1px solid ${T.nudgeBorder}`, borderRadius: 14,
               }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-                    background: T.tomorrowIconBg, border: `1px solid ${T.tomorrowIconBd}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1,
-                  }}>
-                    <Sparkles size={14} style={{ color: '#A78BFA' }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#A78BFA', marginBottom: 5 }}>Tomorrow's Head Start</p>
-                    <p style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.6, margin: 0 }}>
-                      {data.goalMet
-                        ? `Excellent day! Set your top 3 priorities tonight so tomorrow starts with clarity. Consider a ${data.deepSecs > 0 ? fmt(Math.min(data.deepSecs, 5400)) : '90m'} deep work block to maintain momentum.`
-                        : `You're ${fmt(data.target - data.totalSecs)} short of your goal. Plan a focused morning session first thing — even 45 minutes of deep work before 10am makes a significant difference.`}
-                    </p>
-                  </div>
-                </div>
+                <p style={{ fontSize: 11.5, fontWeight: 700, color: T.textSecondary, marginBottom: 6 }}>Tomorrow's head start</p>
+                <p style={{ fontSize: 11.5, color: T.textMuted, lineHeight: 1.6, margin: 0 }}>
+                  {data.goalMet
+                    ? `Excellent day! Set your top 3 priorities tonight so tomorrow starts with clarity. Consider a ${data.deepSecs > 0 ? fmt(Math.min(data.deepSecs, 5400)) : '90m'} deep work block to maintain momentum.`
+                    : `You're ${fmt(data.target - data.totalSecs)} short of your goal. Plan a focused morning session first thing — even 45 minutes of deep work before 10am makes a significant difference.`}
+                </p>
               </div>
 
             </div>
@@ -670,26 +601,26 @@ export default function DailyDebrief({ user, onClose }) {
         {/* ── Footer ──────────────────────────────────────────────────────────── */}
         {!loading && (
           <div style={{
-            padding: '12px 20px 16px',
+            padding: '13px 22px',
             borderTop: `1px solid ${T.footerBorder}`,
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             flexShrink: 0, background: T.footerBg,
           }}>
-            <p style={{ fontSize: 10, color: T.footerTextColor, margin: 0 }}>
+            <p style={{ fontSize: 11, color: T.footerTextColor, margin: 0 }}>
               {data.sessionCount > 0
                 ? `${data.sessionCount} session${data.sessionCount!==1?'s':''} · ${fmt(data.totalSecs)} tracked`
                 : 'No sessions logged today'}
             </p>
             <button onClick={onClose} style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '8px 18px', borderRadius: 10,
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 16px', borderRadius: 9,
               background: T.btnBg, border: 'none',
               cursor: 'pointer', color: '#fff',
-              fontSize: 12, fontWeight: 700,
-              boxShadow: T.btnShadow, transition: 'box-shadow 0.15s',
+              fontSize: 12, fontWeight: 600,
+              transition: 'background 0.12s',
             }}
-              onMouseOver={e => e.currentTarget.style.boxShadow = T.btnShadowHover}
-              onMouseOut={e  => e.currentTarget.style.boxShadow = T.btnShadow}>
+              onMouseOver={e => { e.currentTarget.style.background = T.btnHoverBg; }}
+              onMouseOut={e  => { e.currentTarget.style.background = T.btnBg; }}>
               Done for today <ChevronRight size={13} />
             </button>
           </div>

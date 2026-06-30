@@ -361,13 +361,16 @@ export function useCalendarAI({
         session,
         project,
         client,
+        // Same-day sibling sessions, already loaded by this hook — enables the
+        // "2nd session on this today" continuity note with no extra plumbing.
+        recentSessions: adaptedSessions,
       });
 
       return writeEventContent(context, {
         title: session.title,
         description: session.notes || session.description,
       });
-    }, []),
+    }, [adaptedSessions]),
 
     /**
      * Generate just a title for a session from its context.

@@ -210,11 +210,25 @@ contextBridge.exposeInMainWorld('electron', {
   getBreakSettings:    (d) => ipcRenderer.invoke('break:getSettings', d),
   updateBreakSettings: (d) => ipcRenderer.invoke('break:updateSettings', d),
   dismissBreak:        (d) => ipcRenderer.invoke('break:dismiss', d),
+  // Fires when the break card should actually be shown — either because the
+  // user clicked the native OS notification, or because native notifications
+  // aren't available and the main process fell back to showing it directly.
   onBreakReminder:     (cb) => {
     const handler = (_, d) => cb(d);
     ipcRenderer.on('break:reminder', handler);
     return () => ipcRenderer.removeListener('break:reminder', handler);
   },
+  // Fires once per app run when the OS doesn't support native notifications,
+  // so the renderer can let the user know reminders fell back to in-app only.
+  onBreakNotifUnavailable: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('break:notifUnavailable', handler);
+    return () => ipcRenderer.removeListener('break:notifUnavailable', handler);
+  },
+  // Keeps the main process in sync with the renderer's "Desktop notifications"
+  // preference so break reminders respect it even though the toggle itself
+  // only lives in renderer localStorage.
+  syncDesktopNotifPref: (d) => ipcRenderer.invoke('prefs:syncDesktopNotif', d),
 
   // Stats
   statsSummary:         (d) => ipcRenderer.invoke('stats:summary', d),
