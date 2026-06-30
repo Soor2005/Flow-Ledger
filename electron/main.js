@@ -4298,35 +4298,92 @@ ipcMain.handle('export:pdf', async (_, { html, headerTemplate, footerTemplate, d
 });
 
 // ─── ACTIVITY SNAPSHOT IMAGE EXPORT ─────────────────────────────────────────────
-// Renders the snapshot template's static HTML (from react-dom/server) in a
-// hidden, offscreen window and captures it with Chromium's native
-// capturePage() — a literal screenshot of what was actually rendered.
+// Renders the snapshot template's static HTML (from react-dom/server) in an
+// offscreen-rendered window and captures it via the OSR 'paint' event — a
+// literal screenshot of what was actually rendered, into a virtual
+// framebuffer with no dependency on the host machine's real screen/compositor.
 // Deliberately NOT html2canvas: html2canvas re-implements text/box painting
 // in JS and has long-standing bugs where it correctly reads a flex child's
 // position/size from the real layout but then paints the text glyphs at the
 // wrong vertical offset within that box (confirmed here — icons centered via
 // the exact same CSS technique rendered correctly, only text didn't).
-// capturePage has no such gap: it captures Chromium's own composited output.
+//
+// NOTE on two earlier attempts that didn't work, kept here so this isn't
+// re-litigated blind next time:
+//   1. capturePage() combined with webPreferences.offscreen — unsupported
+//      pairing; capturePage() is for normal compositor-managed windows.
+//   2. A normal (non-offscreen) window positioned far off-screen + shown via
+//      showInactive(), then capturePage() — confirmed via live debugging to
+//      return a 0-byte image on this machine: an off-screen-positioned window
+//      apparently never gets composited by the GPU/DWM at all here, even when
+//      "shown". Ruled out entirely, not just unreliable.
+//   3. (This version, refined from the first offscreen attempt) OSR + 'paint'
+//      previously came back truncated because the BrowserWindow constructor's
+//      width/height isn't reliably honored by the OSR backing store — it
+//      needs an explicit setContentSize() call AFTER creation, plus an
+//      explicit invalidate() to force a repaint at the corrected size, and we
+//      now track the LARGEST frame seen across a settle window rather than
+//      requiring the first frame to exactly hit the target (avoids getting
+//      stuck on a persistent few-pixel rounding mismatch).
 ipcMain.handle('export:snapshotImage', async (_, { html, width, height }) => {
   let win = null;
+  let tmpFile = null;
   try {
+    // Load via a temp file + file:// instead of a data: URL — the snapshot
+    // template embeds base64 app-icon images, and very long data: URLs (after
+    // encodeURIComponent inflation) are a known source of silent truncation/
+    // corruption in some Chromium configurations. A real file has no such
+    // size-dependent edge case.
+    tmpFile = path.join(app.getPath('temp'), `fl-snapshot-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
+    fs.writeFileSync(tmpFile, html, 'utf8');
+
     win = new BrowserWindow({
       show: false,
       width, height, useContentSize: true,
       webPreferences: { offscreen: true, sandbox: true },
     });
-    await win.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(html));
-    // Let images (logo, app icons) finish a paint cycle before capturing.
-    await new Promise(resolve => setTimeout(resolve, 80));
+    // Constructor width/height isn't reliably honored by the OSR backing
+    // store on every platform — force it explicitly.
+    win.setContentSize(width, height);
 
-    const image = await win.webContents.capturePage();
-    const png = image.toPNG();
-    return { success: true, dataBase64: png.toString('base64') };
+    let bestImage = null;
+    let bestArea = 0;
+    win.webContents.on('paint', (_event, _dirty, image) => {
+      const size = image.getSize();
+      const area = size.width * size.height;
+      if (area > bestArea) { bestImage = image; bestArea = area; }
+    });
+
+    await win.loadFile(tmpFile);
+    win.webContents.invalidate();
+    // Give OSR time to settle at the corrected viewport and paint a full
+    // frame — the resize, fonts, and images each trigger their own repaint.
+    await new Promise(resolve => setTimeout(resolve, 600));
+    win.webContents.invalidate();
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    if (!bestImage) throw new Error('No frame was painted by the offscreen renderer');
+    const size = bestImage.getSize();
+    if (size.width < width || size.height < height) {
+      console.warn(`[export:snapshotImage] best painted frame ${size.width}x${size.height}, expected ${width}x${height}`);
+    }
+
+    const pngBuffer = bestImage.toPNG();
+    // Sanity check the actual bytes — every valid PNG starts with this 8-byte
+    // signature. Catching a bad capture here gives a clear error instead of
+    // shipping a file that "downloads successfully" but won't open.
+    const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (pngBuffer.length < 8 || !pngBuffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
+      throw new Error(`Captured image is not a valid PNG (${pngBuffer.length} bytes)`);
+    }
+
+    return { success: true, dataBase64: pngBuffer.toString('base64') };
   } catch (err) {
     console.error('[export:snapshotImage] failed:', err.message);
     return { success: false, error: err.message };
   } finally {
     if (win && !win.isDestroyed()) win.destroy();
+    if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch {} }
   }
 });
 

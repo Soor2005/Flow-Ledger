@@ -127,7 +127,14 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
           logoSrc={logoSrc}
         />
       );
-      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:${bgColor}">${markup}</body></html>`;
+      // overflow:hidden on html/body + a hidden-scrollbar rule is required —
+      // without it Chromium shows native scrollbars whenever the rendered
+      // content is exactly (or even 1px) as tall/wide as the capture window,
+      // and capturePage() bakes those scrollbar tracks straight into the PNG.
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        html, body { margin: 0; padding: 0; overflow: hidden; background: ${bgColor}; }
+        ::-webkit-scrollbar { display: none; width: 0; height: 0; }
+      </style></head><body>${markup}</body></html>`;
 
       const result = await window.electron.exportSnapshotImage({ html, width, height });
       if (!result?.success) throw new Error(result?.error || 'Snapshot capture failed');
@@ -145,7 +152,7 @@ export default function ActivitySnapshotModal({ open, onClose, userId, accountNa
       showToast('Snapshot generated & downloaded');
     } catch (err) {
       console.error('[ActivitySnapshot] generation failed:', err);
-      setError('Could not generate the snapshot. Please try again.');
+      setError(err?.message ? `Could not generate the snapshot: ${err.message}` : 'Could not generate the snapshot. Please try again.');
       setStage('error');
     }
   }, [userId, period, format, theme, accountName, initials, logoSrc, showToast]);
