@@ -117,6 +117,29 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('session:stopped', handler);
   },
 
+  // Manual session idle detection
+  onManualIdle:   (cb) => {
+    const handler = (_, d) => cb(d);
+    ipcRenderer.on('timer:manualIdle', handler);
+    return () => ipcRenderer.removeListener('timer:manualIdle', handler);
+  },
+  onManualResume: (cb) => {
+    const handler = (_, d) => cb(d);
+    ipcRenderer.on('timer:manualResume', handler);
+    return () => ipcRenderer.removeListener('timer:manualResume', handler);
+  },
+  subtractAwayTime: (d) => ipcRenderer.invoke('sessions:subtractAway', d),
+
+  // Meeting auto-detection
+  onMeetingDetected: (cb) => {
+    const handler = (_, d) => cb(d);
+    ipcRenderer.on('meeting:detected', handler);
+    return () => ipcRenderer.removeListener('meeting:detected', handler);
+  },
+
+  // Work-day boundary
+  workdayStatus: (d) => ipcRenderer.invoke('workday:status', d),
+
   // Focus mode
   startFocusMode: (d) => ipcRenderer.invoke('focusMode:start', d),
   stopFocusMode:  ()  => ipcRenderer.invoke('focusMode:stop'),
@@ -353,4 +376,24 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('tasks:reminder', handler);
     return () => ipcRenderer.removeListener('tasks:reminder', handler);
   },
+
+  // Focus streak
+  statsFocusStreak: (d) => ipcRenderer.invoke('stats:focusStreak', d),
+
+  // Day Planning
+  getDayPlan:     (d) => ipcRenderer.invoke('dayPlan:get', d),
+  saveDayPlan:    (d) => ipcRenderer.invoke('dayPlan:save', d),
+  compareDayPlan: (d) => ipcRenderer.invoke('dayPlan:compare', d),
+
+  // Block Schedules
+  listSchedules:  (d) => ipcRenderer.invoke('schedules:list', d),
+  createSchedule: (d) => ipcRenderer.invoke('schedules:create', d),
+  updateSchedule: (d) => ipcRenderer.invoke('schedules:update', d),
+  deleteSchedule: (d) => ipcRenderer.invoke('schedules:delete', d),
+  toggleSchedule: (d) => ipcRenderer.invoke('schedules:toggle', d),
+  onScheduleActivated:   (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('schedule:activated',   h); return () => ipcRenderer.removeListener('schedule:activated',   h); },
+  onScheduleDeactivated: (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('schedule:deactivated', h); return () => ipcRenderer.removeListener('schedule:deactivated', h); },
+
+  // Slack status (for focus bundle)
+  slackSetStatus: (d) => ipcRenderer.invoke('slack:setStatus', d),
 });

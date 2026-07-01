@@ -113,7 +113,7 @@ function ScoreRing({ score, size = 108, thick = 8 }) {
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
            style={{ transform:'rotate(-90deg)', position:'absolute', top:0, left:0 }}>
         <circle cx={size/2} cy={size/2} r={r} fill="none"
-                stroke="rgba(255,255,255,0.07)" strokeWidth={thick}/>
+                stroke="var(--color-bg-hover)" strokeWidth={thick}/>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={meta.color}
                 strokeWidth={thick} strokeDasharray={`${fill} ${circ}`} strokeLinecap="round"
                 style={{ filter:`drop-shadow(0 0 8px ${meta.color}55)`,
@@ -135,7 +135,7 @@ function DonutRing({ value, color, size=88, thick=8, glow=false }) {
   const fill = Math.min(Math.max(value,0),100) / 100 * circ;
   return (
     <svg className="fl-product-donut" width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform:'rotate(-90deg)', '--ring-accent':color }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={thick}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--color-bg-hover)" strokeWidth={thick}/>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={thick}
         strokeDasharray={`${fill} ${circ}`} strokeLinecap="round"
         style={{ filter:glow?`drop-shadow(0 0 7px ${color}77)`:'none', transition:'stroke-dasharray 0.9s ease' }}/>

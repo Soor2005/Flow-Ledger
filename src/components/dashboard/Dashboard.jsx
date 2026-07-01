@@ -41,73 +41,11 @@ import OnboardingWizard, { shouldShowOnboarding } from '../shared/OnboardingWiza
 import SetupWizard from '../onboarding/SetupWizard';
 import { shouldShowSetup } from '../onboarding/setupGuard';
 import logoSrc from '../../assets/logo.png';
-import { analyzeContext } from '../../ai/engines/eventContextAnalyzer.js';
-import { generateTitle, generateDescription } from '../../ai/engines/eventWritingEngine.js';
+import { buildSessionEndNotif } from '../../utils/sessionNotifBuilder.js';
 
 const api = window.electron || {};
 
-// ─── AI session-end notification builder ───────────────────────────────────
-// Title   → the event title (AI-generated or user-set).
-// Body    → a STAT SUMMARY that is always distinct from the title:
-//           duration · category · deep focus badge · project
-// The body NEVER re-describes the title to avoid "Exploring Research Session /
-// Researched Research Session." duplication.
-function buildSessionEndNotif(session, durationSecs) {
-  // Duration label
-  const h = Math.floor(durationSecs / 3600);
-  const m = Math.round((durationSecs % 3600) / 60);
-  const durLabel = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${Math.max(1, m)}m`;
 
-  // Category label — human-readable
-  const CAT_LABELS = {
-    development: 'Development', coding: 'Development', research: 'Research',
-    design: 'Design', writing: 'Writing', planning: 'Planning',
-    meeting: 'Meeting', communication: 'Communication', learning: 'Learning',
-    data: 'Data & Analytics', admin: 'Admin', focus: 'Focus', break: 'Break',
-  };
-  const rawCat  = (session.category || '').toLowerCase();
-  const catLabel = CAT_LABELS[rawCat] || (session.category
-    ? session.category.charAt(0).toUpperCase() + session.category.slice(1)
-    : 'Session');
-
-  // Stat summary pills — never echoes the event title
-  const parts = [durLabel, catLabel];
-  if (session.is_deep_work) parts.push('Deep focus');
-  if (session.project_name) parts.push(session.project_name);
-  const body = parts.join(' · ');
-
-  // Decide the notification title:
-  //   - Use existing meaningful user title if set
-  //   - Skip AI generation for "Auto: X" sessions — use a clean app-name label instead
-  //   - Otherwise run the AI title generator for context-aware name
-  let notifTitle;
-  try {
-    const isAutoSession = (session.title || '').toLowerCase().startsWith('auto:');
-    if (isAutoSession) {
-      // "Auto: claude" → "Claude — auto-tracked"
-      const appName = (session.title || '').replace(/^auto:\s*/i, '').trim();
-      notifTitle = appName
-        ? `${appName.charAt(0).toUpperCase() + appName.slice(1)} — auto-tracked`
-        : 'Auto-tracked session';
-    } else if (session.title && !['session', 'focus session', 'focus block', 'untitled'].includes(session.title.toLowerCase())) {
-      // User already set a meaningful title — use it directly
-      notifTitle = session.title;
-    } else {
-      // Run AI title generation (uses category + project context)
-      const context = analyzeContext({
-        autoSessions: [],
-        session: { ...session, duration_seconds: durationSecs },
-        durationMins: Math.round(durationSecs / 60),
-      });
-      const titleResult = generateTitle(context);
-      notifTitle = titleResult.title || session.title || catLabel + ' Session';
-    }
-  } catch {
-    notifTitle = session.title || catLabel + ' Session';
-  }
-
-  return { title: notifTitle, description: body, durLabel, durationSecs };
-}
 const callApi = (name, fallback, payload) => {
   const fn = api[name];
   return typeof fn === 'function' ? fn(payload) : Promise.resolve(fallback);
@@ -279,7 +217,7 @@ function NavItem({ label, Icon, isActive, onClick, collapsed, badge, compactColl
 const ALL_PAGE_IDS = new Set([
   'home', 'calendar', 'tracker', 'activity', 'projects',
   'clients', 'tasks', 'reports', 'analytics', 'heatmap',
-  'profitability', 'productivity', 'blocker', 'settings',
+  'profitability', 'productivity', 'blocker', 'settings', 'invoices',
 ]);
 
 export default function Dashboard() {
@@ -354,6 +292,20 @@ export default function Dashboard() {
   // watcher), clear activeSession so the dock and timer page update immediately.
   useEffect(() => {
     const unsub = api.onSessionStopped?.(() => setActiveSession(null));
+    return () => typeof unsub === 'function' && unsub();
+  }, []);
+
+  // ── Meeting auto-detection — show a toast when a meeting app is confirmed ──
+  useEffect(() => {
+    const unsub = api.onMeetingDetected?.(({ appName, durationSecs }) => {
+      const mins = Math.round(durationSecs / 60);
+      pushNotification(
+        'meeting_detected',
+        `${appName} meeting detected`,
+        `Active for ${mins}m — go to Timer to log it as a Meeting session.`,
+        { duration: 12000, relatedPage: 'tracker' }
+      );
+    });
     return () => typeof unsub === 'function' && unsub();
   }, []);
 

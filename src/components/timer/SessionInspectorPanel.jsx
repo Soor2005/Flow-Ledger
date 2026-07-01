@@ -167,7 +167,7 @@ export default function SessionInspectorPanel({
       }
     })();
     return () => { cancelled = true; };
-  }, [session?.id, session?.started_at, session?.ended_at, userId]);
+  }, [session?.id, session?.started_at, session?.ended_at, userId, recentSessions]);
 
   const apps = useMemo(() => aggregateApps(autoSessions), [autoSessions]);
   const mergeCandidate = useMemo(

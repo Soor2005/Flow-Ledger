@@ -126,6 +126,7 @@ export default function BreakReminder({ userId, onDismiss, onSessionChange, data
     // Auto-dismiss when break is over — stop session first
     setTimeout(async () => {
       await stopBreakSession();
+      await api.dismissBreak?.({ userId });
       onDismiss?.();
     }, duration * 60 * 1000);
   };

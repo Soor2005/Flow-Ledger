@@ -229,13 +229,23 @@ function StatTile({ label, value, sub, icon: Icon, color, T }) {
   );
 }
 
+function useThemeLight() {
+  const [isLight, setIsLight] = useState(() => document.documentElement.classList.contains('theme-light'));
+  useEffect(() => {
+    const obs = new MutationObserver(() => setIsLight(document.documentElement.classList.contains('theme-light')));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  return isLight;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function DailyDebrief({ user, onClose }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
 
-  const isLight = document.documentElement.classList.contains('theme-light');
+  const isLight = useThemeLight();
   const T = useMemo(() => buildTheme(isLight), [isLight]);
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);

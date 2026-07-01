@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import FocusModeOverlay from '../timer/FocusModeOverlay';
 import AppIcon from '../shared/AppIcon';
+import BlockScheduler from './BlockScheduler';
 
 const api = window.electron || {};
 
@@ -1500,6 +1501,9 @@ export default function DistractionBlocker({ user }) {
             </button>
           </div>
         </section>
+
+        {/* ── Scheduled Blocking ── */}
+        <BlockScheduler userId={user.id} profiles={profiles} />
 
         {/* ── Stats footer ── */}
         <PanelCard className="mt-5 grid grid-cols-4 divide-x divide-white/[0.07]" style={{ padding: 0 }}>

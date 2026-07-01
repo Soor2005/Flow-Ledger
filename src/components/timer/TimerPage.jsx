@@ -7,68 +7,18 @@ import {
   Moon, Cpu, Monitor, Pause, RefreshCw, Eye, TrendingUp, BarChart2,
   Target, Flame, ArrowRight, Layers,
 } from 'lucide-react';
-import { formatDuration, formatTime, getCategoryColor, todayStart } from '../../utils/helpers';
+import { formatDuration, formatTime, getCategoryColor, todayStart, weekStart } from '../../utils/helpers';
 import { usePrefs } from '../../hooks/usePrefs';
 import { pushToast } from '../shared/NotificationCentre';
-import { analyzeContext } from '../../ai/engines/eventContextAnalyzer.js';
-import { generateTitle, generateDescription } from '../../ai/engines/eventWritingEngine.js';
+import { buildSessionEndNotif } from '../../utils/sessionNotifBuilder.js';
 import { useTimerAI } from '../../hooks/useTimerAI.js';
 import AIStatusPanel, { PostSessionAICard } from './AIStatusPanel.jsx';
 import { finalizeSessionIntelligence } from '../../ai/timer/timerAIEngine.js';
 import SessionInspectorPanel from './SessionInspectorPanel.jsx';
+import IdleAwayPrompt from './IdleAwayPrompt.jsx';
+import FocusBundleButton from '../shared/FocusBundleButton.jsx';
 
 const api = window.electron || {};
-
-// ─── AI session-end notification builder ─────────────────────────────────────
-// Title  → event title (AI-generated or user-set, never "Auto: X").
-// Body   → stat summary distinct from the title: duration · category · deep focus · project
-// The body NEVER re-describes the title — no "Researched Research Session." echoes.
-function buildSessionEndNotif(session, durationSecs) {
-  const h = Math.floor(durationSecs / 3600);
-  const m = Math.round((durationSecs % 3600) / 60);
-  const durLabel = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${Math.max(1, m)}m`;
-
-  const CAT_LABELS = {
-    development: 'Development', coding: 'Development', research: 'Research',
-    design: 'Design', writing: 'Writing', planning: 'Planning',
-    meeting: 'Meeting', communication: 'Communication', learning: 'Learning',
-    data: 'Data & Analytics', admin: 'Admin', focus: 'Focus', break: 'Break',
-  };
-  const rawCat   = (session.category || '').toLowerCase();
-  const catLabel = CAT_LABELS[rawCat] || (session.category
-    ? session.category.charAt(0).toUpperCase() + session.category.slice(1)
-    : 'Session');
-
-  const parts = [durLabel, catLabel];
-  if (session.is_deep_work) parts.push('Deep focus');
-  if (session.project_name) parts.push(session.project_name);
-  const body = parts.join(' · ');
-
-  let notifTitle;
-  try {
-    const isAutoSession = (session.title || '').toLowerCase().startsWith('auto:');
-    if (isAutoSession) {
-      const appName = (session.title || '').replace(/^auto:\s*/i, '').trim();
-      notifTitle = appName
-        ? `${appName.charAt(0).toUpperCase() + appName.slice(1)} — auto-tracked`
-        : 'Auto-tracked session';
-    } else if (session.title && !['session', 'focus session', 'focus block', 'untitled'].includes(session.title.toLowerCase())) {
-      notifTitle = session.title;
-    } else {
-      const context = analyzeContext({
-        autoSessions: [],
-        session: { ...session, duration_seconds: durationSecs },
-        durationMins: Math.round(durationSecs / 60),
-      });
-      const titleResult = generateTitle(context);
-      notifTitle = titleResult.title || session.title || catLabel + ' Session';
-    }
-  } catch {
-    notifTitle = session.title || catLabel + ' Session';
-  }
-
-  return { title: notifTitle, description: body, durLabel, durationSecs };
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -949,7 +899,7 @@ function SessionTimeline({ sessions, categories, projects, onDelete, onUpdatePro
     let list = (sessions || []).filter(s => s.started_at >= todayS);
     if (filter === 'deep')  list = list.filter(s => s.is_deep_work);
     if (filter === 'auto')  list = list.filter(s => s.title?.startsWith('Auto:'));
-    return list.slice(0, 20);
+    return list;
   }, [sessions, todayS, filter]);
 
   const grouped = useMemo(() => {
@@ -1247,6 +1197,8 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
   const [breakElapsed, setBreakElapsed] = useState(0);
   const [scoreCard,      setScoreCard]      = useState(null);
   const [postSessionAI,  setPostSessionAI]  = useState(null);
+  const [isIdle,         setIsIdle]         = useState(false);
+  const [awayPrompt,     setAwayPrompt]     = useState(null); // { awaySeconds } when user returns
   const blockerAutoStarted = useRef(false);
   const timerRef  = useRef(null);
   const breakRef  = useRef(null);
@@ -1285,6 +1237,17 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
   useEffect(() => {
     if (categories.length > 0 && !selCat) setSelCat(categories[0]?.name || '');
   }, [categories, selCat]);
+
+  // Idle detection — only active while a manual session is running
+  useEffect(() => {
+    if (!activeSession) { setIsIdle(false); setAwayPrompt(null); return; }
+    const unsubIdle   = api.onManualIdle?.(() => setIsIdle(true));
+    const unsubResume = api.onManualResume?.(({ awaySeconds }) => {
+      setIsIdle(false);
+      if (awaySeconds >= 60) setAwayPrompt({ awaySeconds }); // only prompt for >=1 min away
+    });
+    return () => { unsubIdle?.(); unsubResume?.(); };
+  }, [activeSession?.id]);
 
   useEffect(() => {
     if (activeSession) {
@@ -1369,6 +1332,15 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
       focusSecs, shortBreakSecs, longBreakSecs, longBreakEvery, pomodoroCount]);
 
   useEffect(() => () => clearInterval(breakRef.current), []);
+
+  const handleSubtractAway = async (awaySeconds) => {
+    if (!activeSession || !awaySeconds) return;
+    setAwayPrompt(null);
+    const result = await api.subtractAwayTime?.({ sessionId: activeSession.id, seconds: awaySeconds });
+    if (result?.success) {
+      setActiveSession(prev => prev ? { ...prev, started_at: result.newStartedAt } : prev);
+    }
+  };
 
   const stopSession = async () => {
     if (!activeSession) return;
@@ -1458,7 +1430,7 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
   const RING_R = 48, RING_C = 2 * Math.PI * RING_R;
   const todaySessions = sessions.filter(s => s.started_at >= todayStart());
   const todayTotal    = todaySessions.reduce((a, s) => a + (s.duration_seconds || 0), 0);
-  const weekTotal     = sessions.reduce((a, s) => a + (s.duration_seconds || 0), 0);
+  const weekTotal     = sessions.filter(s => s.started_at >= weekStart()).reduce((a, s) => a + (s.duration_seconds || 0), 0);
   const grouped = sessions.reduce((acc, s) => {
     const date = new Date(s.started_at * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     if (!acc[date]) acc[date] = [];
@@ -1473,7 +1445,7 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
       <section className="space-y-4">
 
           {/* Session control card */}
-        <div className="fl-card overflow-hidden">
+        <div className="fl-card overflow-hidden relative">
           {/* Header */}
           <div className="border-b border-brd-subtle bg-bg-sidebar/70 px-5 py-4">
             <div className="mb-3 flex items-center justify-between">
@@ -1489,11 +1461,16 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
                   disabled={!!activeSession}
                   className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${pomodoroMode ? 'bg-status-amber/15 text-status-amber' : 'text-tx-faint hover:bg-bg-hover hover:text-tx-primary'} disabled:opacity-40`}>
                   <RotateCcw size={11} />
-                  {pomodoroMode ? `Pomo ${pomodoroPhase === 'break' ? '☕' : `#${pomodoroCount + 1}`}` : 'Pomodoro'}
+                  {pomodoroMode ? `Pomo ${pomodoroPhase === 'break' ? 'Break' : `#${pomodoroCount + 1}`}` : 'Pomodoro'}
                 </button>
-                {activeSession && (
+                {activeSession && !isIdle && (
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-status-green/12 px-2.5 py-1.5 text-xs font-bold text-status-green">
                     <span className="h-1.5 w-1.5 rounded-full bg-status-green animate-pulse" />Live
+                  </span>
+                )}
+                {isIdle && (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-status-amber/12 px-2.5 py-1.5 text-xs font-bold text-status-amber">
+                    <span className="h-1.5 w-1.5 rounded-full bg-status-amber animate-pulse" />Away
                   </span>
                 )}
               </div>
@@ -1682,6 +1659,13 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
               </>
             )}
           </div>
+          {awayPrompt && activeSession && (
+            <IdleAwayPrompt
+              awaySeconds={awayPrompt.awaySeconds}
+              onSubtract={() => handleSubtractAway(awayPrompt.awaySeconds)}
+              onKeep={() => setAwayPrompt(null)}
+            />
+          )}
         </div>
 
         {/* Stats row */}
@@ -1861,7 +1845,7 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
                                 border: `1px solid ${sColor}25`,
                                 color: isRunning ? sColor : undefined,
                               }}>
-                              {formatDuration(s.duration_seconds)}
+                              {isRunning ? formatTimer(Math.floor(Date.now() / 1000) - s.started_at) : formatDuration(s.duration_seconds)}
                             </span>
                             <button onClick={async (e) => {
                               e.stopPropagation();
@@ -2313,6 +2297,7 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
                 Refresh
               </button>
             )}
+            <FocusBundleButton user={user} />
             <ModeToggle mode={trackingMode} onChange={changeMode} />
           </div>
         </div>

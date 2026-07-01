@@ -18,6 +18,7 @@ const { exec } = require('child_process');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { AutoTracker }     = require('./tracker');
+const { IdleWatcher }     = require('./idleWatcher');
 const {
   trackingWorkflowManager,
   WORKFLOW_EVENTS,
@@ -301,6 +302,7 @@ let focusModeActive = false;        // true = distraction blocking ON
 let focusStartTime  = null;         // Unix ms when focus mode started (persists across nav)
 let focusProfileId  = null;         // active profile id (or null = global rules only)
 let focusRuleScope  = 'global';     // 'global' = common rules, 'profile' = selected profile only
+let _scheduleControlledFocus = false; // true = schedule system activated focus mode
 let aiEngine        = null;         // FlowLedgerAI instance (initialised after DB ready)
 let breakReminderTimeout = null;
 let flowStateTimeout    = null;     // fires after 25 min of uninterrupted work
@@ -338,6 +340,16 @@ let afBufferStart = null;           // Date.now() ms when buffering started
 let afBufferTick  = null;           // setInterval handle for buffer progress
 let afIdleTimer   = null;           // setTimeout handle for idle-stop
 let afLastExtendLogAt = 0;          // throttles active-session heartbeat logs
+
+// ── Manual session idle watcher ───────────────────────────────────────────────
+let manualIdleWatcher = null;
+
+// ── Meeting auto-detection state ──────────────────────────────────────────────
+const MEETING_APPS_RE = /^(zoom|microsoft.?teams|ms-teams|webex|loom|around)$/i;
+const MEETING_URL_RE  = /meet\.google\.com|zoom\.us\/j\/|teams\.microsoft\.com\/l\/meetup/i;
+const MEETING_CONFIRM_SECS = 90; // fire event after meeting sustained for this long
+let meetingTrack = null; // { app, startMs, fired }
+
 
 function getAfWorkflowId() {
   try {
@@ -1132,6 +1144,8 @@ function createSchema() {
   tryAlter('ALTER TABLE sessions ADD COLUMN task_id TEXT');
   tryAlter('ALTER TABLE distraction_rules ADD COLUMN profile_id TEXT');
   tryAlter('ALTER TABLE blocker_profiles ADD COLUMN placeholder INTEGER DEFAULT 0');
+  // Activity ratio for manual sessions (0-100; 100 = fully active, 0 = mostly away)
+  tryAlter('ALTER TABLE sessions ADD COLUMN activity_ratio INTEGER DEFAULT 100');
   // AI engine columns
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_label TEXT');
   tryAlter('ALTER TABLE auto_sessions ADD COLUMN ai_category TEXT');
@@ -1147,6 +1161,29 @@ function createSchema() {
   // this, window_title gets overwritten on every extend and the narrative writer
   // only ever sees the LATEST title, losing everything else done during the block.
   tryAlter("ALTER TABLE auto_sessions ADD COLUMN title_history TEXT DEFAULT '[]'");
+
+  // Day planning mode
+  db.run(`CREATE TABLE IF NOT EXISTS day_plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    date_key TEXT NOT NULL,
+    plan_json TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+    UNIQUE(user_id, date_key)
+  )`);
+  // Scheduled distraction blocking
+  db.run(`CREATE TABLE IF NOT EXISTS block_schedules (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    profile_ids TEXT NOT NULL DEFAULT '[]',
+    days_mask INTEGER NOT NULL DEFAULT 62,
+    start_mins INTEGER NOT NULL DEFAULT 540,
+    end_mins INTEGER NOT NULL DEFAULT 720,
+    active INTEGER DEFAULT 1,
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  )`);
+  tryAlter('ALTER TABLE users ADD COLUMN slack_token TEXT');
 
   save();
 }
@@ -1474,6 +1511,28 @@ function startAutoTracker(userId) {
             ? { id: activeCalEvent.id, title: activeCalEvent.title, endTime: activeCalEvent.end_time }
             : null,
         });
+
+        // ── Meeting auto-detection ───────────────────────────────────────────
+        const isMeetingApp = MEETING_APPS_RE.test(appName) ||
+          (url && MEETING_URL_RE.test(url));
+        if (isMeetingApp) {
+          if (!meetingTrack || meetingTrack.app !== appName) {
+            meetingTrack = { app: appName, startMs: Date.now(), fired: false };
+          } else if (!meetingTrack.fired) {
+            const secsInMeeting = (Date.now() - meetingTrack.startMs) / 1000;
+            if (secsInMeeting >= MEETING_CONFIRM_SECS) {
+              meetingTrack.fired = true;
+              if (mainWindow) {
+                mainWindow.webContents.send('meeting:detected', {
+                  appName: meetingTrack.app,
+                  durationSecs: Math.round(secsInMeeting),
+                });
+              }
+            }
+          }
+        } else {
+          meetingTrack = null;
+        }
 
         // ── Persistent auto-focus state machine ──────────────────────────────
         // Suppress buffering/tracking while a confirmed calendar event is live.
@@ -2269,6 +2328,41 @@ app.on('open-url', (event, url) => {
   }
 });
 
+// ─── SCHEDULED BLOCKING CHECKER ──────────────────────────────────────────────
+function startScheduleChecker() {
+  setInterval(() => {
+    if (!currentUserId || !db) return;
+    const schedules = all('SELECT * FROM block_schedules WHERE user_id=? AND active=1', [currentUserId]);
+    const now = new Date();
+    const dayBit = 1 << now.getDay();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    const active = schedules.find(s => (s.days_mask & dayBit) && currentMins >= s.start_mins && currentMins < s.end_mins);
+
+    if (active && !focusModeActive) {
+      const profileId = (() => { try { return JSON.parse(active.profile_ids || '[]')[0] || null; } catch { return null; } })();
+      focusModeActive = true;
+      focusStartTime  = Date.now();
+      focusProfileId  = profileId;
+      focusRuleScope  = profileId ? 'profile' : 'global';
+      _scheduleControlledFocus = true;
+      if (mainWindow) {
+        mainWindow.webContents.send('focusMode:changed', { active: true, startedAt: focusStartTime, profileId, ruleScope: focusRuleScope });
+        mainWindow.webContents.send('schedule:activated', { label: active.label });
+      }
+    } else if (!active && _scheduleControlledFocus) {
+      _scheduleControlledFocus = false;
+      focusModeActive = false;
+      focusStartTime  = null;
+      focusProfileId  = null;
+      focusRuleScope  = 'global';
+      if (mainWindow) {
+        mainWindow.webContents.send('focusMode:changed', { active: false, startedAt: null, profileId: null, ruleScope: 'global' });
+        mainWindow.webContents.send('schedule:deactivated', {});
+      }
+    }
+  }, 60000);
+}
+
 app.whenReady().then(async () => {
   // Allow the renderer to fetch Supabase APIs and WebSocket realtime channels.
   // Without this, Electron blocks cross-origin requests from file:// and localhost.
@@ -2303,6 +2397,7 @@ app.whenReady().then(async () => {
 
   setupUpdater(mainWindow);
   startHttpServer();
+  startScheduleChecker();
 
   // Tray
   trayHandle = createTray(mainWindow, {
@@ -3281,6 +3376,21 @@ ipcMain.handle('sessions:start', (_, { userId, category, title, projectId, clien
     currentSessionId = id;
     scheduleBreakReminder(userId);
     scheduleFlowState(title || category || 'Session');
+    // Start idle watcher for this manual session
+    manualIdleWatcher?.stop();
+    const tsRow = get('SELECT idle_threshold_secs FROM tracking_settings WHERE user_id=?', [userId]);
+    const manualIdleThreshold = Math.max(300, (tsRow?.idle_threshold_secs || 300));
+    manualIdleWatcher = new IdleWatcher({
+      getIdleTime:   () => { try { return powerMonitor.getSystemIdleTime(); } catch { return 0; } },
+      thresholdSecs: manualIdleThreshold,
+      onIdle:  ({ awayStartedAt }) => {
+        if (mainWindow) mainWindow.webContents.send('timer:manualIdle', { awayStartedAt });
+      },
+      onResume: ({ awaySeconds }) => {
+        if (mainWindow) mainWindow.webContents.send('timer:manualResume', { awaySeconds });
+      },
+    });
+    manualIdleWatcher.start();
   }
   return { id, started_at: now };
 });
@@ -3291,7 +3401,11 @@ ipcMain.handle('sessions:stop', (_, { sessionId, endedAt, titleGenerating }) => 
   const stopTime = endedAt || Math.floor(Date.now()/1000);
   const dur  = Math.max(0, stopTime - session.started_at);
   const deep = dur >= 1500 ? 1 : 0;
-  run('UPDATE sessions SET ended_at=?,duration_seconds=?,is_deep_work=? WHERE id=?', [stopTime, dur, deep, sessionId]);
+  const activityRatio = manualIdleWatcher ? manualIdleWatcher.activityRatio() : 100;
+  manualIdleWatcher?.stop();
+  if (currentSessionId === sessionId) manualIdleWatcher = null;
+  run('UPDATE sessions SET ended_at=?,duration_seconds=?,is_deep_work=?,activity_ratio=? WHERE id=?',
+    [stopTime, dur, deep, activityRatio, sessionId]);
   if (currentSessionId === sessionId) {
     currentSessionId = null;
     clearTimeout(flowStateTimeout);
@@ -3343,6 +3457,44 @@ ipcMain.handle('sessions:schedule', (_, { userId, category, title, projectId, cl
   run('INSERT INTO pending_entries (id,user_id,session_id,date_key) VALUES (?,?,?,?)',
     [uuidv4(), userId, id, localDateKey(start)]);
   return { id, started_at: start, ended_at: end, duration_seconds: dur };
+});
+
+// ── Subtract away-time from a running session by advancing its started_at ────
+ipcMain.handle('sessions:subtractAway', (_, { sessionId, seconds }) => {
+  const session = get('SELECT started_at FROM sessions WHERE id=? AND ended_at IS NULL', [sessionId]);
+  if (!session) return { success: false };
+  const newStart = session.started_at + Math.round(seconds);
+  run('UPDATE sessions SET started_at=? WHERE id=?', [newStart, sessionId]);
+  return { success: true, newStartedAt: newStart };
+});
+
+// ── Work-day boundary status ──────────────────────────────────────────────────
+ipcMain.handle('workday:status', (_, { userId }) => {
+  try {
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const dayStart = Math.floor(midnight.getTime() / 1000);
+    const now      = Math.floor(Date.now() / 1000);
+    const row = get(
+      `SELECT MIN(started_at) AS first_start,
+              SUM(CASE WHEN ended_at IS NOT NULL THEN duration_seconds
+                       ELSE MAX(0, ? - started_at) END) AS total_sec
+       FROM sessions
+       WHERE user_id=? AND started_at >= ? AND session_type != 'break'`,
+      [now, userId, dayStart]
+    );
+    const user = get('SELECT daily_target_hours FROM users WHERE id=?', [userId]);
+    const targetSec = Math.round((user?.daily_target_hours || 8) * 3600);
+    if (!row?.first_start) return { started: false };
+    const totalSec   = row.total_sec || 0;
+    const overtimeSec = Math.max(0, totalSec - targetSec);
+    return {
+      started: true,
+      startedAt:   row.first_start,
+      totalSec,
+      targetSec,
+      overtimeSec,
+    };
+  } catch { return { started: false }; }
 });
 
 ipcMain.handle('sessions:list', (_, { userId, from, to, includeAutoBlocks = false }) => {
@@ -3840,6 +3992,7 @@ ipcMain.handle('focusMode:stop', () => {
   focusStartTime  = null;
   focusProfileId  = null;
   focusRuleScope  = 'global';
+  _scheduleControlledFocus = false;
   if (mainWindow) mainWindow.webContents.send('focusMode:changed', { active: false, startedAt: null, profileId: null, ruleScope: focusRuleScope });
   return { success: true };
 });
@@ -6034,4 +6187,133 @@ ipcMain.handle('ai:workflowSummary', (_, { userId, dateKey }) => {
   } catch (e) {
     return null;
   }
+});
+
+// ─── FOCUS STREAK ─────────────────────────────────────────────────────────────
+ipcMain.handle('stats:focusStreak', (_, { userId }) => {
+  const user = get('SELECT daily_target_hours FROM users WHERE id=?', [userId]);
+  const targetSecs = (user?.daily_target_hours || 6) * 3600;
+  const from90 = Math.floor(Date.now() / 1000) - 90 * 86400;
+
+  const manualRows = all(
+    `SELECT strftime('%Y-%m-%d', datetime(started_at,'unixepoch','localtime')) as dk,
+            COALESCE(SUM(duration_seconds),0) as total
+     FROM sessions WHERE user_id=? AND ended_at IS NOT NULL AND started_at>=?
+     GROUP BY dk`,
+    [userId, from90]
+  );
+  const autoRows = all(
+    `SELECT date_key as dk, COALESCE(SUM(duration_seconds),0) as total
+     FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=?
+     GROUP BY dk`,
+    [userId, from90]
+  );
+
+  const byDate = {};
+  manualRows.forEach(r => { byDate[r.dk] = (byDate[r.dk] || 0) + r.total; });
+  autoRows.forEach(r => { byDate[r.dk] = (byDate[r.dk] || 0) + r.total; });
+
+  const days = [];
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 90; i++) {
+    const key = localDateKey(Math.floor(d.getTime() / 1000));
+    days.push(byDate[key] || 0);
+    d.setDate(d.getDate() - 1);
+  }
+
+  // Skip today if not yet at target (day still in progress)
+  const startIdx = days[0] >= targetSecs ? 0 : 1;
+  let currentStreak = 0;
+  for (let i = startIdx; i < days.length; i++) {
+    if (days[i] >= targetSecs) currentStreak++;
+    else break;
+  }
+
+  let longest = 0, run = 0;
+  for (const t of days) {
+    if (t >= targetSecs) { run++; longest = Math.max(longest, run); }
+    else run = 0;
+  }
+
+  return { currentStreak, longestStreak: longest, targetSecs };
+});
+
+// ─── DAY PLANNING ─────────────────────────────────────────────────────────────
+ipcMain.handle('dayPlan:get', (_, { userId, dateKey }) =>
+  get('SELECT * FROM day_plans WHERE user_id=? AND date_key=?', [userId, dateKey]) || null
+);
+
+ipcMain.handle('dayPlan:save', (_, { userId, dateKey, planItems }) => {
+  const json = JSON.stringify(planItems || []);
+  const existing = get('SELECT id FROM day_plans WHERE user_id=? AND date_key=?', [userId, dateKey]);
+  if (existing) {
+    run('UPDATE day_plans SET plan_json=? WHERE user_id=? AND date_key=?', [json, userId, dateKey]);
+  } else {
+    run('INSERT INTO day_plans (id,user_id,date_key,plan_json) VALUES (?,?,?,?)', [uuidv4(), userId, dateKey, json]);
+  }
+  return { success: true };
+});
+
+ipcMain.handle('dayPlan:compare', (_, { userId, dateKey }) => {
+  const plan = get('SELECT plan_json FROM day_plans WHERE user_id=? AND date_key=?', [userId, dateKey]);
+  if (!plan) return { plan: [], actual: {} };
+  const items = JSON.parse(plan.plan_json || '[]');
+  const dayStart = Math.floor(new Date(`${dateKey}T00:00:00`).getTime() / 1000);
+  const dayEnd   = dayStart + 86400;
+  const rows = all(
+    'SELECT category, COALESCE(SUM(duration_seconds),0) as total FROM sessions WHERE user_id=? AND ended_at IS NOT NULL AND started_at>=? AND started_at<? GROUP BY category',
+    [userId, dayStart, dayEnd]
+  );
+  const actual = {};
+  rows.forEach(r => { actual[r.category] = r.total; });
+  return { plan: items, actual };
+});
+
+// ─── BLOCK SCHEDULES ─────────────────────────────────────────────────────────
+ipcMain.handle('schedules:list', (_, { userId }) =>
+  all('SELECT * FROM block_schedules WHERE user_id=? ORDER BY start_mins', [userId])
+);
+ipcMain.handle('schedules:create', (_, { userId, label, profileIds, daysMask, startMins, endMins }) => {
+  const id = uuidv4();
+  run('INSERT INTO block_schedules (id,user_id,label,profile_ids,days_mask,start_mins,end_mins) VALUES (?,?,?,?,?,?,?)',
+    [id, userId, label, JSON.stringify(profileIds || []), daysMask ?? 62, startMins ?? 540, endMins ?? 720]);
+  return { id, label, profile_ids: JSON.stringify(profileIds || []), days_mask: daysMask ?? 62, start_mins: startMins ?? 540, end_mins: endMins ?? 720, active: 1 };
+});
+ipcMain.handle('schedules:update', (_, { id, label, profileIds, daysMask, startMins, endMins }) => {
+  run('UPDATE block_schedules SET label=?,profile_ids=?,days_mask=?,start_mins=?,end_mins=? WHERE id=?',
+    [label, JSON.stringify(profileIds || []), daysMask, startMins, endMins, id]);
+  return { success: true };
+});
+ipcMain.handle('schedules:delete', (_, { id }) => { run('DELETE FROM block_schedules WHERE id=?', [id]); return { success: true }; });
+ipcMain.handle('schedules:toggle', (_, { id, active }) => { run('UPDATE block_schedules SET active=? WHERE id=?', [active ? 1 : 0, id]); return { success: true }; });
+
+// ─── SLACK STATUS ─────────────────────────────────────────────────────────────
+ipcMain.handle('slack:setStatus', (_, { token, statusText, statusEmoji, durationSecs }) => {
+  const https = require('https');
+  const body  = JSON.stringify({
+    profile: {
+      status_text:       statusText || '',
+      status_emoji:      statusEmoji || '',
+      status_expiration: durationSecs ? Math.floor(Date.now() / 1000) + durationSecs : 0,
+    },
+  });
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'slack.com',
+      path:     '/api/users.profile.set',
+      method:   'POST',
+      headers:  {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type':  'application/json; charset=utf-8',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end',  () => { try { resolve(JSON.parse(data)); } catch { resolve({ ok: false }); } });
+    });
+    req.on('error', () => resolve({ ok: false }));
+    req.write(body);
+    req.end();
+  });
 });

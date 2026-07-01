@@ -14,6 +14,10 @@ import { classifyActivityApp, classifyActivitySession, SMART_CATEGORY_DEFS } fro
 import { getDashboardBehavioralKPIs } from '../../ai/adaptive/behaviorAnalyticsBridge.js';
 import { generateAdaptiveRecommendations } from '../../ai/adaptive/adaptiveBehaviorEngine.js';
 import { getWeeklyBehavioralReview } from '../../ai/adaptive/productivityInsightsAggregator.js';
+import WorkDayWidget from '../shared/WorkDayWidget.jsx';
+import FocusStreakWidget from './FocusStreakWidget.jsx';
+import GoalProgressWidget from './GoalProgressWidget.jsx';
+import DayPlanWidget from './DayPlanWidget.jsx';
 
 const api = window.electron || {};
 
@@ -516,14 +520,15 @@ export default function HomePage({ user, onNavigate }) {
     || user.email
     || 'there';
 
-  const [dateKey,        setDateKey]        = useState(localDateStr());
-  const [autoSessions,   setAutoSessions]   = useState([]);
-  const [prevAuto,       setPrevAuto]       = useState([]);
-  const [manualSessions, setManualSessions] = useState([]);
-  const [projects,       setProjects]       = useState([]);
-  const [clients,        setClients]        = useState([]);
-  const [calEvents,      setCalEvents]      = useState([]);
-  const [activeSession,  setActiveSession]  = useState(null);
+  const [dateKey,            setDateKey]            = useState(localDateStr());
+  const [autoSessions,       setAutoSessions]       = useState([]);
+  const [prevAuto,           setPrevAuto]           = useState([]);
+  const [prevManualSessions, setPrevManualSessions] = useState([]);
+  const [manualSessions,     setManualSessions]     = useState([]);
+  const [projects,           setProjects]           = useState([]);
+  const [clients,            setClients]            = useState([]);
+  const [calEvents,          setCalEvents]          = useState([]);
+  const [activeSession,      setActiveSession]      = useState(null);
 
   // Adaptive behavioral intelligence — synchronous, localStorage reads
   const behavioralKPIs  = useMemo(() => { try { return getDashboardBehavioralKPIs(); } catch { return null; } }, []);
@@ -542,10 +547,11 @@ export default function HomePage({ user, onNavigate }) {
     const from = Math.floor(dayStart.getTime() / 1000);
     const to   = isToday ? Math.floor(Date.now() / 1000) : from + 86399;
     try {
-      const [auto, manual, prev, projs, clientList, calEvs, activeSess] = await Promise.all([
+      const [auto, manual, prev, prevManual, projs, clientList, calEvs, activeSess] = await Promise.all([
         api.autoSessionsByDate?.({ userId: user.id, dateKey }).catch(() => []),
         api.listSessions?.({ userId: user.id, from, to }).catch(() => []),
         api.autoSessionsRange?.({ userId: user.id, from: from - 86400, to: from }).catch(() => []),
+        api.listSessions?.({ userId: user.id, from: from - 86400, to: from }).catch(() => []),
         api.listProjects?.({ userId: user.id }).catch(() => []),
         api.listClients?.({ userId: user.id }).catch(() => []),
         api.calendarList?.({ userId: user.id, from, to }).catch(() => []),
@@ -554,6 +560,7 @@ export default function HomePage({ user, onNavigate }) {
       setAutoSessions(auto || []);
       setManualSessions(manual || []);
       setPrevAuto(prev || []);
+      setPrevManualSessions(prevManual || []);
       setProjects(projs || []);
       setClients(clientList || []);
       setCalEvents(calEvs || []);
@@ -579,19 +586,59 @@ export default function HomePage({ user, onNavigate }) {
   }, [load, refreshing]);
 
   // ── Derived ────────────────────────────────────────────────────────────────────
-  const active      = useMemo(() => autoSessions.filter(s => !s.is_idle && (s.duration_seconds || 0) > 0), [autoSessions]);
-  const prevActive  = useMemo(() => prevAuto.filter(s => !s.is_idle && (s.duration_seconds || 0) > 0), [prevAuto]);
-  const totalSecs   = useMemo(() => active.reduce((a, s) => a + (s.duration_seconds || 0), 0), [active]);
-  const prevTotal   = useMemo(() => prevActive.reduce((a, s) => a + (s.duration_seconds || 0), 0), [prevActive]);
+  // For ongoing sessions (ended_at IS NULL), duration_seconds is stale — compute live
+  // duration from started_at instead. Completed sessions use their stored duration_seconds.
+  const active = useMemo(() => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    return autoSessions
+      .filter(s => !s.is_idle)
+      .map(s => ({
+        ...s,
+        duration_seconds: s.ended_at
+          ? (s.duration_seconds || 0)
+          : Math.max(0, nowSec - (s.started_at || nowSec)),
+      }))
+      .filter(s => s.duration_seconds > 0);
+  }, [autoSessions]);
+  // prevAuto is always fully historical — all sessions ended, use stored duration_seconds
+  const prevActive = useMemo(() => prevAuto.filter(s => !s.is_idle && s.ended_at && (s.duration_seconds || 0) > 0), [prevAuto]);
+
+  // Manual session helpers — exclude breaks, require completed sessions
+  const manualActive = useMemo(() =>
+    manualSessions.filter(s => s.ended_at && s.started_at && (s.session_type || 'focus') !== 'break'),
+  [manualSessions]);
+  const prevManualActive = useMemo(() =>
+    prevManualSessions.filter(s => s.ended_at && s.started_at && (s.session_type || 'focus') !== 'break'),
+  [prevManualSessions]);
+
+  // Use auto sessions when available (auto-tracking mode); fall back to manual sessions
+  // when there are no auto sessions (manual-only mode). Combining both would double-count
+  // time for users who have background auto-tracking running alongside manual sessions.
+  const totalSecs = useMemo(() => {
+    const autoTotal   = active.reduce((a, s) => a + (s.duration_seconds || 0), 0);
+    const manualTotal = manualActive.reduce((a, s) => a + Math.max(0, s.ended_at - s.started_at), 0);
+    return autoTotal > 0 ? autoTotal : manualTotal;
+  }, [active, manualActive]);
+
+  const prevTotal = useMemo(() => {
+    const autoTotal   = prevActive.reduce((a, s) => a + (s.duration_seconds || 0), 0);
+    const manualTotal = prevManualActive.reduce((a, s) => a + Math.max(0, s.ended_at - s.started_at), 0);
+    return autoTotal > 0 ? autoTotal : manualTotal;
+  }, [prevActive, prevManualActive]);
 
   const byType = useMemo(() => {
     const map = {};
     active.forEach(s => { const t = classifyApp(s.app_name || '').type; map[t] = (map[t] || 0) + (s.duration_seconds || 0); });
     return map;
   }, [active]);
-  const deepSecs = byType.deep || 0;
-  const meetingSecs = byType.meeting || 0;
-  const distractSecs = byType.distraction || 0;
+
+  const manualDeepSecs = useMemo(() =>
+    manualActive.filter(s => s.is_deep_work === 1).reduce((a, s) => a + Math.max(0, s.ended_at - s.started_at), 0),
+  [manualActive]);
+  // Mirror totalSecs: auto sessions are primary; fall back to manual when no auto data exists
+  const deepSecs     = (byType.deep || 0) > 0 ? (byType.deep || 0) : manualDeepSecs;
+  const meetingSecs  =  byType.meeting  || 0;
+  const distractSecs =  byType.distraction || 0;
 
   const prodScore   = useMemo(() => !totalSecs ? 0 : Math.max(0, Math.min(100, Math.round((deepSecs/totalSecs)*100 - (distractSecs/totalSecs)*50 + Math.min(totalSecs/3600,4)*2))), [totalSecs, deepSecs, distractSecs]);
   const focusScore  = totalSecs > 0 ? Math.min(100, Math.round((deepSecs/totalSecs)*140)) : 0;
@@ -648,8 +695,9 @@ export default function HomePage({ user, onNavigate }) {
   const hourlyBuckets = useMemo(() => {
     const b = Array(24).fill(0);
     active.forEach(s => { const h = new Date((s.started_at||0)*1000).getHours(); if (h >= 0 && h < 24) b[h] += s.duration_seconds || 0; });
+    manualActive.forEach(s => { const h = new Date((s.started_at||0)*1000).getHours(); if (h >= 0 && h < 24) b[h] += Math.max(0, s.ended_at - s.started_at); });
     return b;
-  }, [active]);
+  }, [active, manualActive]);
 
   const peakHour = useMemo(() => {
     const max = Math.max(...hourlyBuckets);
@@ -866,6 +914,22 @@ export default function HomePage({ user, onNavigate }) {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── Work day boundary ──────────────────────────────────────────────── */}
+        <div className="mt-3">
+          <WorkDayWidget user={user} />
+        </div>
+
+        {/* ── Day planning + focus streak row ────────────────────────────────── */}
+        <div className="mt-3 grid grid-cols-[1fr_auto] gap-3 items-start">
+          <DayPlanWidget user={user} />
+          <FocusStreakWidget user={user} />
+        </div>
+
+        {/* ── Weekly / monthly targets ────────────────────────────────────────── */}
+        <div className="mt-3">
+          <GoalProgressWidget user={user} />
         </div>
 
         {/* ── Adaptive behavioral intelligence strip ────────────────────────── */}
