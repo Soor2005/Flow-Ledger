@@ -4624,16 +4624,21 @@ ipcMain.handle('stats:summary', (_, { userId, from, to }) => {
   );
 
   // Raw auto-tracked sessions (the source of truth for tracked time)
-  const autoSess = all(
-    `SELECT duration_seconds, app_name, url, ai_is_deep_work, ai_category, ai_label, is_idle
+  const autoSessRaw = all(
+    `SELECT started_at, duration_seconds, app_name, url, ai_is_deep_work, ai_category, ai_label, is_idle
      FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<=?`,
     [userId, from, to]
   );
-  const autoTotal = autoSess.reduce((s,r) => s+(r.duration_seconds||0), 0);
 
   // Manual sessions that were NOT created by autoSaveBlock (avoid double-counting auto-time)
   const pureManual = sessions.filter(r => !String(r.notes||'').startsWith('__auto_block:'));
   const manualTotal = pureManual.reduce((s,r) => s+(r.duration_seconds||0), 0);
+
+  // The auto-tracker never pauses for a live manual session, so subtract any
+  // auto_sessions time that overlaps a manual session before summing — otherwise
+  // the same wall-clock minute gets counted once as manual and again as auto.
+  const autoSess  = dedupeAutoAgainstManual(autoSessRaw, pureManual);
+  const autoTotal = autoSess.reduce((s,r) => s+(r.duration_seconds||0), 0);
 
   const total = manualTotal + autoTotal;
 
@@ -4642,20 +4647,22 @@ ipcMain.handle('stats:summary', (_, { userId, from, to }) => {
   const autoDeep   = autoSess.filter(s=>classifyAutoType(s)==='deep').reduce((s,r)=>s+(r.duration_seconds||0),0);
   const deepWork   = manualDeep + autoDeep;
 
-  // Meetings, breaks — from manual sessions only (auto-tracker doesn't record those categories)
-  const meetings = pureManual.filter(r=>r.session_type==='meeting').reduce((s,r)=>s+(r.duration_seconds||0),0);
+  // Auto sessions that are classified as meetings (Zoom, Teams, Meet, etc.)
+  const autoMeet = autoSess.filter(s=>classifyAutoType(s)==='meeting').reduce((s,r)=>s+(r.duration_seconds||0),0);
+
+  // Meetings = manual meeting sessions + auto-classified meeting sessions
+  const meetings = pureManual.filter(r=>r.session_type==='meeting').reduce((s,r)=>s+(r.duration_seconds||0),0) + autoMeet;
   const breaks   = pureManual.filter(r=>r.session_type==='break').reduce((s,r)=>s+(r.duration_seconds||0),0);
 
-  // Focus = non-meeting/break manual time + all auto time
+  // Focus = non-meeting/break manual time + non-meeting auto time (excludes auto meetings)
   const manualFocus = pureManual.filter(r=>r.session_type!=='meeting'&&r.session_type!=='break').reduce((s,r)=>s+(r.duration_seconds||0),0);
-  const focus = manualFocus + autoTotal;
+  const focus = manualFocus + (autoTotal - autoMeet);
 
   // Category breakdown
   const byCategory = {};
   pureManual.forEach(r => { if (r.category) byCategory[r.category]=(byCategory[r.category]||0)+(r.duration_seconds||0); });
   if (autoDeep   > 0) byCategory['Deep Work (Auto)']   = (byCategory['Deep Work (Auto)']||0)   + autoDeep;
   const autoShallow = autoSess.filter(s=>classifyAutoType(s)==='shallow').reduce((s,r)=>s+(r.duration_seconds||0),0);
-  const autoMeet    = autoSess.filter(s=>classifyAutoType(s)==='meeting').reduce((s,r)=>s+(r.duration_seconds||0),0);
   const autoDist    = autoSess.filter(s=>classifyAutoType(s)==='distraction').reduce((s,r)=>s+(r.duration_seconds||0),0);
   if (autoShallow > 0) byCategory['Browsing & Utilities'] = (byCategory['Browsing & Utilities']||0) + autoShallow;
   if (autoMeet    > 0) byCategory['Meetings (Auto)']      = (byCategory['Meetings (Auto)']||0)      + autoMeet;
@@ -4689,11 +4696,15 @@ ipcMain.handle('stats:daily', (_, { userId, days }) => {
   );
 
   // Raw auto-tracked sessions with classification columns
-  const autoSess = all(
+  const autoSessRaw = all(
     `SELECT started_at, duration_seconds, app_name, url, ai_is_deep_work, ai_category, ai_label, is_idle
      FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=?`,
     [userId, from]
   );
+  // Subtract time that overlaps a manual session — the auto-tracker never
+  // pauses for a live manual timer, so without this the same minute would be
+  // counted twice (once as manual, once as auto).
+  const autoSess = dedupeAutoAgainstManual(autoSessRaw, sessions);
 
   const daily = {};
 
@@ -4702,10 +4713,10 @@ ipcMain.handle('stats:daily', (_, { userId, days }) => {
     if (!daily[d]) daily[d] = { total:0, deepWork:0, focus:0, meetings:0, breaks:0, sessions:0 };
     daily[d].total    += r.duration_seconds||0;
     daily[d].sessions++;
-    if (r.is_deep_work)             daily[d].deepWork  += r.duration_seconds||0;
-    if (r.session_type==='focus')   daily[d].focus     += r.duration_seconds||0;
-    if (r.session_type==='meeting') daily[d].meetings  += r.duration_seconds||0;
-    if (r.session_type==='break')   daily[d].breaks    += r.duration_seconds||0;
+    if (r.is_deep_work)                                           daily[d].deepWork  += r.duration_seconds||0;
+    if (r.session_type!=='meeting' && r.session_type!=='break') daily[d].focus     += r.duration_seconds||0;
+    if (r.session_type==='meeting')                             daily[d].meetings  += r.duration_seconds||0;
+    if (r.session_type==='break')                               daily[d].breaks    += r.duration_seconds||0;
   });
 
   // Auto-tracked sessions: classify and bucket into correct daily fields
@@ -4756,7 +4767,7 @@ ipcMain.handle('stats:heatmap', (_, { userId, year }) => {
 
   // Manual sessions
   const manual = all(
-    'SELECT started_at, duration_seconds FROM sessions WHERE user_id=? AND ended_at IS NOT NULL AND started_at>=? AND started_at<?',
+    'SELECT started_at, ended_at, duration_seconds FROM sessions WHERE user_id=? AND ended_at IS NOT NULL AND started_at>=? AND started_at<?',
     [userId, s, e]
   );
   manual.forEach(r => {
@@ -4764,11 +4775,13 @@ ipcMain.handle('stats:heatmap', (_, { userId, year }) => {
     map[d] = (map[d] || 0) + (r.duration_seconds || 0);
   });
 
-  // Auto-tracked sessions (the bulk of tracked time)
-  const auto = all(
+  // Auto-tracked sessions (the bulk of tracked time) — subtract time overlapping
+  // manual sessions since the auto-tracker never pauses for a live manual timer.
+  const autoRaw = all(
     'SELECT started_at, duration_seconds FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<?',
     [userId, s, e]
   );
+  const auto = dedupeAutoAgainstManual(autoRaw, manual);
   auto.forEach(r => {
     const d = localDateKey(r.started_at);
     map[d] = (map[d] || 0) + (r.duration_seconds || 0);
@@ -4777,12 +4790,32 @@ ipcMain.handle('stats:heatmap', (_, { userId, year }) => {
   return map;
 });
 
+// context_switches on `sessions` is a dead schema column (DEFAULT 0, never
+// written) — real switch data lives in ai_switch_events, populated live by
+// the auto-tracker every time the foreground app changes.
 ipcMain.handle('stats:contextScore', (_, { userId, from, to }) => {
-  const sessions = all('SELECT * FROM sessions WHERE user_id=? AND ended_at IS NOT NULL AND started_at>=? AND started_at<=?', [userId, from, to]);
-  if (!sessions.length) return { score:100, avgSwitches:0, totalSessions:0 };
-  const total = sessions.reduce((a,r)=>a+(r.context_switches||0),0);
-  const avg   = total/sessions.length;
-  return { score: Math.max(0,Math.round(100-avg*5)), avgSwitches: Math.round(avg*10)/10, totalSessions: sessions.length };
+  const nowSec = Math.floor(Date.now() / 1000);
+  const effectiveTo = Math.min(to, nowSec);
+
+  const switchCount = get(
+    'SELECT COUNT(*) as cnt FROM ai_switch_events WHERE user_id=? AND ts>=? AND ts<=?',
+    [userId, from, effectiveTo]
+  )?.cnt || 0;
+
+  const manualCount = get(
+    `SELECT COUNT(*) as cnt FROM sessions WHERE user_id=? AND ended_at IS NOT NULL
+     AND started_at>=? AND started_at<=? AND (notes IS NULL OR notes NOT LIKE '__auto_block:%')`,
+    [userId, from, effectiveTo]
+  )?.cnt || 0;
+  const autoCount = get(
+    'SELECT COUNT(*) as cnt FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<=?',
+    [userId, from, effectiveTo]
+  )?.cnt || 0;
+  const sessionCount = manualCount + autoCount;
+
+  if (sessionCount === 0) return { score:100, avgSwitches:0, totalSessions:0 };
+  const avg = switchCount / sessionCount;
+  return { score: Math.max(0,Math.round(100-avg*5)), avgSwitches: Math.round(avg*10)/10, totalSessions: sessionCount };
 });
 
 // ─── GOALS ────────────────────────────────────────────────────────────────────
@@ -4942,12 +4975,42 @@ ipcMain.handle('stats:deepWorkBlocks', (_, { userId, from, to }) => {
     [userId, f, t]
   );
 
-  const autoBlocks = buildAutoDeepBlocks(autoRaw, 1500);
+  // Any manual session (not just deep ones) already accounts for its wall-clock
+  // window — subtract that overlap from the raw auto rows before grouping them
+  // into blocks, otherwise the same period can surface as both a manual block
+  // and an auto block (prior comment claimed dedup here, but none existed).
+  const allManualForDedupe = all(
+    `SELECT started_at, ended_at FROM sessions WHERE user_id=? AND ended_at IS NOT NULL
+     AND started_at>=? AND started_at<=? AND (notes IS NULL OR notes NOT LIKE '__auto_block:%')`,
+    [userId, f, t]
+  );
+  const autoRawDeduped = dedupeAutoAgainstManual(autoRaw, allManualForDedupe);
 
-  // Merge, de-duplicate overlapping windows (prefer manual), sort newest first
+  const autoBlocks = buildAutoDeepBlocks(autoRawDeduped, 1500);
+
+  // Attach real per-block context-switch counts from ai_switch_events — the
+  // sessions.context_switches column is dead (never written), so quality
+  // scoring and switch-distribution stats must count actual switch events
+  // that fall inside each block's time window.
+  const switchEvents = all(
+    'SELECT ts FROM ai_switch_events WHERE user_id=? AND ts>=? AND ts<=? ORDER BY ts',
+    [userId, f, t]
+  );
+  const countSwitches = (start, end) => {
+    let c = 0;
+    for (const e of switchEvents) {
+      if (e.ts < start) continue;
+      if (e.ts > end) break;
+      c++;
+    }
+    return c;
+  };
+
+  // Merge and sort newest first (auto blocks no longer overlap manual blocks)
   const combined = [...manualBlocks, ...autoBlocks]
     .sort((a, b) => b.started_at - a.started_at)
-    .slice(0, 30);
+    .slice(0, 30)
+    .map(b => ({ ...b, context_switches: countSwitches(b.started_at, b.ended_at) }));
 
   return combined;
 });
@@ -4956,49 +5019,59 @@ ipcMain.handle('stats:deepWorkBlocks', (_, { userId, from, to }) => {
 ipcMain.handle('stats:topApps', (_, { userId, from, to, limit = 20 }) => {
   const now = Math.floor(Date.now() / 1000);
   const f = from || now - 7 * 86400, t = to || now;
-  // Normalise app_name: strip trailing .exe (case-insensitive) so Chrome.exe and chrome are merged
-  const rows = all(
-    `SELECT
-       LOWER(REPLACE(REPLACE(app_name, '.exe', ''), '.EXE', '')) AS app_name,
-       SUM(duration_seconds) AS total,
-       COUNT(*) AS occurrences
+  const norm = (n) => (n || '').replace(/\.exe/gi, '').toLowerCase();
+
+  const autoRaw = all(
+    `SELECT started_at, duration_seconds, app_name, ai_category, ai_label
      FROM auto_sessions
      WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<=?
-       AND app_name IS NOT NULL AND app_name != ''
-       AND duration_seconds > 0
-     GROUP BY LOWER(REPLACE(REPLACE(app_name, '.exe', ''), '.EXE', ''))
-     ORDER BY total DESC LIMIT ?`,
-    [userId, f, t, limit]
+       AND app_name IS NOT NULL AND app_name != '' AND duration_seconds > 0`,
+    [userId, f, t]
   );
 
-  // Attach the authoritative category (set on the Activity → Apps page) for
-  // each app so consumers never re-derive their own classification. We pick
-  // the duration-weighted dominant ai_category/ai_label per app rather than a
-  // simple SQL GROUP BY, since a handful of stray sessions may predate a bulk
-  // category reassignment.
-  if (rows.length) {
-    const catRows = all(
-      `SELECT
-         LOWER(REPLACE(REPLACE(app_name, '.exe', ''), '.EXE', '')) AS app_name,
-         ai_category, ai_label, SUM(duration_seconds) AS secs
-       FROM auto_sessions
-       WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<=?
-         AND app_name IS NOT NULL AND app_name != '' AND duration_seconds > 0
-         AND ai_category IS NOT NULL AND ai_category != ''
-       GROUP BY LOWER(REPLACE(REPLACE(app_name, '.exe', ''), '.EXE', '')), ai_category, ai_label`,
-      [userId, f, t]
-    );
-    const dominant = {};
-    for (const r of catRows) {
-      const cur = dominant[r.app_name];
-      if (!cur || r.secs > cur.secs) dominant[r.app_name] = r;
+  // Subtract time overlapping manual sessions — the auto-tracker never pauses
+  // for a live manual timer, so raw app-usage totals would otherwise
+  // double-count that overlapping time (same reasoning as stats:summary).
+  const manualForDedupe = all(
+    `SELECT started_at, ended_at FROM sessions WHERE user_id=? AND ended_at IS NOT NULL
+     AND started_at>=? AND started_at<=? AND (notes IS NULL OR notes NOT LIKE '__auto_block:%')`,
+    [userId, f, t]
+  );
+  const autoDeduped = dedupeAutoAgainstManual(autoRaw, manualForDedupe);
+
+  // Aggregate by normalised app name, plus track duration-weighted category
+  // per app so we can attach the dominant ai_category/ai_label (mirrors the
+  // old SQL GROUP BY logic, just computed in JS post-dedup).
+  const appMap = {};
+  const catSecs = {};
+  autoDeduped.forEach(r => {
+    const key = norm(r.app_name);
+    if (!key) return;
+    if (!appMap[key]) appMap[key] = { app_name: key, total: 0, occurrences: 0 };
+    appMap[key].total += r.duration_seconds || 0;
+    appMap[key].occurrences += 1;
+    if (r.ai_category) {
+      if (!catSecs[key]) catSecs[key] = {};
+      const catKey = `${r.ai_category} ${r.ai_label || ''}`;
+      catSecs[key][catKey] = (catSecs[key][catKey] || 0) + (r.duration_seconds || 0);
     }
-    for (const row of rows) {
-      const d = dominant[row.app_name];
-      row.ai_category = d ? d.ai_category : null;
-      row.ai_label = d ? d.ai_label : null;
+  });
+
+  const rows = Object.values(appMap)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+
+  rows.forEach(row => {
+    const cats = catSecs[row.app_name];
+    if (!cats) { row.ai_category = null; row.ai_label = null; return; }
+    let bestKey = null, bestSecs = -1;
+    for (const [k, secs] of Object.entries(cats)) {
+      if (secs > bestSecs) { bestSecs = secs; bestKey = k; }
     }
-  }
+    const [cat, label] = bestKey.split(' ');
+    row.ai_category = cat;
+    row.ai_label = label || null;
+  });
 
   return rows;
 });
@@ -5052,27 +5125,36 @@ ipcMain.handle('stats:weekComparison', (_, { userId }) => {
   );
 
   // Auto-sessions for each window
-  const thisWeekAuto = all(
+  const thisWeekAutoRaw = all(
     `SELECT started_at, duration_seconds, app_name, url, ai_is_deep_work, ai_category, is_idle
-     FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=?`,
-    [userId, thisWeekStart]
+     FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<=?`,
+    [userId, thisWeekStart, now]
   );
-  const lastWeekAuto = all(
+  const lastWeekAutoRaw = all(
     `SELECT started_at, duration_seconds, app_name, url, ai_is_deep_work, ai_category, is_idle
      FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<?`,
     [userId, lastWeekStart, thisWeekStart]
   );
+  // Subtract time overlapping manual sessions — the auto-tracker never pauses
+  // for a live manual timer, so raw sums would double-count that time.
+  const thisWeekAuto = dedupeAutoAgainstManual(thisWeekAutoRaw, thisWeekMnl);
+  const lastWeekAuto  = dedupeAutoAgainstManual(lastWeekAutoRaw, lastWeekMnl);
 
   const build = (mnl, auto) => {
     const autoTotal    = sum(auto, r => r.duration_seconds);
     const autoDeep     = sum(auto.filter(s => classifyAutoType(s) === 'deep'), r => r.duration_seconds);
+    const autoMeet     = sum(auto.filter(s => classifyAutoType(s) === 'meeting'), r => r.duration_seconds);
     const manualDeep   = sum(mnl.filter(r => r.is_deep_work), r => r.duration_seconds);
-    const manualFocus  = sum(mnl.filter(r => r.session_type === 'focus'), r => r.duration_seconds);
+    const manualMeet   = sum(mnl.filter(r => r.session_type === 'meeting'), r => r.duration_seconds);
+    const manualFocus  = sum(mnl.filter(r => r.session_type !== 'meeting' && r.session_type !== 'break'), r => r.duration_seconds);
     const manualTotal  = sum(mnl, r => r.duration_seconds);
     return {
       totalSecs:    manualTotal + autoTotal,
       deepWorkSecs: manualDeep  + autoDeep,
-      focusSecs:    manualFocus + autoTotal,
+      // Focus excludes auto-classified meeting time — mirrors stats:summary
+      // so this page's week-over-week numbers agree with Reports/Overview.
+      focusSecs:    manualFocus + (autoTotal - autoMeet),
+      meetingSecs:  manualMeet + autoMeet,
       sessions:     mnl.length  + auto.length,
     };
   };
@@ -5088,11 +5170,19 @@ ipcMain.handle('stats:distractionRatio', (_, { userId, from, to }) => {
   const now = Math.floor(Date.now() / 1000);
   const f = from || now - 7 * 86400, t = to || now;
 
-  const autoSess = all(
-    `SELECT app_name, url, duration_seconds, ai_is_deep_work, ai_category, ai_label, is_idle
+  const autoSessRaw = all(
+    `SELECT started_at, app_name, url, duration_seconds, ai_is_deep_work, ai_category, ai_label, is_idle
      FROM auto_sessions WHERE user_id=? AND is_idle=0 AND started_at>=? AND started_at<=?`,
     [userId, f, t]
   );
+  // Manual sessions overlap the same wall-clock time the auto-tracker keeps
+  // logging — subtract that overlap so this ratio doesn't double-count it.
+  const manualForDedupe = all(
+    `SELECT started_at, ended_at FROM sessions WHERE user_id=? AND ended_at IS NOT NULL
+     AND started_at>=? AND started_at<=? AND (notes IS NULL OR notes NOT LIKE '__auto_block:%')`,
+    [userId, f, t]
+  );
+  const autoSess = dedupeAutoAgainstManual(autoSessRaw, manualForDedupe);
 
   // Also use user-defined distraction_rules on top of AI/app-name classification
   const rules = all('SELECT pattern FROM distraction_rules WHERE user_id=? AND active=1', [userId]);
@@ -5126,6 +5216,39 @@ ipcMain.handle('stats:distractionRatio', (_, { userId, from, to }) => {
 });
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+/**
+ * The background auto-tracker keeps polling and writing to `auto_sessions`
+ * even while a manual timer session (`sessions` table) is running — nothing
+ * pauses it. So the same wall-clock time can end up recorded in both tables.
+ * Before any stats handler sums manualTotal + autoTotal, every auto_sessions
+ * row must have the portion that overlaps a completed manual session's
+ * [started_at, ended_at) window subtracted, so that time is only ever counted
+ * once (via the manual session). Returns new row objects with duration_seconds
+ * reduced to the non-overlapping remainder; all other fields are preserved so
+ * downstream classifyAutoType() calls keep working unchanged.
+ */
+function dedupeAutoAgainstManual(autoRows, manualRows) {
+  const intervals = manualRows
+    .filter(r => r.started_at != null && r.ended_at != null && r.ended_at > r.started_at)
+    .map(r => ({ start: r.started_at, end: r.ended_at }))
+    .sort((a, b) => a.start - b.start);
+  if (!intervals.length) return autoRows;
+  return autoRows.map(r => {
+    const rStart = r.started_at;
+    const rDur   = r.duration_seconds || 0;
+    if (rStart == null || rDur <= 0) return r;
+    const rEnd = rStart + rDur;
+    let covered = 0;
+    for (const iv of intervals) {
+      if (iv.start >= rEnd) break; // sorted by start — no further overlaps possible
+      const s = Math.max(rStart, iv.start);
+      const e = Math.min(rEnd, iv.end);
+      if (e > s) covered += (e - s);
+    }
+    return covered > 0 ? { ...r, duration_seconds: Math.max(0, rDur - covered) } : r;
+  });
+}
 
 /**
  * Classify an auto_session row as 'deep', 'meeting', 'distraction', or 'shallow'.

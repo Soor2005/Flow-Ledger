@@ -327,7 +327,10 @@ function OverviewModule({ D, behavioralFocus, behavioralBurnout }) {
   const { summary, dailyArr, distRatio, weekComp, contextScore, effectiveDays } = D;
 
   const deepWorkSec  = summary?.deepWorkSeconds || 0;
-  const focusSec     = summary?.focusSeconds    || 0;
+  // focusSeconds (backend) includes deep-work time within it — subtract it so
+  // "Focus" here means the same non-deep, exclusive category as the Reports
+  // page's Focus series, instead of silently double-counting deep work.
+  const focusSec     = Math.max(0, (summary?.focusSeconds || 0) - deepWorkSec);
   const meetSec      = summary?.meetingSeconds  || 0;
   const breakSec     = summary?.breakSeconds    || 0;
   const focusPct     = distRatio?.focusPct      || 0;
@@ -343,7 +346,7 @@ function OverviewModule({ D, behavioralFocus, behavioralBurnout }) {
     const dw = Math.min(deepWorkSec / Math.max(effectiveDays * 3 * 3600, 1), 1) * 100;
     const fp = focusPct;
     const ct = ctxScore;
-    const ac = effectiveDays > 0 ? (dailyArr.filter(d => (d.totalSec||d.focus||0) > 1800).length / effectiveDays) * 100 : 0;
+    const ac = effectiveDays > 0 ? (dailyArr.filter(d => (d.total||0) > 1800).length / effectiveDays) * 100 : 0;
     return [
       { label:'Deep Work Volume', value:Math.round(dw), color:'#7C6CF2', weight:'0.35' },
       { label:'Focus Ratio',      value:Math.round(fp), color:'#34D399', weight:'0.30' },
@@ -352,15 +355,20 @@ function OverviewModule({ D, behavioralFocus, behavioralBurnout }) {
     ];
   }, [deepWorkSec, effectiveDays, focusPct, ctxScore, dailyArr]);
 
+  // Non-deep focus per week, matching the exclusive "Focus" category used for
+  // focusSec above and for the Reports page's per-day chart.
+  const thisWeekFocusNonDeep = Math.max(0, (weekComp?.thisWeek?.focusSecs||0) - (weekComp?.thisWeek?.deepWorkSecs||0));
+  const lastWeekFocusNonDeep = Math.max(0, (weekComp?.lastWeek?.focusSecs||0) - (weekComp?.lastWeek?.deepWorkSecs||0));
+
   const focusTrend = weekComp
-    ? Math.round(((weekComp.thisWeek?.focusSecs||0)-(weekComp.lastWeek?.focusSecs||0)) / Math.max(weekComp.lastWeek?.focusSecs||1,1) * 100)
+    ? Math.round((thisWeekFocusNonDeep-lastWeekFocusNonDeep) / Math.max(lastWeekFocusNonDeep,1) * 100)
     : 0;
   const deepTrend = weekComp
     ? Math.round(((weekComp.thisWeek?.deepWorkSecs||0)-(weekComp.lastWeek?.deepWorkSecs||0)) / Math.max(weekComp.lastWeek?.deepWorkSecs||1,1) * 100)
     : 0;
 
-  const sparkFocus = dailyArr.slice(-14).map(d => (d.focus||d.focusSec||d.totalSec||0)/3600);
-  const sparkDeep  = dailyArr.slice(-14).map(d => (d.deepWork||d.deepWorkSec||0)/3600);
+  const sparkFocus = dailyArr.slice(-14).map(d => Math.max(0, (d.focus||0)-(d.deepWork||0))/3600);
+  const sparkDeep  = dailyArr.slice(-14).map(d => (d.deepWork||0)/3600);
 
   const chartData = useMemo(() =>
     dailyArr.slice(-effectiveDays).map(d => {
@@ -368,18 +376,18 @@ function OverviewModule({ D, behavioralFocus, behavioralBurnout }) {
         .toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—';
       return {
         date,
-        focus    : Math.round((d.focus||d.focusSec||0)/360)/10,
-        deepWork : Math.round((d.deepWork||d.deepWorkSec||0)/360)/10,
-        meetings : Math.round((d.meetings||d.meetingSec||0)/360)/10,
+        focus    : Math.round(Math.max(0, (d.focus||0)-(d.deepWork||0))/360)/10,
+        deepWork : Math.round((d.deepWork||0)/360)/10,
+        meetings : Math.round((d.meetings||0)/360)/10,
       };
     }),
   [dailyArr, effectiveDays]);
 
   const wowCmp = useMemo(() => [
-    { label:'Focus',     this:(weekComp?.thisWeek?.focusSecs||0),     last:(weekComp?.lastWeek?.focusSecs||0),     color:'#34D399', Icon:Zap      },
-    { label:'Deep Work', this:(weekComp?.thisWeek?.deepWorkSecs||0),   last:(weekComp?.lastWeek?.deepWorkSecs||0),  color:'#7c6cf2', Icon:Brain    },
-    { label:'Meetings',  this:(weekComp?.thisWeek?.meetingSecs||0),    last:(weekComp?.lastWeek?.meetingSecs||0),   color:'#f87171', Icon:Clock    },
-  ], [weekComp]);
+    { label:'Focus',     this:thisWeekFocusNonDeep,                                last:lastWeekFocusNonDeep,                                color:'#34D399', Icon:Zap      },
+    { label:'Deep Work', this:(weekComp?.thisWeek?.deepWorkSecs||0),               last:(weekComp?.lastWeek?.deepWorkSecs||0),               color:'#7c6cf2', Icon:Brain    },
+    { label:'Meetings',  this:(weekComp?.thisWeek?.meetingSecs||0),                last:(weekComp?.lastWeek?.meetingSecs||0),                color:'#f87171', Icon:Clock    },
+  ], [weekComp, thisWeekFocusNonDeep, lastWeekFocusNonDeep]);
 
   return (
     <div className="space-y-3.5">
@@ -687,7 +695,7 @@ function FocusModule({ D, behavioralFocus }) {
   const { distRatio, topApps: rawApps, summary } = D;
 
   const focusPct     = distRatio?.focusPct      || 0;
-  const distractPct  = distRatio?.distractedPct  || Math.max(0, 100 - focusPct - (distRatio?.meetingPct || 0));
+  const distractPct  = distRatio?.distractedPct  ?? Math.max(0, 100 - focusPct - (distRatio?.meetingPct || 0));
   const meetingPct   = distRatio?.meetingPct     || 0;
   const focusSec     = distRatio?.focusSecs      || summary?.focusSeconds   || 0;
   const distractSec  = distRatio?.distractedSecs || 0;
@@ -1073,7 +1081,7 @@ function PatternsModule({ D, behavioralBurnout }) {
   const avgBreakH  = effectiveDays > 0 ? breakSec/effectiveDays/3600 : 0;
 
   /* Work rhythm: days with >1h deep work */
-  const rhythmDays = dailyArr.filter(d => (d.deepWork||d.deepWorkSec||0) > 3600).length;
+  const rhythmDays = dailyArr.filter(d => (d.deepWork||0) > 3600).length;
   const rhythmScore= effectiveDays > 0 ? Math.round(rhythmDays/effectiveDays*100) : 0;
 
   /* Avg session start time */
@@ -1090,7 +1098,7 @@ function PatternsModule({ D, behavioralBurnout }) {
   const dailyHoursChart = useMemo(() =>
     dailyArr.slice(-effectiveDays).map(d => {
       const date = d.date ? new Date(isNaN(d.date)?d.date:d.date*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
-      const h    = (d.totalSec||d.focus||0)/3600;
+      const h    = (d.total||0)/3600;
       return { date, hours:Math.round(h*10)/10 };
     }),
   [dailyArr, effectiveDays]);
@@ -1268,7 +1276,7 @@ export default function ProductivityPage({ user }) {
         callApi('distractionRatio',null, p),
         callApi('weekComparison',  null, { userId:user.id }),
         callApi('topApps',         null, { ...p, limit: 20 }),
-        callApi('workIntensity',   null, p),
+        callApi('workIntensity',   null, { userId:user.id }),
       ]);
       setRaw({ summary, dailyRaw, contextScore, deepBlocks, distRatio, weekComp, topApps, workIntensity });
     } catch (err) {

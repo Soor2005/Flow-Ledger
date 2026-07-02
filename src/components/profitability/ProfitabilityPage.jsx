@@ -315,7 +315,7 @@ function OverviewModule({ data, range }) {
     return arr.slice(-range).map(d => ({
       date    : new Date(d.date * 1000).toLocaleDateString('en-US', { month:'short', day:'numeric' }),
       revenue : Math.round((d.revenue || 0) * 100) / 100,
-      hours   : Math.round((d.totalSec || 0) / 360) / 10,
+      hours   : Math.round((d.totalSec || 0) / 3600 * 10) / 10,
     }));
   }, [dailyStats, range]);
 
@@ -840,7 +840,7 @@ function SustainabilityModule({ data, range }) {
       const totalSec = chunk.reduce((s, d) => s + (d.totalSec || 0), 0);
       weeks.push({
         week    : `Wk ${Math.floor(i/7)+1}`,
-        hours   : Math.round(totalSec / 360) / 10,
+        hours   : Math.round(totalSec / 3600 * 10) / 10,
         revenue : chunk.reduce((s, d) => s + (d.revenue || 0), 0),
       });
     }
@@ -850,7 +850,7 @@ function SustainabilityModule({ data, range }) {
   const dailyHours = useMemo(() =>
     (Array.isArray(dailyStats) ? dailyStats : []).slice(-14).map(d => ({
       date  : new Date(d.date * 1000).toLocaleDateString('en-US', { weekday:'short' }),
-      hours : Math.round((d.totalSec||0) / 360) / 10,
+      hours : Math.round((d.totalSec||0) / 3600 * 10) / 10,
     })),
   [dailyStats]);
 

@@ -2542,7 +2542,11 @@ export default function SummaryPanel({
     if (viewMode === 'Day') return null;
     const nowSec = Math.floor(Date.now() / 1000);
     let totalSecs = 0, deepWorkSecs = 0, meetingSecs = 0, breakSecs = 0, focusSecs = 0, count = 0;
-    for (const s of sessions) {
+
+    // Pure manual sessions — exclude __auto_block: rows to avoid double-counting auto time
+    // (mirrors the backend stats:summary filter: pureManual = sessions without __auto_block: notes)
+    const pureManualSessions = sessions.filter(s => !String(s.notes || '').startsWith('__auto_block:'));
+    for (const s of pureManualSessions) {
       // Skip sessions whose start time is in the future — these are calendar events
       // that were pre-converted but haven't actually occurred yet.
       if ((s.started_at || 0) > nowSec) continue;
@@ -2594,32 +2598,8 @@ export default function SummaryPanel({
       totalSecs += dur;
       count++;
     }
-    // Also count auto-tracked sessions that were classified as meetings
-    // (e.g. Zoom/Teams/Meet detected by the app tracker). This mirrors the
-    // stats:summary backend handler which adds autoMeet to meetingSeconds
-    // for the Day view — without this the Week/Month views would always show 0
-    // for meetings that were auto-detected rather than manually logged.
-    for (const a of autoSessions) {
-      if (a.is_idle) continue;
-      const dur = a.duration_seconds || 0;
-      if (!dur) continue;
-      const n   = ((a.app_name || '') + ' ' + (a.window_title || '')).toLowerCase();
-      const u   = (a.url || '').toLowerCase();
-      const cat = (a.ai_category || '').toLowerCase();
-      // 'communication' is intentionally excluded — email/Slack/etc. share that
-      // category but are not meetings. Only classify as meeting if the app is a
-      // known video-call tool OR the AI explicitly labelled it meeting/call/standup.
-      const MEET_AI = ['meeting', 'call', 'standup', 'sync'];
-      const isMeeting =
-        MEET_AI.some(c => cat === c || cat.startsWith(c + ' ') || cat.endsWith(' ' + c)) ||
-        /zoom|teams|meet\.google|webex|whereby|jitsi|gotomeeting/.test(n + ' ' + u);
-      if (!isMeeting) continue;
-      meetingSecs += dur;
-      totalSecs   += dur;
-      count++;
-    }
     return { totalSecs, deepWorkSecs, meetingSecs, breakSecs, focusSecs, count };
-  }, [viewMode, sessions, calEvents, autoSessions]);
+  }, [viewMode, sessions, calEvents]);
 
   // Working-day target multiplier for Week / Month
   const targetMultiplier = useMemo(() => {

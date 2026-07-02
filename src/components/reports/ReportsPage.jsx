@@ -20,6 +20,7 @@ import { lastNDays } from '../../utils/helpers';
 const api = window.electron || {};
 
 const PERIODS = [
+  { label: 'Today', days: 'today' },
   { label: '7D',  days: 7  },
   { label: '14D', days: 14 },
   { label: '30D', days: 30 },
@@ -524,6 +525,10 @@ export default function ReportsPage({ user }) {
       const t = Math.floor(new Date(customTo).getTime() / 1000) + 86400;
       return { fromTs: f, toTs: t, effectiveDays: Math.max(1, Math.round((t - f) / 86400)) };
     }
+    if (period === 'today') {
+      const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+      return { fromTs: Math.floor(midnight.getTime() / 1000), toTs: now, effectiveDays: 1 };
+    }
     return { fromTs: now - period * 86400, toTs: now, effectiveDays: period };
   }, [period, customFrom, customTo]);
 
@@ -670,7 +675,7 @@ export default function ReportsPage({ user }) {
             {new Date(fromTs * 1000).toLocaleDateString('en', { month:'short', day:'numeric' })}
             {' – '}
             {new Date(toTs * 1000).toLocaleDateString('en', { month:'short', day:'numeric', year:'numeric' })}
-            {period !== 'custom' ? ` · last ${effectiveDays}d` : ''}
+            {period === 'today' ? ' · today' : period !== 'custom' ? ` · last ${effectiveDays}d` : ''}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1058,7 +1063,7 @@ export default function ReportsPage({ user }) {
                 {sessions.slice(0, 20).map(s => {
                   const mins    = Math.round((s.duration_seconds || 0) / 60);
                   const dt      = new Date((s.started_at || 0) * 1000);
-                  const isDeep  = s.is_deep_work || mins >= 25;
+                  const isDeep  = !!s.is_deep_work;
                   return (
                     <div key={s.id} className="flex items-center gap-3 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3.5 py-2.5 hover:border-white/[0.1] transition-all">
                       <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isDeep ? '#a78bfa' : '#3DD6A4' }}/>
@@ -1084,7 +1089,7 @@ export default function ReportsPage({ user }) {
         {activeTab === 'allocation' && <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KpiCard icon={Brain}    label="Deep Work"   accentHex="#a78bfa" value={fmtHrs(deepSecs)}   sub={`${totalSecs ? Math.round(deepSecs/totalSecs*100) : 0}% of total`}/>
-            <KpiCard icon={Zap}      label="Focus"       accentHex="#3DD6A4" value={fmtHrs(focusSecs)}  sub={`${totalSecs ? Math.round(focusSecs/totalSecs*100) : 0}% of total`}/>
+            <KpiCard icon={Zap}      label="Focus"       accentHex="#3DD6A4" value={fmtHrs(Math.max(0,focusSecs-deepSecs))}  sub={`${totalSecs ? Math.round(Math.max(0,focusSecs-deepSecs)/totalSecs*100) : 0}% of total`}/>
             <KpiCard icon={Users}    label="Meetings"    accentHex="#5BA7FF" value={fmtHrs(meetSecs)}   sub={`${meetPct}% of total`}/>
             <KpiCard icon={Coffee}   label="Breaks"      accentHex="#f59e0b" value={fmtHrs(breakSecs)}  sub={`${totalSecs ? Math.round(breakSecs/totalSecs*100) : 0}% of total`}/>
           </div>

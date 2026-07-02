@@ -603,7 +603,7 @@ export default function HomePage({ user, onNavigate }) {
   // prevAuto is always fully historical — all sessions ended, use stored duration_seconds
   const prevActive = useMemo(() => prevAuto.filter(s => !s.is_idle && s.ended_at && (s.duration_seconds || 0) > 0), [prevAuto]);
 
-  // Manual session helpers — exclude breaks, require completed sessions
+  // Manual session helpers — exclude breaks, require completed sessions (ended_at set)
   const manualActive = useMemo(() =>
     manualSessions.filter(s => s.ended_at && s.started_at && (s.session_type || 'focus') !== 'break'),
   [manualSessions]);
@@ -611,32 +611,35 @@ export default function HomePage({ user, onNavigate }) {
     prevManualSessions.filter(s => s.ended_at && s.started_at && (s.session_type || 'focus') !== 'break'),
   [prevManualSessions]);
 
-  // Use auto sessions when available (auto-tracking mode); fall back to manual sessions
-  // when there are no auto sessions (manual-only mode). Combining both would double-count
-  // time for users who have background auto-tracking running alongside manual sessions.
+  // Use duration_seconds (stored net time) as primary, same as the calendar's rangeStats.
+  // Falling back to ended_at - started_at only covers sessions without a stored duration.
+  const manualDur = s => s.duration_seconds || Math.max(0, (s.ended_at || 0) - (s.started_at || 0));
+
   const totalSecs = useMemo(() => {
     const autoTotal   = active.reduce((a, s) => a + (s.duration_seconds || 0), 0);
-    const manualTotal = manualActive.reduce((a, s) => a + Math.max(0, s.ended_at - s.started_at), 0);
-    return autoTotal > 0 ? autoTotal : manualTotal;
+    const manualTotal = manualActive.reduce((a, s) => a + manualDur(s), 0);
+    // Prefer manual sessions (same source as deepSecs / calendar) so deep can never exceed total.
+    // Fall back to auto only when the user has no manually tracked sessions.
+    return manualTotal > 0 ? manualTotal : autoTotal;
   }, [active, manualActive]);
 
   const prevTotal = useMemo(() => {
     const autoTotal   = prevActive.reduce((a, s) => a + (s.duration_seconds || 0), 0);
-    const manualTotal = prevManualActive.reduce((a, s) => a + Math.max(0, s.ended_at - s.started_at), 0);
-    return autoTotal > 0 ? autoTotal : manualTotal;
+    const manualTotal = prevManualActive.reduce((a, s) => a + manualDur(s), 0);
+    return manualTotal > 0 ? manualTotal : autoTotal;
   }, [prevActive, prevManualActive]);
 
   const byType = useMemo(() => {
     const map = {};
-    active.forEach(s => { const t = classifyApp(s.app_name || '').type; map[t] = (map[t] || 0) + (s.duration_seconds || 0); });
+    active.forEach(s => { const t = classifyActivitySession(s).type; map[t] = (map[t] || 0) + (s.duration_seconds || 0); });
     return map;
   }, [active]);
 
   const manualDeepSecs = useMemo(() =>
-    manualActive.filter(s => s.is_deep_work === 1).reduce((a, s) => a + Math.max(0, s.ended_at - s.started_at), 0),
+    manualActive.filter(s => s.is_deep_work === 1).reduce((a, s) => a + manualDur(s), 0),
   [manualActive]);
-  // Mirror totalSecs: auto sessions are primary; fall back to manual when no auto data exists
-  const deepSecs     = (byType.deep || 0) > 0 ? (byType.deep || 0) : manualDeepSecs;
+  // Prefer manual sessions' is_deep_work flag (same source as calendar) over heuristic auto-classification
+  const deepSecs     = manualDeepSecs > 0 ? manualDeepSecs : (byType.deep || 0);
   const meetingSecs  =  byType.meeting  || 0;
   const distractSecs =  byType.distraction || 0;
 

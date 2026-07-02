@@ -192,6 +192,178 @@ function FocusRing({ score, color, size = 80, label }) {
   );
 }
 
+// ─── Session progress ring — circular session-goal indicator (Live Activity) ──
+// States: 'tracking' | 'paused' | 'completed' | 'stopped'. Auto-promotes to
+// 'completed' once elapsed reaches the goal while tracking. Quality score is
+// integrated as a compact strip below the ring rather than a separate card.
+function SessionProgressRing({
+  state = 'stopped',
+  elapsedSecs = 0,
+  goalSecs = 45 * 60,
+  quality = null,
+  qualityColor = '#7c6cf2',
+  qualityLabel = 'Focus Quality',
+  size = 188,
+}) {
+  const prefs = usePrefs();
+  const reduceMotion = !!prefs.reduceMotion;
+  const soundEnabled = prefs.notifSound !== false;
+
+  const strokeWidth = 12;
+  const r = (size - strokeWidth) / 2;
+  const C = 2 * Math.PI * r;
+  const rawProgress = goalSecs > 0 ? elapsedSecs / goalSecs : 0;
+  const progress = Math.max(0, Math.min(1, rawProgress));
+  const effectiveState = state === 'tracking' && rawProgress >= 1 ? 'completed' : state;
+
+  const ringColor = effectiveState === 'stopped'   ? '#475569'
+    : effectiveState === 'paused'    ? '#FBBF24'
+    : effectiveState === 'completed' ? '#34D399'
+    : progress >= 0.9 ? '#FBBF24' : '#7c6cf2';
+
+  // ── Milestone crossing → brief glow + optional sound/haptic ────────────────
+  const MILESTONES = [0.25, 0.5, 0.75, 1];
+  const lastProgressRef = useRef(progress);
+  const [flashMilestone, setFlashMilestone] = useState(null);
+  useEffect(() => {
+    const prev = lastProgressRef.current;
+    const crossed = MILESTONES.find(m => prev < m && progress >= m);
+    lastProgressRef.current = progress;
+    if (crossed == null || state !== 'tracking') return;
+    setFlashMilestone(crossed);
+    const t = setTimeout(() => setFlashMilestone(null), 1100);
+    if (soundEnabled) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = crossed === 1 ? 880 : 660;
+        gain.gain.setValueAtTime(0.06, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.35);
+      } catch {}
+    }
+    if (navigator.vibrate) { try { navigator.vibrate(crossed === 1 ? [30, 40, 30] : 20); } catch {} }
+    return () => clearTimeout(t);
+  }, [progress, state, soundEnabled]);
+
+  // ── Gentle pulse every full minute while tracking ────────────────────────────
+  const [minutePulse, setMinutePulse] = useState(false);
+  const lastMinuteRef = useRef(Math.floor(elapsedSecs / 60));
+  useEffect(() => {
+    const min = Math.floor(elapsedSecs / 60);
+    if (min !== lastMinuteRef.current && state === 'tracking' && min > 0) {
+      lastMinuteRef.current = min;
+      setMinutePulse(true);
+      const t = setTimeout(() => setMinutePulse(false), 700);
+      return () => clearTimeout(t);
+    }
+    lastMinuteRef.current = min;
+  }, [elapsedSecs, state]);
+
+  const remaining = Math.max(0, goalSecs - elapsedSecs);
+  const pct = Math.round(progress * 100);
+
+  // A rounded line cap on a very short arc (low progress) renders as a stray
+  // pill/stick poking off the ring rather than a smooth curve, because the
+  // cap's own radius exceeds the arc's length. Fall back to a flat cap until
+  // the arc is comfortably longer than the stroke is wide.
+  const arcLen = progress * C;
+  const progressCap = arcLen > strokeWidth * 1.5 ? 'round' : 'butt';
+
+  return (
+    <div className="flex flex-col items-center">
+      <style>{`
+        @keyframes fl-ring-glow { 0%,100% { opacity:.5 } 50% { opacity:1 } }
+        @keyframes fl-milestone-flash { 0% { r:3.5; opacity:0 } 30% { r:9; opacity:1 } 100% { r:3.5; opacity:0 } }
+      `}</style>
+      <div className="relative" style={{ width: size, height: size }}>
+        {state === 'tracking' && !reduceMotion && (
+          <div className="absolute inset-0 rounded-full pointer-events-none" style={{
+            boxShadow: `0 0 32px 4px ${ringColor}33`,
+            animation: 'fl-ring-glow 3.2s ease-in-out infinite',
+          }} />
+        )}
+        <svg width={size} height={size} style={{
+          transform: `rotate(-90deg) ${!reduceMotion && minutePulse ? 'scale(1.02)' : 'scale(1)'}`,
+          transition: 'transform 0.6s ease',
+        }}>
+          <defs>
+            <filter id="spr-glow" x="-50%" y="-50%" width="200%" height="200%" colorInterpolationFilters="sRGB">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur" />
+              <feFlood floodColor={ringColor} floodOpacity="0.45" result="col" />
+              <feComposite in="col" in2="blur" operator="in" result="glow" />
+              <feMerge><feMergeNode in="glow" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--color-bg-hover, #1e222e)" strokeWidth={strokeWidth} />
+          {progress > 0 && (
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={ringColor} strokeWidth={strokeWidth}
+              strokeDasharray={`${arcLen} ${C}`} strokeLinecap={progressCap}
+              filter={state === 'tracking' ? 'url(#spr-glow)' : undefined}
+              style={{ transition: reduceMotion ? 'none' : 'stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1), stroke 0.6s ease' }} />
+          )}
+          {MILESTONES.map(m => {
+            const angle = m * 2 * Math.PI;
+            const mx = size/2 + r * Math.cos(angle);
+            const my = size/2 + r * Math.sin(angle);
+            const reached = progress >= m - 0.001;
+            const flashing = flashMilestone === m;
+            return (
+              <g key={m}>
+                <circle cx={mx} cy={my} r={reached ? 3.5 : 2.5}
+                  fill={reached ? ringColor : 'var(--color-bg-hover, #2a3040)'}
+                  style={{ transition: 'fill 0.5s ease, r 0.3s ease' }} />
+                {flashing && !reduceMotion && (
+                  <circle cx={mx} cy={my} r={3.5} fill="none" stroke={ringColor} strokeWidth={2}
+                    style={{ animation: 'fl-milestone-flash 1.1s ease-out' }} />
+                )}
+              </g>
+            );
+          })}
+        </svg>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+          {effectiveState === 'paused' ? (
+            <div className="mb-1 flex h-9 w-9 items-center justify-center rounded-full bg-status-amber/15">
+              <Pause size={15} className="text-status-amber" />
+            </div>
+          ) : effectiveState === 'completed' ? (
+            <div className="mb-1 flex h-9 w-9 items-center justify-center rounded-full bg-status-green/15">
+              <CheckCircle2 size={17} className="text-status-green" />
+            </div>
+          ) : null}
+          <span className={`num font-mono font-extrabold tabular-nums ${effectiveState === 'stopped' ? 'text-tx-faint' : 'text-tx-primary'}`}
+            style={{ fontSize: Math.round(size * 0.135) }}>
+            {formatTimer(elapsedSecs)}
+          </span>
+          <span className="mt-1 text-[9.5px] font-semibold uppercase tracking-wide text-tx-faint">
+            Session Goal: {fmtHM(goalSecs)}
+          </span>
+          <span className="text-[11px] font-bold" style={{ color: ringColor }}>
+            {effectiveState === 'completed' ? 'Goal reached' : `${pct}% Complete`}
+          </span>
+        </div>
+      </div>
+
+      <p className="mt-2.5 text-[11px] text-tx-faint">
+        {effectiveState === 'completed' ? 'Goal reached — great work'
+          : effectiveState === 'paused'    ? 'Paused · resume to keep going'
+          : effectiveState === 'stopped'   ? 'Not started yet'
+          : `${fmtHM(remaining)} left to goal`}
+      </p>
+
+      {quality != null && (
+        <div className="mt-3 flex w-full items-center justify-between rounded-xl border border-brd-subtle bg-bg-input px-3.5 py-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-tx-faint">{qualityLabel}</span>
+          <span className="text-xs font-extrabold" style={{ color: qualityColor }}>{quality} / 100</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Mode toggle ──────────────────────────────────────────────────────────────
 function ModeToggle({ mode, onChange }) {
   return (
@@ -224,6 +396,14 @@ function FocusHeroCard({
 }) {
   const fq = useMemo(() => focusQuality(appClass, autoElapsed), [appClass, autoElapsed]);
   const fqC = fqColor(fq);
+
+  // Mirror the floating session dock's own elapsed/goal math (FocusSessionDock.jsx)
+  // so the ring always reflects the same real session tracking shown there —
+  // falls back to auto-tracking's in-app elapsed when no manual session is live.
+  const sessionElapsed = activeSession
+    ? Math.max(0, Math.floor(Date.now() / 1000) - activeSession.started_at)
+    : autoElapsed;
+  const sessionGoalSecs = (activeSession?.goal_minutes || activeSession?.target_minutes || 45) * 60;
 
   const calProgress = activeCalEvent
     ? Math.max(0, Math.min(1,
@@ -310,10 +490,8 @@ function FocusHeroCard({
 
       {/* ── User-paused ── */}
       {autoFocusState === 'user_paused' ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-10 px-6">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-status-amber/10 ring-1 ring-status-amber/20">
-            <Pause size={30} className="text-status-amber" />
-          </div>
+        <div className="flex flex-col items-center justify-center gap-4 py-6 px-6">
+          <SessionProgressRing state="paused" elapsedSecs={sessionElapsed} goalSecs={sessionGoalSecs} size={172} />
           <div className="text-center">
             <p className="text-sm font-bold text-tx-secondary">Auto-tracking paused</p>
             <p className="mt-1 text-xs text-tx-faint">No new focus sessions will be recorded until you resume.</p>
@@ -420,33 +598,6 @@ function FocusHeroCard({
       ) : heartbeat?.appName ? (
         <div className="p-4">
 
-          {/* App + elapsed row */}
-          <div className="mb-4 flex items-center gap-3.5 rounded-xl border border-brd-subtle bg-bg-sidebar/60 px-3.5 py-3">
-            <AppAvatar name={heartbeat.appName} size={46} active={autoFocusState === 'tracking'} />
-
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-extrabold text-tx-primary truncate leading-tight">{heartbeat.appName}</p>
-              {heartbeat.url && (
-                <p className="mt-0.5 text-[11px] text-tx-muted truncate">
-                  {(() => { try { return new URL(heartbeat.url).hostname.replace(/^www\./, ''); } catch { return heartbeat.url; } })()}
-                </p>
-              )}
-              {appClass && (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <TypeChip type={appClass.type} />
-                </div>
-              )}
-            </div>
-
-            {/* Elapsed */}
-            <div className="shrink-0 text-right">
-              <span className="num font-mono text-[22px] font-extrabold leading-none text-tx-primary tabular-nums">
-                {formatTimer(autoElapsed)}
-              </span>
-              <p className="mt-0.5 text-[10px] text-tx-faint">in app</p>
-            </div>
-          </div>
-
           {/* ── Focus quality OR buffer ring ── */}
           {autoFocusState === 'buffering' ? (
             <div className="rounded-xl bg-indigo-500/6 border border-indigo-500/15 p-4">
@@ -474,74 +625,26 @@ function FocusHeroCard({
               </div>
             </div>
           ) : appClass ? (
-            <div className="flex items-center gap-4">
-              <FocusRing score={fq} color={fqC} size={72} label="focus" />
-              <div className="flex-1 min-w-0">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-tx-faint">Quality</span>
-                  <span className="text-[10px] font-bold" style={{ color: fqC }}>{fq}/100</span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-bg-hover">
-                  <div className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${fq}%`, background: `linear-gradient(90deg, ${fqC}, ${fqC}99)` }} />
-                </div>
-                <p className="mt-1.5 text-[10px] text-tx-faint">
-                  {fq >= 75 ? 'Excellent deep focus' : fq >= 50 ? 'Productive session' : fq >= 30 ? 'Light work mode' : 'Distraction detected'}
-                </p>
-              </div>
+            <div className="flex flex-col items-center py-1">
+              <SessionProgressRing
+                state={autoFocusState === 'tracking' ? 'tracking' : 'stopped'}
+                elapsedSecs={sessionElapsed}
+                goalSecs={sessionGoalSecs}
+                quality={fq}
+                qualityColor={fqC}
+                qualityLabel={
+                  appClass.type === 'deep'        ? 'Deep Focus'
+                  : appClass.type === 'shallow'     ? 'Shallow Focus'
+                  : appClass.type === 'distraction' ? 'Distracted'
+                  : 'Focus Quality'
+                }
+              />
+              <p className="mt-2 text-center text-[10px] text-tx-faint">
+                {fq >= 75 ? 'Excellent deep focus' : fq >= 50 ? 'Productive session' : fq >= 30 ? 'Light work mode' : 'Distraction detected'}
+              </p>
             </div>
           ) : null}
 
-          {/* ── Auto-session badge ── */}
-          {autoFocusState === 'tracking' && autoFocusSession && (
-            <div className="mt-4 rounded-xl bg-indigo-500/8 border border-indigo-500/18 px-3.5 py-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15">
-                    <Zap size={11} className="text-indigo-400" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-indigo-300 truncate">
-                      {autoFocusSession.title || autoFocusSession.category}
-                    </p>
-                    <p className="text-[10px] text-indigo-400/60">auto session · recording</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="num font-mono text-xs font-bold text-indigo-300 tabular-nums">
-                    {formatTimer(Math.floor(Date.now() / 1000) - autoFocusSession.started_at)}
-                  </span>
-                  <button
-                    onClick={onPauseAutoSession}
-                    title="Pause auto-tracking"
-                    className="flex items-center gap-1 rounded-lg bg-status-amber/12 border border-status-amber/20 px-2 py-1 text-[10px] font-bold text-status-amber transition hover:bg-status-amber/22 hover:text-amber-300">
-                    <Pause size={8} />Pause
-                  </button>
-                  <button
-                    onClick={onStopAutoSession}
-                    title="Stop this auto session"
-                    className="flex items-center gap-1 rounded-lg bg-red-500/12 border border-red-500/20 px-2 py-1 text-[10px] font-bold text-red-400 transition hover:bg-red-500/20 hover:text-red-300">
-                    <Square size={8} fill="currentColor" />Stop
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Manual session badge ── */}
-          {activeSession && (
-            <div className="mt-3 flex items-center justify-between rounded-xl bg-accent/8 border border-accent/18 px-3.5 py-2.5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse shrink-0" />
-                <span className="text-xs font-semibold text-accent truncate">
-                  {activeSession.title || activeSession.category} · manual
-                </span>
-              </div>
-              <span className="num shrink-0 ml-2 font-mono text-xs font-bold text-tx-faint">
-                {formatTimer(Math.floor(Date.now() / 1000) - activeSession.started_at)}
-              </span>
-            </div>
-          )}
         </div>
 
       /* ── Waiting for first heartbeat ── */
@@ -1423,6 +1526,8 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
   };
 
   const isDeepWork   = elapsed >= 25 * 60;
+  const DEEP_WORK_BENCHMARK_SECS = 90 * 60;
+  const timerProgress = Math.min(1, elapsed / DEEP_WORK_BENCHMARK_SECS);
   const pomoTotal    = pomodoroPhase === 'work' ? focusSecs : currentBreakSecsRef.current;
   const pomoCurrent  = pomodoroPhase === 'work' ? Math.min(elapsed, focusSecs) : breakElapsed;
   const pomoProgress = pomoTotal > 0 ? pomoCurrent / pomoTotal : 0;
@@ -1525,6 +1630,18 @@ function ManualModePanel({ user, categories, setCategories, activeSession, setAc
                         <Zap size={11} />Deep
                       </span>
                     )}
+                  </div>
+                )}
+                {!pomodoroMode && activeSession && (
+                  <div className="mt-3">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-bg-hover">
+                      <div className="h-full rounded-full transition-all duration-1000"
+                        style={{ width: `${timerProgress * 100}%`, background: isDeepWork ? 'linear-gradient(90deg, #FBBF24, #FBBF24aa)' : 'linear-gradient(90deg, var(--color-accent,#7c6cf2), var(--color-accent,#7c6cf2)aa)' }} />
+                    </div>
+                    <div className="mt-1.5 flex justify-between">
+                      <span className="text-[10px] text-tx-faint">{Math.round(timerProgress * 100)}% of 90m benchmark</span>
+                      <span className="text-[10px] text-tx-faint">{formatTimer(Math.max(0, DEEP_WORK_BENCHMARK_SECS - elapsed))} to go</span>
+                    </div>
                   </div>
                 )}
                 <p className={`${pomodoroMode ? 'text-center' : ''} mt-2 text-sm text-tx-muted`}>
@@ -2433,31 +2550,6 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
                 }}
               />
 
-              {/* ── AI Intelligence Panel ── */}
-              {(autoFocusState === 'tracking' || timerAI.hasIntel || autoFocusState === 'buffering') && (
-                <AIStatusPanel
-                  workflow={timerAI.workflow}
-                  flowState={timerAI.flowState}
-                  focusQuality={timerAI.focusQuality}
-                  liveInsights={timerAI.liveInsights}
-                  recommendation={timerAI.recommendation}
-                  continuity={timerAI.continuity}
-                  projectSuggestion={timerAI.projectSuggestion}
-                  productivityState={timerAI.productivityState}
-                  workflowDesc={timerAI.workflowDesc}
-                  confidence={timerAI.confidence}
-                  confidenceLabel={timerAI.confidenceLabel}
-                  elapsedSecs={autoElapsed}
-                  isTracking={autoFocusState === 'tracking'}
-                  hasIntel={timerAI.hasIntel}
-                  onAcceptProjectSuggestion={(suggestion) => {
-                    if (autoFocusSession?.id) {
-                      api.updateSession?.({ sessionId: autoFocusSession.id, projectId: suggestion.projectId });
-                    }
-                  }}
-                />
-              )}
-
               {/* ── Post-session AI card ── */}
               {postSessionAI && (
                 <PostSessionAICard
@@ -2468,12 +2560,6 @@ export default function TimerPage({ user, categories, setCategories, activeSessi
 
               {/* Analytics strip */}
               <DayAnalytics stats={todayStats} sessions={todaySessions} />
-
-              {/* Category breakdown */}
-              <CategoryBreakdownBar sessions={todaySessions} categories={categories} />
-
-              {/* Classification panel */}
-              <ClassificationPanel heartbeat={heartbeat} appClass={appClass} />
 
               {/* Calendar-aware hint */}
               {!activeCalEvent && (
